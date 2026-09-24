@@ -49,10 +49,16 @@ class SmsAutoReplier(
                         "Нет разрешения SEND_SMS — выдайте его на главном экране")
                     return
                 }
-                val result = runCatching { send(r.number, r.text) }
+                val subId = resolveSubscriptionId(ctx.phoneAccount?.id)
+                val result = runCatching { send(r.number, r.text, subId) }
                 result.onSuccess {
                     prefs.edit().putLong(key, now).apply()
-                    record(ctx, decision, "OK", null, "SMS-автоответ отправлен: «${r.text}»")
+                    val via = if (subId != null) {
+                        "с SIM ${ctx.phoneAccount?.label?.ifBlank { null } ?: "#$subId"}"
+                    } else {
+                        "с SIM по умолчанию для SMS (SIM вызова не определена)"
+                    }
+                    record(ctx, decision, "OK", null, "SMS-автоответ отправлен $via: «${r.text}»")
                 }.onFailure { t ->
                     Log.e(TAG, "SMS send failed", t)
                     record(ctx, decision, "FAILED", "sms_error", t.toString())
@@ -61,12 +67,55 @@ class SmsAutoReplier(
         }
     }
 
-    private fun send(number: String, text: String) {
+    /**
+     * PhoneAccountHandle.id → subscriptionId. На разных прошивках id аккаунта —
+     * это subId, ICCID или «ICCID + F». Пробуем по порядку; null → SIM по умолчанию.
+     */
+    private fun resolveSubscriptionId(accountId: String?): Int? {
+        if (accountId.isNullOrBlank()) return null
+        if (appContext.checkSelfPermission(Manifest.permission.READ_PHONE_STATE) !=
+            PackageManager.PERMISSION_GRANTED
+        ) return null
+
+        // 1) API 30+: официальный маппинг handle → subId.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            runCatching {
+                val telecom = appContext.getSystemService(android.telecom.TelecomManager::class.java)
+                val tm = appContext.getSystemService(android.telephony.TelephonyManager::class.java)
+                val handle = telecom.callCapablePhoneAccounts.firstOrNull { handleId(it) == accountId }
+                if (handle != null) {
+                    val sub = tm.getSubscriptionId(handle)
+                    if (sub != android.telephony.SubscriptionManager.INVALID_SUBSCRIPTION_ID) return sub
+                }
+            }
+        }
+        // 2) Сопоставление по списку активных подписок.
+        return runCatching {
+            val sm = appContext.getSystemService(android.telephony.SubscriptionManager::class.java)
+            val subs = sm.activeSubscriptionInfoList.orEmpty()
+            val bare = accountId.trimEnd('F', 'f')
+            subs.firstOrNull { it.subscriptionId.toString() == accountId }?.subscriptionId
+                ?: subs.firstOrNull {
+                    @Suppress("DEPRECATION")
+                    val icc = runCatching { it.iccId }.getOrNull().orEmpty()
+                    icc.isNotEmpty() && (icc == accountId || icc.trimEnd('F', 'f') == bare)
+                }?.subscriptionId
+        }.getOrNull()
+    }
+
+    private fun handleId(handle: android.telecom.PhoneAccountHandle): String =
+        runCatching { handle.id }.getOrNull()?.takeIf { it.isNotBlank() }
+            ?: handle.toString().substringAfterLast('[', "").substringBefore(']', "")
+
+    private fun send(number: String, text: String, subId: Int?) {
         @Suppress("DEPRECATION")
-        val sms: SmsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            appContext.getSystemService(SmsManager::class.java) ?: SmsManager.getDefault()
-        } else {
-            SmsManager.getDefault()
+        val sms: SmsManager = when {
+            subId != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+                appContext.getSystemService(SmsManager::class.java).createForSubscriptionId(subId)
+            subId != null -> SmsManager.getSmsManagerForSubscriptionId(subId)
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+                appContext.getSystemService(SmsManager::class.java) ?: SmsManager.getDefault()
+            else -> SmsManager.getDefault()
         }
         val parts = sms.divideMessage(text)
         if (parts.size > 1) sms.sendMultipartTextMessage(number, null, parts, null, null)
