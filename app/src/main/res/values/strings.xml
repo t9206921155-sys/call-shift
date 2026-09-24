@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CallShift</string>
+    <string name="unknown">Unknown</string>
+
+    <string name="tile_label">CallShift</string>
+    <string name="tile_active">Forwarding ON</string>
+    <string name="tile_inactive">Forwarding OFF</string>
+
+    <!-- InCall UI -->
+    <string name="incall_mute">Mute</string>
+    <string name="incall_speaker">Speaker</string>
+    <string name="incall_hold">Hold</string>
+    <string name="incall_unhold">Unhold</string>
+    <string name="incall_keypad">Keypad</string>
+    <string name="incall_reject">Decline</string>
+    <string name="incall_hangup">End call</string>
+    <string name="incall_answer">Answer</string>
+    <string name="incall_swap">Switch</string>
+    <string name="incall_forward_hint">Forwarded call from: %1$s</string>
+    <string name="incall_secondary_format">%1$s (%2$s)</string>
+
+    <!-- Titles -->
+    <string name="title_rule_edit">Edit Rule</string>
+    <string name="title_carrier_forward">Carrier Forwarding (MMI)</string>
+    <string name="title_diagnostics">Diagnostics &amp; Permissions</string>
+    <string name="title_logs">Event Log</string>
+    <string name="title_onboarding">Setup Wizard</string>
+    <string name="title_dialer">Phone</string>
+
+    <!-- Notifications -->
+    <string name="notif_error_title">CallShift Alert</string>
+    <string name="notif_status_active">CallShift active (%1$s, rules: %2$d)</string>
+    <string name="notif_status_inactive">CallShift disabled</string>
+    <string name="notif_incoming">Incoming call</string>
+</resources>

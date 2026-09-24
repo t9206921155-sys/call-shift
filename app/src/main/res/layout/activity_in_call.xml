@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/brand_primary"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <!-- ================= ВТОРИЧНЫЕ ВЫЗОВЫ (удержание/конференция) ================= -->
+    <LinearLayout
+        android:id="@+id/secondaryCalls"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone" />
+
+    <!-- ================= ОСНОВНОЙ ВЫЗОВ ================= -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tvCallName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:gravity="center"
+            android:textColor="#FFFFFF"
+            android:textSize="26sp"
+            android:textStyle="bold"
+            android:text="@string/unknown" />
+
+        <TextView
+            android:id="@+id/tvCallNumber"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:gravity="center"
+            android:textColor="#D8E7DE"
+            android:textIsSelectable="true"
+            android:textSize="17sp"
+            android:text="@string/unknown" />
+
+        <TextView
+            android:id="@+id/tvCallState"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:gravity="center"
+            android:textColor="@color/brand_accent"
+            android:textSize="15sp"
+            android:text="" />
+
+        <TextView
+            android:id="@+id/tvForwardHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:textColor="#BFD6C9"
+            android:textSize="13sp"
+            android:visibility="gone"
+            android:text="" />
+
+    </LinearLayout>
+
+    <!-- ================= DTMF-КЛАВИАТУРА ================= -->
+    <GridLayout
+        android:id="@+id/dtmfPad"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:columnCount="3"
+        android:visibility="gone">
+
+        <Button android:id="@+id/d1" style="@style/Widget.CallShift.DtmfKey" android:text="1" />
+        <Button android:id="@+id/d2" style="@style/Widget.CallShift.DtmfKey" android:text="2" />
+        <Button android:id="@+id/d3" style="@style/Widget.CallShift.DtmfKey" android:text="3" />
+        <Button android:id="@+id/d4" style="@style/Widget.CallShift.DtmfKey" android:text="4" />
+        <Button android:id="@+id/d5" style="@style/Widget.CallShift.DtmfKey" android:text="5" />
+        <Button android:id="@+id/d6" style="@style/Widget.CallShift.DtmfKey" android:text="6" />
+        <Button android:id="@+id/d7" style="@style/Widget.CallShift.DtmfKey" android:text="7" />
+        <Button android:id="@+id/d8" style="@style/Widget.CallShift.DtmfKey" android:text="8" />
+        <Button android:id="@+id/d9" style="@style/Widget.CallShift.DtmfKey" android:text="9" />
+        <Button android:id="@+id/dStar" style="@style/Widget.CallShift.DtmfKey" android:text="*" />
+        <Button android:id="@+id/d0" style="@style/Widget.CallShift.DtmfKey" android:text="0" />
+        <Button android:id="@+id/dHash" style="@style/Widget.CallShift.DtmfKey" android:text="#" />
+    </GridLayout>
+
+    <!-- ================= УПРАВЛЕНИЕ ВЫЗОВОМ ================= -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnMute"
+            style="@style/Widget.CallShift.CallAction"
+            android:text="@string/incall_mute" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSpeaker"
+            style="@style/Widget.CallShift.CallAction"
+            android:text="@string/incall_speaker" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnHold"
+            style="@style/Widget.CallShift.CallAction"
+            android:text="@string/incall_hold" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnKeypad"
+            style="@style/Widget.CallShift.CallAction"
+            android:text="@string/incall_keypad" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:layout_marginBottom="20dp"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnReject"
+            style="@style/Widget.CallShift.CallBig"
+            android:backgroundTint="@color/status_error"
+            android:text="@string/incall_reject" />
+
+        <Space
+            android:layout_width="20dp"
+            android:layout_height="1dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnAnswer"
+            style="@style/Widget.CallShift.CallBig"
+            android:backgroundTint="@color/status_ok"
+            android:text="@string/incall_answer" />
+    </LinearLayout>
+
+</LinearLayout>

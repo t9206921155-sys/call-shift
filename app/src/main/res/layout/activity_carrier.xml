@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/brand_primary"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:text="@string/title_carrier_forward"
+            android:textColor="@color/text_primary"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:text="Сетевая переадресация через оператора связи (MMI). Работает даже при выключенном телефоне."
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <!-- Выбор SIM -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="SIM-карта:"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <Spinner
+            android:id="@+id/spinnerSim"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginBottom="12dp"
+            android:background="@color/surface_card" />
+
+        <!-- Целевой номер -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:hint="Целевой номер (E.164, например +358401234567)"
+            android:textColorHint="@color/text_muted"
+            app:boxBackgroundColor="@color/surface_card"
+            app:boxStrokeColor="@color/brand_accent">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etTarget"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="phone"
+                android:textColor="@color/text_primary" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Тип переадресации -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Тип переадресации (код MMI):"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <Spinner
+            android:id="@+id/spinnerMmiCode"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginBottom="16dp"
+            android:background="@color/surface_card" />
+
+        <!-- Кнопки действий -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSet"
+                style="@style/Widget.CallShift.CallBig"
+                android:backgroundTint="@color/status_ok"
+                android:text="Установить" />
+
+            <Space
+                android:layout_width="8dp"
+                android:layout_height="1dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnQuery"
+                style="@style/Widget.CallShift.CallBig"
+                android:backgroundTint="@color/brand_secondary"
+                android:text="Запрос" />
+        </LinearLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnCancelAll"
+            style="@style/Widget.CallShift.CallBig"
+            android:layout_width="match_parent"
+            android:layout_marginBottom="16dp"
+            android:backgroundTint="@color/status_error"
+            android:text="Снять все переадресации (##002#)" />
+
+        <!-- Ответ оператора -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:text="Ответ оператора (USSD):"
+            android:textColor="@color/brand_accent"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvUssdResponse"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/surface_card"
+            android:padding="12dp"
+            android:text="Нет запросов"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

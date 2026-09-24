@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/brand_primary"
+    android:padding="20dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="8dp"
+            android:text="Добро пожаловать в CallShift"
+            android:textColor="@color/text_primary"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:text="Приложение для умного перехвата и переадресации входящих вызовов."
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:text="Юридическое уведомление и дисклеймер:"
+            android:textColor="@color/brand_accent"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/surface_card"
+            android:padding="12dp"
+            android:text="CallShift предназначен исключительно для личного использования и администрирования собственных телефонных номеров. Вы несёте полную ответственность за соблюдение законодательства о связи и конфиденциальности. Экстренные вызовы (112, 911 и др.) никогда не блокируются приложением."
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+
+        <CheckBox
+            android:id="@+id/cbDisclaimer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="24dp"
+            android:text="Я прочитал(а) и принимаю условия использования"
+            android:textColor="@color/text_primary" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnContinue"
+            style="@style/Widget.CallShift.CallBig"
+            android:layout_width="match_parent"
+            android:layout_marginBottom="24dp"
+            android:backgroundTint="@color/status_ok"
+            android:enabled="false"
+            android:text="Начать работу" />
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

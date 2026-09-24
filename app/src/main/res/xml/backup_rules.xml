@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="file" path="events.json" />
+    <include domain="sharedpref" path="." />
+    <include domain="file" path="rules.json" />
+</full-backup-content>

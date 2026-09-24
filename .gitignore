@@ -1,0 +1,15 @@
+*.iml
+.gradle/
+local.properties
+.idea/
+.DS_Store
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+keystore.properties
+*.keystore
+*.jks
+
+# Резервная копия релизного ключа (ТЗ A-9): НЕ коммитить
+keys/

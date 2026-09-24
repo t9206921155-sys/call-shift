@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- ============================ РАЗРЕШЕНИЯ ============================
+         Матрица разрешений: ТЗ п. 7.1. Signature-разрешения
+         (CAPTURE_AUDIO_OUTPUT, MODIFY_AUDIO_ROUTING, READ_PRECISE_PHONE_STATE)
+         намеренно НЕ запрашиваются в основной сборке (FR-P1) — они выдаются
+         только system/privileged-приложениям и вынесены во flavor "root".
+    -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.READ_PHONE_NUMBERS" />
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <uses-permission android:name="android.permission.WRITE_CALL_LOG" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Quick Settings Tile (ТЗ FR-8.3, M2) -->
+    <uses-permission android:name="android.permission.BIND_QUICK_SETTINGS_TILE"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- Декларация для Google Play (ТЗ п. 7.4) — при sideload игнорируется -->
+    <uses-permission android:name="android.permission.CALL_SCREENING" />
+
+    <!-- Собственная signature-permission для внешнего управления пресетами (FR-8.5) -->
+    <permission
+        android:name="fi.callshift.app.permission.CONTROL"
+        android:protectionLevel="signature" />
+
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="true" />
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+
+    <application
+        android:name=".CallShiftApp"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.CallShift"
+        tools:targetApi="35">
+
+        <!-- ======================= ТОЧКА ВХОДА ======================= -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- ============ ПЕРЕХВАТ ВХОДЯЩИХ (ТЗ п. 4.2, FR-2.x) ============
+             Сервис биндится СИСТЕМОЙ (Telecom). Вызывается только если
+             приложению выдана роль android.app.role.CALL_SCREENING.
+        -->
+        <service
+            android:name=".screening.CallShiftScreeningService"
+            android:directBootAware="true"
+            android:exported="true"
+            android:permission="android.permission.BIND_SCREENING_SERVICE">
+            <intent-filter>
+                <action android:name="android.telecom.CallScreeningService" />
+            </intent-filter>
+        </service>
+
+        <!-- ======= ПРОФИЛЬ B: DIALER (ТЗ FR-P3) =======
+             Обязательное требование роли ROLE_DIALER: activity, обрабатывающая
+             ACTION_DIAL (и ACTION_CALL) со схемами tel: и voicemail:.
+        -->
+        <activity
+            android:name=".ui.DialerActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.DIAL" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="tel" />
+                <data android:scheme="voicemail" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.CALL" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="tel" />
+                <data android:scheme="voicemail" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.DIAL" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- ======= ПРОФИЛЬ B: ЭКРАН ВХОДЯЩЕГО И АКТИВНОГО ВЫЗОВА ======= -->
+        <activity
+            android:name=".ui.InCallActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:showForAllUsers="true"
+            android:showOnLockScreen="true"
+            android:showWhenLocked="true"
+            android:taskAffinity="fi.callshift.app.incall"
+            android:theme="@style/Theme.CallShift.InCall"
+            android:turnScreenOn="true" />
+
+        <!-- ======= ВСПОМОГАТЕЛЬНЫЕ ЭКРАНЫ ======= -->
+        <activity
+            android:name=".ui.RuleEditActivity"
+            android:exported="false"
+            android:label="@string/title_rule_edit" />
+
+        <activity
+            android:name=".ui.CarrierForwardActivity"
+            android:exported="false"
+            android:label="@string/title_carrier_forward" />
+
+        <activity
+            android:name=".ui.DiagnosticsActivity"
+            android:exported="false"
+            android:label="@string/title_diagnostics" />
+
+        <activity
+            android:name=".ui.LogActivity"
+            android:exported="false"
+            android:label="@string/title_logs" />
+
+        <activity
+            android:name=".ui.OnboardingActivity"
+            android:exported="false"
+            android:label="@string/title_onboarding" />
+
+        <!-- ======= ПРОФИЛЬ B: InCallService =======
+             ВАЖНО: НЕ помечать exported="false" — иначе Telecom не сможет
+             привязаться во время вызова. Self-managed вызовы не забираем
+             (INCLUDE_SELF_MANAGED_CALLS = false, ТЗ FR-2.7).
+        -->
+        <service
+            android:name=".telecom.CallShiftInCallService"
+            android:exported="true"
+            android:permission="android.permission.BIND_INCALL_SERVICE">
+            <meta-data
+                android:name="android.telecom.INCLUDE_SELF_MANAGED_CALLS"
+                android:value="false" />
+            <intent-filter>
+                <action android:name="android.telecom.InCallService" />
+            </intent-filter>
+        </service>
+
+        <!-- ============ QUICK SETTINGS TILE (ТЗ FR-8.3, M2) ============ -->
+        <service
+            android:name=".ui.CallShiftTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_forward"
+            android:label="@string/tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- ============== ВОССТАНОВЛЕНИЕ ПОСЛЕ ПЕРЕЗАГРУЗКИ (FR-8.6) ============== -->
+        <receiver
+            android:name=".ui.BootReceiver"
+            android:directBootAware="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- ============ ВНЕШНЕЕ УПРАВЛЕНИЕ ПРЕСЕТАМИ (FR-8.5) ============
+             adb shell am broadcast -a fi.callshift.app.action.MASTER_TOGGLE \
+                 -n fi.callshift.app/.ui.CommandReceiver
+        -->
+        <receiver
+            android:name=".ui.CommandReceiver"
+            android:exported="true"
+            android:permission="fi.callshift.app.permission.CONTROL">
+            <intent-filter>
+                <action android:name="fi.callshift.app.action.MASTER_TOGGLE" />
+                <action android:name="fi.callshift.app.action.SET_PRESET" />
+                <action android:name="fi.callshift.app.action.PANIC" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Экспорт журнала в CSV (FR-7.3) -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+    </application>
+
+</manifest>

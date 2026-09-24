@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/brand_primary"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:text="@string/title_rule_edit"
+            android:textColor="@color/text_primary"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <!-- Основные параметры -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:hint="Название правила"
+            android:textColorHint="@color/text_muted"
+            app:boxBackgroundColor="@color/surface_card"
+            app:boxStrokeColor="@color/brand_accent">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_primary" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="Приоритет (0..999, меньше = важнее)"
+            android:textColorHint="@color/text_muted"
+            app:boxBackgroundColor="@color/surface_card"
+            app:boxStrokeColor="@color/brand_accent">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etPriority"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:text="100"
+                android:textColor="@color/text_primary" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Условия -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="Условия перехвата"
+            android:textColor="@color/brand_accent"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:hint="Маска номера (+35840*, *4567, пусто = любой)"
+            android:textColorHint="@color/text_muted"
+            app:boxBackgroundColor="@color/surface_card"
+            app:boxStrokeColor="@color/brand_accent">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etPattern"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_primary" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <CheckBox
+            android:id="@+id/cbInContacts"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Только если номер есть в контактах"
+            android:textColor="@color/text_secondary" />
+
+        <CheckBox
+            android:id="@+id/cbAnonymous"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:text="Только анонимные / скрытые номера"
+            android:textColor="@color/text_secondary" />
+
+        <!-- Действие -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="Действие"
+            android:textColor="@color/brand_accent"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Стратегия:"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <Spinner
+            android:id="@+id/spinnerStrategy"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginBottom="8dp"
+            android:background="@color/surface_card" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Вердикт перехвата:"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <Spinner
+            android:id="@+id/spinnerVerdict"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginBottom="8dp"
+            android:background="@color/surface_card" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilTarget"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:hint="Целевой номер (E.164, например +358401234567)"
+            android:textColorHint="@color/text_muted"
+            app:boxBackgroundColor="@color/surface_card"
+            app:boxStrokeColor="@color/brand_accent">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etTarget"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="phone"
+                android:textColor="@color/text_primary" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- DTMF-передача исходного номера (ТЗ п. 10.6, M2) -->
+        <CheckBox
+            android:id="@+id/cbDtmfTransfer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:text="DTMF-передача исходного номера цели (профиль B)"
+            android:textColor="@color/text_secondary" />
+
+        <!-- Кнопки управления -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSave"
+            style="@style/Widget.CallShift.CallBig"
+            android:layout_width="match_parent"
+            android:layout_marginBottom="8dp"
+            android:backgroundTint="@color/status_ok"
+            android:text="Сохранить правило" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnTest"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_marginBottom="8dp"
+            android:text="Протестировать номер" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnDelete"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="match_parent"
+            android:layout_marginBottom="24dp"
+            android:text="Удалить правило"
+            android:textColor="@color/status_error"
+            android:visibility="gone" />
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

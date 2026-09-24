@@ -1,0 +1,3323 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>���������������������� �������������� �� CallShift ���
+���������������� �� �������������������������� ����������������
+�������������� (Android), v1.1</title>
+<style>
+/* ���������� ������ PDF/HTML-������������ ���� (weasyprint). �������������� �������������� ���� ������������������������. */
+@page {
+    size: A4;
+    margin: 18mm 16mm 20mm 16mm;
+    @bottom-center {
+        content: "CallShift ��� ���� v1.1 �� ������. " counter(page) " ���� " counter(pages);
+        font-family: "DejaVu Sans", sans-serif;
+        font-size: 8pt;
+        color: #666;
+    }
+}
+
+@page :first {
+    @bottom-center { content: ""; }
+}
+
+html {
+    font-family: "DejaVu Sans", "Noto Sans", sans-serif;
+    font-size: 9.6pt;
+    line-height: 1.45;
+    color: #16211c;
+}
+
+body { margin: 0; }
+
+h1 {
+    font-size: 19pt;
+    color: #0B3D2E;
+    border-bottom: 3px solid #0B3D2E;
+    padding-bottom: 6pt;
+    margin-top: 0;
+    page-break-before: avoid;
+}
+
+h2 {
+    font-size: 13.5pt;
+    color: #0B3D2E;
+    margin-top: 18pt;
+    border-bottom: 1px solid #c9d8d0;
+    padding-bottom: 3pt;
+    page-break-after: avoid;
+}
+
+h3 {
+    font-size: 11pt;
+    color: #1B7F5A;
+    margin-top: 13pt;
+    page-break-after: avoid;
+}
+
+h4 { font-size: 10pt; color: #1B7F5A; page-break-after: avoid; }
+
+p { margin: 5pt 0; text-align: justify; }
+
+ul, ol { margin: 5pt 0 5pt 0; padding-left: 16pt; }
+li { margin: 2pt 0; }
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 8pt 0;
+    font-size: 8.4pt;
+    page-break-inside: auto;
+}
+
+thead { display: table-header-group; }
+tr { page-break-inside: avoid; }
+
+th {
+    background: #0B3D2E;
+    color: #fff;
+    text-align: left;
+    padding: 4pt 5pt;
+    border: 1px solid #0B3D2E;
+    font-weight: bold;
+}
+
+td {
+    padding: 3.5pt 5pt;
+    border: 1px solid #cfdcd5;
+    vertical-align: top;
+}
+
+tbody tr:nth-child(even) td { background: #f4f8f5; }
+
+code {
+    font-family: "DejaVu Sans Mono", monospace;
+    font-size: 8.2pt;
+    background: #eef3ef;
+    padding: 0.5pt 2pt;
+    border-radius: 2pt;
+}
+
+pre {
+    background: #0f1a15;
+    color: #dff0e6;
+    padding: 7pt 9pt;
+    border-radius: 4pt;
+    font-family: "DejaVu Sans Mono", monospace;
+    font-size: 7.6pt;
+    line-height: 1.35;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    page-break-inside: avoid;
+}
+
+pre code { background: transparent; color: inherit; padding: 0; font-size: 7.6pt; }
+
+blockquote {
+    border-left: 3px solid #1B7F5A;
+    background: #f1f7f3;
+    margin: 8pt 0;
+    padding: 5pt 10pt;
+    color: #14241d;
+}
+
+blockquote p { margin: 3pt 0; }
+
+hr { border: none; border-top: 1px solid #c9d8d0; margin: 14pt 0; }
+
+strong { color: #0B3D2E; }
+
+a { color: #1B7F5A; text-decoration: none; }
+
+/* ������������������ �������� */
+.title-block {
+    text-align: center;
+    margin-bottom: 14pt;
+}
+
+/* �������������������� */
+nav#TOC { font-size: 9.4pt; }
+nav#TOC h2 { border: none; }
+nav#TOC ul { list-style: none; padding-left: 10pt; }
+nav#TOC > ul { padding-left: 0; }
+nav#TOC li { margin: 1.5pt 0; }
+nav#TOC a { color: #16211c; }
+</style>
+</head>
+<body>
+<nav id="TOC" role="doc-toc"><h2>Содержание</h2><ul>
+<li><a href="#техническое-задание"
+id="toc-техническое-задание">ТЕХНИЧЕСКОЕ ЗАДАНИЕ</a>
+<ul>
+<li><a
+href="#мобильное-приложение-callshift--перехват-и-переадресация-входящих-вызовов-на-android"
+id="toc-мобильное-приложение-callshift--перехват-и-переадресация-входящих-вызовов-на-android">Мобильное
+приложение «CallShift» — перехват и переадресация входящих вызовов на
+Android</a></li>
+<li><a href="#1-общие-сведения" id="toc-1-общие-сведения">1. Общие
+сведения</a></li>
+<li><a href="#2-границы-проекта-scope"
+id="toc-2-границы-проекта-scope">2. Границы проекта (Scope)</a></li>
+<li><a href="#3-постановка-задачи" id="toc-3-постановка-задачи">3.
+Постановка задачи</a></li>
+<li><a href="#4-функциональные-требования"
+id="toc-4-функциональные-требования">4. Функциональные
+требования</a></li>
+<li><a href="#5-нефункциональные-требования"
+id="toc-5-нефункциональные-требования">5. Нефункциональные
+требования</a></li>
+<li><a href="#6-архитектура" id="toc-6-архитектура">6.
+Архитектура</a></li>
+<li><a
+href="#7-системные-роли-разрешения-и-установка-критический-раздел"
+id="toc-7-системные-роли-разрешения-и-установка-критический-раздел">7.
+Системные роли, разрешения и установка (критический раздел)</a></li>
+<li><a href="#8-пользовательский-интерфейс"
+id="toc-8-пользовательский-интерфейс">8. Пользовательский
+интерфейс</a></li>
+<li><a href="#9-модель-данных" id="toc-9-модель-данных">9. Модель
+данных</a></li>
+<li><a href="#10-алгоритмы" id="toc-10-алгоритмы">10. Алгоритмы</a></li>
+<li><a href="#11-выживаемость-и-борьба-с-ограничениями-oem"
+id="toc-11-выживаемость-и-борьба-с-ограничениями-oem">11. Выживаемость и
+борьба с ограничениями OEM</a></li>
+<li><a href="#12-обработка-ошибок-и-краевые-случаи"
+id="toc-12-обработка-ошибок-и-краевые-случаи">12. Обработка ошибок и
+краевые случаи</a></li>
+<li><a href="#13-логирование-наблюдаемость-приватность"
+id="toc-13-логирование-наблюдаемость-приватность">13. Логирование,
+наблюдаемость, приватность</a></li>
+<li><a href="#14-тестирование" id="toc-14-тестирование">14.
+Тестирование</a></li>
+<li><a href="#15-сборка-подписание-поставка-apk"
+id="toc-15-сборка-подписание-поставка-apk">15. Сборка, подписание,
+поставка APK</a></li>
+<li><a href="#16-риски" id="toc-16-риски">16. Риски</a></li>
+<li><a href="#17-план-работ-milestones-и-оценка"
+id="toc-17-план-работ-milestones-и-оценка">17. План работ, milestones и
+оценка</a></li>
+<li><a href="#18-критерии-приёмки" id="toc-18-критерии-приёмки">18.
+Критерии приёмки</a></li>
+<li><a
+href="#19-приложение-a-справочник-mmi-кодов-gsm3gpp-ts-22082-27007"
+id="toc-19-приложение-a-справочник-mmi-кодов-gsm3gpp-ts-22082-27007">19.
+Приложение A. Справочник MMI-кодов (GSM/3GPP TS 22.082, 27.007)</a></li>
+<li><a href="#20-приложение-b-adb-шпаргалка"
+id="toc-20-приложение-b-adb-шпаргалка">20. Приложение B.
+ADB-шпаргалка</a></li>
+<li><a
+href="#21-приложение-c-источники-нормативная-база-для-разработчика"
+id="toc-21-приложение-c-источники-нормативная-база-для-разработчика">21.
+Приложение C. Источники (нормативная база для разработчика)</a></li>
+<li><a href="#22-приложение-d-юридическая-оговорка-обязательна-в-readme"
+id="toc-22-приложение-d-юридическая-оговорка-обязательна-в-readme">22.
+Приложение D. Юридическая оговорка (обязательна в README)</a></li>
+<li><a
+href="#23-приложение-e-ограничения-публичного-android-sdk-выявленные-при-разработке-референс-сборки"
+id="toc-23-приложение-e-ограничения-публичного-android-sdk-выявленные-при-разработке-референс-сборки">23.
+Приложение E. Ограничения публичного Android SDK, выявленные при
+разработке референс-сборки</a></li>
+</ul></li>
+</ul></nav><div style="page-break-after: always;"></div>
+<h1 id="техническое-задание">ТЕХНИЧЕСКОЕ ЗАДАНИЕ</h1>
+<h2
+id="мобильное-приложение-callshift--перехват-и-переадресация-входящих-вызовов-на-android">Мобильное
+приложение «CallShift» — перехват и переадресация входящих вызовов на
+Android</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Поле</th>
+<th>Значение</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Наименование изделия</td>
+<td>CallShift (рабочее название)</td>
+</tr>
+<tr class="even">
+<td>Тип изделия</td>
+<td>Нативное Android-приложение, распространяемое как APK
+(sideload)</td>
+</tr>
+<tr class="odd">
+<td>Версия документа</td>
+<td>1.1 (добавлено Приложение E по итогам M0/M1)</td>
+</tr>
+<tr class="even">
+<td>Дата</td>
+<td>24.09.2026</td>
+</tr>
+<tr class="odd">
+<td>Статус</td>
+<td>На согласование</td>
+</tr>
+<tr class="even">
+<td>Назначение</td>
+<td>Личное использование, без публикации в Google Play</td>
+</tr>
+<tr class="odd">
+<td>Целевая аудитория</td>
+<td>1 разработчик Android (middle+/senior), срок 4–6 недель</td>
+</tr>
+<tr class="even">
+<td>Стек (рекомендация)</td>
+<td>Kotlin 2.x, Jetpack (ViewModel, Room, DataStore, WorkManager), UI:
+XML Views в MVP → Jetpack Compose в M3</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="1-общие-сведения">1. Общие сведения</h2>
+<h3 id="11-назначение-документа">1.1. Назначение документа</h3>
+<p>Документ определяет полный объём требований к приложению, которое
+<strong>перехватывает входящий вызов на уровне Android Telecom Framework
+и перенаправляет его по заданному правилу</strong> — на другой номер, на
+SIP-аккаунт или на оператора связи (сеть), а также уведомляет
+пользователя о факте вызова.</p>
+<p>Документ является основанием для:</p>
+<ul>
+<li>оценки трудозатрат и составления плана работ;</li>
+<li>разработки архитектуры и кода;</li>
+<li>приёмки результата (см. раздел 18 «Критерии приёмки»).</li>
+</ul>
+<h3 id="12-ключевое-проектное-решение-зафиксированное-заказчиком">1.2.
+Ключевое проектное решение, зафиксированное заказчиком</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Параметр</th>
+<th>Решение</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Механика</td>
+<td><strong>Перехват и перенаправление звонков</strong>
+(<code>CallScreeningService</code> + <code>ConnectionService</code>), а
+не только MMI-коды оператора</td>
+</tr>
+<tr class="even">
+<td>Стек</td>
+<td>Выбирает исполнитель (рекомендация — нативный Kotlin)</td>
+</tr>
+<tr class="odd">
+<td>Масштаб</td>
+<td>Личное использование, установка через <code>adb</code>/sideload,
+<strong>максимум возможностей</strong>, включая сценарии с ADB-грантами
+и root</td>
+</tr>
+<tr class="even">
+<td>Формат поставки</td>
+<td>APK + исходный код + ТЗ + инструкции</td>
+</tr>
+</tbody>
+</table>
+<h3 id="13-термины-и-сокращения">1.3. Термины и сокращения</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Термин</th>
+<th>Определение</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>CF (Call Forwarding)</strong></td>
+<td>Переадресация вызова на стороне сети оператора (GSM/VoLTE
+supplementary service)</td>
+</tr>
+<tr class="even">
+<td><strong>MMI</strong></td>
+<td>Man-Machine Interface — сервисные коды вида
+<code>*21*&lt;номер&gt;#</code>, исполняемые сетью</td>
+</tr>
+<tr class="odd">
+<td><strong>USSD</strong></td>
+<td>Unstructured Supplementary Service Data — сессия запрос/ответ с
+сетью</td>
+</tr>
+<tr class="even">
+<td><strong>Screening</strong></td>
+<td>Процедура досмотровой фильтрации входящего вызова системой Android
+до показа пользователю</td>
+</tr>
+<tr class="odd">
+<td><strong>Role / Роль</strong></td>
+<td>Системная роль приложения
+(<code>RoleManager.ROLE_CALL_SCREENING</code>,
+<code>ROLE_DIALER</code>)</td>
+</tr>
+<tr class="even">
+<td><strong>Self-managed Connection</strong></td>
+<td>Режим <code>ConnectionService</code>, при котором приложение само
+управляет аудиопотоком вызова (SIP/VoIP)</td>
+</tr>
+<tr class="odd">
+<td><strong>Leg (плеер/нога)</strong></td>
+<td>Одно плечо вызова: GSM-плеер или SIP-плеер</td>
+</tr>
+<tr class="even">
+<td><strong>Bridging (мост)</strong></td>
+<td>Соединение двух плеер с передачей звука между ними</td>
+</tr>
+<tr class="odd">
+<td><strong>OEM</strong></td>
+<td>Производитель устройства (Xiaomi, Samsung, Huawei и т. д.) со своей
+оболочкой</td>
+</tr>
+<tr class="even">
+<td><strong>APK / AAB</strong></td>
+<td>Форматы пакетов Android: установочный файл / пакет для
+маркетплейса</td>
+</tr>
+<tr class="odd">
+<td><strong>PII</strong></td>
+<td>Персональные данные (в данном проекте — номера телефонов, журнал
+вызовов)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="2-границы-проекта-scope">2. Границы проекта (Scope)</h2>
+<h3 id="21-в-объёме-работ-in-scope">2.1. В объёме работ (In scope)</h3>
+<ol type="1">
+<li>Движок правил переадресации с приоритетами, условиями и
+расписанием.</li>
+<li>Перехват входящих вызовов через <code>CallScreeningService</code>
+(режим «экран screening-приложения»).</li>
+<li>Режим «полного телефона»: приложение как <strong>default
+dialer</strong> (<code>ROLE_DIALER</code>) с собственным
+<code>InCallService</code> — даёт максимальные полномочия в
+Telecom.</li>
+<li>Четыре стратегии перенаправления (см. 3.3): сеть (MMI),
+callback-дозвон, SIP/VoIP, уведомление-эскалация.</li>
+<li>Управление сетевой переадресацией через MMI/USSD с отображением
+статуса по каждой SIM.</li>
+<li>Журнал событий переадресации (локальная БД), уведомления, быстрый
+тайл/виджет.</li>
+<li>Инсталлятор-мастер: проверка и выдача ролей/разрешений через
+<code>adb</code> (скрипт) и через системные настройки (ручной
+путь).</li>
+<li>Сборка, подписание и поставка APK; CI-конвейер; инструкция по
+установке на устройство.</li>
+<li>Комплект документации: README, инструкция установки, инструкция
+ADB-настройки, known issues по OEM.</li>
+</ol>
+<h3 id="22-вне-объёма-out-of-scope-если-не-заказано-отдельно">2.2. Вне
+объёма (Out of scope), если не заказано отдельно</h3>
+<ul>
+<li>Публикация в Google Play / RuStore и прохождение их политик (раздел
+7.4 описывает ограничения).</li>
+<li>Бэкенд, личный кабинет, биллинг, мультипользовательность.</li>
+<li>Запись разговоров в файл (в объёме только транзит аудио; запись —
+отдельная задача с отдельными юридическими рисками).</li>
+<li>Интеграция с конкретными CRM/1С/контакт-центрами.</li>
+<li>Поддержка iOS.</li>
+<li>Локализация на языки, кроме RU/EN.</li>
+</ul>
+<h3 id="23-допущения-и-ограничения-среды">2.3. Допущения и ограничения
+среды</h3>
+<table>
+<thead>
+<tr class="header">
+<th>№</th>
+<th>Допущение</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>D1</td>
+<td>Устройство заказчика — Android 9.0 (API 28) и выше, одна или две
+SIM, приложение используется на доверенном личном устройстве.
+<strong>Внимание:</strong> роль <code>CALL_SCREENING</code> и
+<code>RoleManager</code> доступны только с Android 10 (API 29); на
+Android 9 перехват возможен исключительно в профиле B
+(<code>ROLE_DIALER</code>), т. к.
+<code>TelecomManager.getDefaultCallScreeningApp()</code> —
+<code>@SystemApi</code></td>
+</tr>
+<tr class="even">
+<td>D2</td>
+<td>Пользователь готов выполнить одноразовую настройку через
+<code>adb</code> (выдача ролей и runtime-разрешений без диалогов)</td>
+</tr>
+<tr class="odd">
+<td>D3</td>
+<td>root <strong>не обязателен</strong> для базовой функциональности;
+root-ветки (аудио-мост, скрытые API) — опциональный модуль M4</td>
+</tr>
+<tr class="even">
+<td>D4</td>
+<td>Реальная SIM-карта обязательна для тестирования: эмулятор Android
+<strong>не поддерживает</strong> входящие GSM-вызовы и MMI/USSD
+полноценно</td>
+</tr>
+<tr class="odd">
+<td>D5</td>
+<td>Сетевая переадресация (MMI) зависит от оператора и может быть
+недоступна на некоторых MVNO/тарифах</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3-постановка-задачи">3. Постановка задачи</h2>
+<h3 id="31-проблема">3.1. Проблема</h3>
+<p>Штатные средства Android дают пользователю только «всё или ничего»:
+системная переадресация спрятана в настройках телефона, требует ручного
+ввода MMI-кодов, не зависит от условий (время, номер, SIM, занятость),
+не ведёт журнала и не умеет комбинировать сценарии «отклонить +
+позвонить на другой номер» или «отправить в SIP».</p>
+<h3 id="32-цель">3.2. Цель</h3>
+<p>Единое приложение, которое по declarative-правилам решает судьбу
+каждого входящего вызова <strong>за время, не заметное
+пользователю</strong>, и обеспечивает один из исходов:</p>
+<ol type="1">
+<li>пропустить вызов как обычно;</li>
+<li>отклонить/заглушить и перенаправить на целевой номер
+(callback-лег);</li>
+<li>включить/выключить сетевую переадресацию на стороне оператора
+(работает даже при выключенном телефоне);</li>
+<li>принять вызов и транслировать его в SIP (мост GSM ↔︎ VoIP);</li>
+<li>уведомить пользователя/внешнюю систему о вызове, не мешая
+разговору.</li>
+</ol>
+<h3 id="33-стратегии-перенаправления--обязательная-таблица-выбора">3.3.
+Стратегии перенаправления — обязательная таблица выбора</h3>
+<p>Исполнитель реализует стратегии как <strong>сменные модули</strong>
+за общим интерфейсом <code>ForwardStrategy</code>. Выбор стратегии — в
+правиле.</p>
+<table>
+<thead>
+<tr class="header">
+<th>ID</th>
+<th>Стратегия</th>
+<th>Как работает</th>
+<th>Что видит звонящий</th>
+<th>Что видит владелец</th>
+<th>Зависимости</th>
+<th>Приоритет реализации</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>S1</strong></td>
+<td><strong>Сетевая CF (MMI)</strong></td>
+<td>Приложение набирает <code>*21*&lt;номер&gt;#</code> /
+<code>*61*…</code> / <code>*67*…</code> через
+<code>TelecomManager.placeCall</code> без UI; переадресацию выполняет
+сеть оператора</td>
+<td>Слышит гудки и попадает на целевой номер; <strong>виден реальный
+номер владельца</strong></td>
+<td>Телефон может быть выключен — переадресация всё равно работает</td>
+<td>Поддержка оператором; только на уровне сети; нет гибких условий «по
+приложению»</td>
+<td><strong>M1</strong></td>
+</tr>
+<tr class="even">
+<td><strong>S2</strong></td>
+<td><strong>Screening + callback-дозвон</strong></td>
+<td><code>CallScreeningService</code> отклоняет вызов
+(<code>setDisallowCall(true)</code> + <code>setRejectCall(true)</code>),
+затем приложение совершает исходящий звонок на целевой номер</td>
+<td>Вызов сбрасывается (или уходит в «пропущенные»), затем ему
+перезванивает владелец — либо владелец звонит на целевой номер</td>
+<td>Видит уведомление «вызов перехвачен → дозвон на X»</td>
+<td>Роль <code>ROLE_CALL_SCREENING</code>; разрешение
+<code>CALL_PHONE</code>; не является «настоящей» переадресацией — это
+<strong>переадресация через приложение</strong></td>
+<td><strong>M1 (основная)</strong></td>
+</tr>
+<tr class="odd">
+<td><strong>S3</strong></td>
+<td><strong>SIP/VoIP-мост</strong></td>
+<td>Входящий GSM-вызов принимается, параллельно поднимается SIP-плеер
+через self-managed <code>ConnectionService</code>; аудио связывается
+мостом</td>
+<td>Говорит с абонентом SIP (или слышит голос владельца через мост)</td>
+<td>Может слушать/говорить через SIP-приложение</td>
+<td>SIP-стек (PJSIP/linphone-sdk), <code>MANAGE_OWN_CALLS</code>,
+стабильный интернет</td>
+<td><strong>M3</strong></td>
+</tr>
+<tr class="even">
+<td><strong>S4</strong></td>
+<td><strong>Уведомление / эскалация</strong></td>
+<td>Вызов пропускается, но факт вызова и метаданные отправляются в
+Telegram/webhook/на второй телефон</td>
+<td>Обычный звонок</td>
+<td>Мгновенное уведомление с кнопками «перезвонить», «переадресовать»,
+«заблокировать»</td>
+<td><code>INTERNET</code>, <code>POST_NOTIFICATIONS</code></td>
+<td><strong>M2</strong></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Обязательное требование к честности продукта.</strong> В UI и
+в документации приложение должно явно различать S1 («реальная сетевая
+переадресация») и S2 («перехват и дозвон на уровне приложения»).
+Пользователь должен понимать: S2 <strong>не передаёт исходный номер
+звонящего</strong> целевому абоненту по сети — GSM не позволяет
+подменить CLI сторонним приложением. Компенсационное решение — раздел
+10.6 (передача номера через DTMF/голосовое приветствие/SIP-заголовок
+<code>P-Asserted-Identity</code> в S3).</p>
+</blockquote>
+<h3 id="34-пользовательские-сценарии-user-stories">3.4. Пользовательские
+сценарии (user stories)</h3>
+<table>
+<thead>
+<tr class="header">
+<th>ID</th>
+<th>Сценарий</th>
+<th>Ожидание</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>US-1</td>
+<td>«Ночью все звонки — на второй телефон»</td>
+<td>Расписание 23:00–07:00, цель <code>+358…</code>, стратегия S1 или
+S2</td>
+</tr>
+<tr class="even">
+<td>US-2</td>
+<td>«Звонки с неизвестных номеров — отклонять и слать мне в
+Telegram»</td>
+<td>Условие «не в контактах», S4 + блокировка</td>
+</tr>
+<tr class="odd">
+<td>US-3</td>
+<td>«Когда я в роуминге — переадресовать всё на SIP»</td>
+<td>Условие по сети/роумингу, S3</td>
+</tr>
+<tr class="even">
+<td>US-4</td>
+<td>«Если занято — на голосовую почту оператора»</td>
+<td>S1 с кодом <code>*67*&lt;номер&gt;#</code></td>
+</tr>
+<tr class="odd">
+<td>US-5</td>
+<td>«Звонки от начальника — всегда пропускать громко»</td>
+<td>Whitelist с наивысшим приоритетом, обход всех правил</td>
+</tr>
+<tr class="even">
+<td>US-6</td>
+<td>«Одной кнопкой выключить всю переадресацию»</td>
+<td>Тайл Quick Settings / виджет / жест в уведомлении</td>
+</tr>
+<tr class="odd">
+<td>US-7</td>
+<td>«Покажи, что реально включено у оператора»</td>
+<td>USSD-запрос <code>*#21#</code> и разбор ответа (best-effort)</td>
+</tr>
+<tr class="even">
+<td>US-8</td>
+<td>«Сработало правило — покажи почему»</td>
+<td>Журнал с указанием ID правила, условий и таймингов</td>
+</tr>
+</tbody>
+</table>
+<h3 id="35-функциональные-профили-режимы-работы-приложения">3.5.
+Функциональные профили (режимы работы приложения)</h3>
+<p>Критично для архитектуры: объём доступных API <strong>сильно зависит
+от системной роли</strong> приложения.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Возможность</th>
+<th>Профиль A: только <code>ROLE_CALL_SCREENING</code></th>
+<th>Профиль B: <code>ROLE_DIALER</code> (default dialer)</th>
+<th>Профиль C: root / system</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>setDisallowCall</code></td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr class="even">
+<td><code>setRejectCall</code></td>
+<td>✅ (только вместе с disallow)</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr class="odd">
+<td><code>setRejectedAsMissed</code></td>
+<td>⚠️ метод <code>@hide</code> в публичном SDK: вызывать reflection'ом
+и деградировать до обычного отбоя, если метода нет</td>
+<td>⚠️ то же</td>
+<td>⚠️ то же</td>
+</tr>
+<tr class="even">
+<td><code>setSilenceCall</code> (API 29+)</td>
+<td>⚠️ только при наличии <code>ANSWER_PHONE_CALLS</code> (выдаётся
+через <code>adb</code>); вызывать reflection'ом</td>
+<td>✅ автоматически по роли</td>
+<td>✅</td>
+</tr>
+<tr class="odd">
+<td><code>setSkipNotification</code></td>
+<td>⚠️ только для default dialer / carrier app</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr class="even">
+<td><code>setSkipCallLog</code></td>
+<td>❌ игнорируется (только carrier/system)</td>
+<td>❌ игнорируется</td>
+<td>✅</td>
+</tr>
+<tr class="odd">
+<td>Управление вызовом (answer/reject/hold/DTMF)</td>
+<td>❌</td>
+<td>✅ через <code>InCallService</code></td>
+<td>✅</td>
+</tr>
+<tr class="even">
+<td>Чтение <code>CallLog</code> без runtime-диалога</td>
+<td>❌ (нужен грант)</td>
+<td>✅ неявно по роли</td>
+<td>✅</td>
+</tr>
+<tr class="odd">
+<td>Исходящий звонок без диалога</td>
+<td>⚠️ нужен <code>CALL_PHONE</code></td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr class="even">
+<td>Self-managed SIP-вызовы</td>
+<td>✅ (<code>MANAGE_OWN_CALLS</code>, normal)</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr class="odd">
+<td>Доступ к аудио вызова (<code>VOICE_CALL</code>)</td>
+<td>❌</td>
+<td>⚠️ частично при активном self-managed connection</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Требование:</strong> приложение должно при старте определять
+свой профиль (<code>PermissionProfileDetector</code>) и
+<strong>деградировать функциональность корректно</strong>, показывая в
+UI, какие функции недоступны и какой командой это лечится. Профиль B —
+рекомендуемый для «максимума возможностей» (раздел 7.2).</p>
+<hr />
+<h2 id="4-функциональные-требования">4. Функциональные требования</h2>
+<p>Обозначения приоритета: <strong>M</strong> — must (обязательно для
+приёмки), <strong>S</strong> — should, <strong>C</strong> — could.</p>
+<h3 id="41-правила-переадресации">4.1. Правила переадресации</h3>
+<table>
+<thead>
+<tr class="header">
+<th>ID</th>
+<th>Требование</th>
+<th>Приоритет</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>FR-1.1</td>
+<td>Пользователь может создавать, редактировать, удалять, дублировать и
+упорядочивать правила</td>
+<td>M</td>
+</tr>
+<tr class="even">
+<td>FR-1.2</td>
+<td>Каждое правило содержит: имя, флаг активности, приоритет (число, чем
+меньше — тем выше), условия, действие (стратегия + цель), расписание,
+срок действия</td>
+<td>M</td>
+</tr>
+<tr class="odd">
+<td>FR-1.3</td>
+<td>Условия (логическое «И» внутри группы, «ИЛИ» между группами):
+номер/маска/E.164-диапазон, «в контактах» / «не в контактах»,
+входящий/исходящий, конкретная SIM (<code>PhoneAccountHandle</code>),
+состояние линии (свободна/занята/не отвечает), тип сети
+(Wi-Fi/мобильная/роуминг), заряд батареи, время суток и дни недели,
+гео-зона (опционально, <code>ACCESS_FINE_LOCATION</code>)</td>
+<td>M (гео — C)</td>
+</tr>
+<tr class="even">
+<td>FR-1.4</td>
+<td>Действия: пропустить; отклонить; заглушить (silence); отклонить и
+отметить как пропущенный; S1 (MMI-включение/дозвон); S2 (reject +
+callback на цель); S3 (SIP-мост на аккаунт); S4 (уведомление/webhook);
+заблокировать навсегда</td>
+<td>M</td>
+</tr>
+<tr class="odd">
+<td>FR-1.5</td>
+<td>Матч правил — по приоритету, первое совпавшее побеждает; если ни
+одно не совпало — применяется «политика по умолчанию»
+(настраивается)</td>
+<td>M</td>
+</tr>
+<tr class="even">
+<td>FR-1.6</td>
+<td>Правило может иметь «тест-режим»: прогон гипотетического номера без
+реального действия</td>
+<td>S</td>
+</tr>
+<tr class="odd">
+<td>FR-1.7</td>
+<td>Импорт/экспорт правил в JSON (бэкап/перенос на новое
+устройство)</td>
+<td>M</td>
+</tr>
+<tr class="even">
+<td>FR-1.8</td>
+<td>Правила хранятся локально (Room), никаких облачных
+синхронизаций</td>
+<td>M</td>
+</tr>
+</tbody>
+</table>
+<h3 id="42-перехват-входящих-вызовов">4.2. Перехват входящих
+вызовов</h3>
+<table>
+<thead>
+<tr class="header">
+<th>ID</th>
+<th>Требование</th>
+<th>Приоритет</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>FR-2.1</td>
+<td>Реализовать <code>CallScreeningService</code> с
+<code>onScreenCall(Call.Details)</code>; ответ отдаётся методом
+<code>respondToCall(Call.Details, CallResponse)</code> <strong>строго
+тем же объектом <code>Call.Details</code></strong>, который пришёл в
+колбэк (не строковым callId). Ответ формируется <strong>не более чем за
+3000 мс</strong> (жёсткий системный таймаут ≈ 5 с, при превышении
+система пропускает вызов)</td>
+<td>M</td>
+</tr>
+<tr class="even">
+<td>FR-2.2</td>
+<td>Все тяжёлые операции (поиск в контактах, гео, сеть) выполнять
+асинхронно с предварительным кэшем; ответ в screening — только по
+кэшу/быстрым проверкам</td>
+<td>M</td>
+</tr>
+<tr class="odd">
+<td>FR-2.3</td>
+<td>При недоступности данных (например, <code>ContactsContract</code> не
+выдан) правило должно интерпретироваться безопасно: <strong>пропустить
+вызов</strong>, а не заблокировать</td>
+<td>M</td>
+</tr>
+<tr class="even">
+<td>FR-2.4</td>
+<td>Обрабатывать вызовы без номера (скрытый/ограниченный CLI):
+<code>Call.Details.getHandle() == null</code> → отдельная ветка правила
+«анонимный вызов»</td>
+<td>M</td>
+</tr>
+<tr class="odd">
+<td>FR-2.5</td>
+<td>Поддержка двух SIM:
+<code>Call.Details.getPhoneAccountHandle()</code> закрыт для сторонних
+приложений (<code>@hide</code>/<code>@SystemApi</code>), поэтому SIM
+определяется <strong>best-effort</strong>: reflection → ключи
+<code>phoneAccount*</code> в <code>Call.Details.getExtras()</code> → «не
+определена». Если SIM не определена, правило с селектором SIM трактуется
+как «любая SIM» (fail-open), а в журнал пишется
+<code>sim=undefined</code>. Полный доступ к SIM даёт только профиль B
+(<code>ROLE_DIALER</code>)</td>
+<td>M</td>
+</tr>
+<tr class="even">
+<td>FR-2.6</td>
+<td>Никогда не перехватывать экстренные номера (определять по
+<code>Call.Details</code> + локальному списку
+<code>112, 911, 100…</code> +
+<code>TelephonyManager</code>/<code>CarrierConfig</code>):
+<strong>всегда пропускать</strong></td>
+<td>M</td>
+</tr>
+<tr class="odd">
+<td>FR-2.7</td>
+<td>Не обрабатывать вызовы от self-managed соединений (VoIP-звонки
+других приложений), если пользователь явно не включил это в
+настройках</td>
+<td>S</td>
+</tr>
+<tr class="even">
+<td>FR-2.8</td>
+<td>При любом необработанном исключении в сервисе — ответ «пропустить»
+(<code>disallow=false</code>), плюс запись в журнал ошибок и
+crash-лог</td>
+<td>M</td>
+</tr>
+<tr class="odd">
+<td>FR-2.9</td>
+<td>Сервис не должен держать процесс «вечно»: после
+<code>respondToCall</code> — освобождение ресурсов; фоновый
+foreground-сервис только на время активной фазы дозвона/моста</td>
+<td>M</td>
+</tr>
+</tbody>
+</table>
+<h3 id="43-стратегия-s1--сетевая-переадресация-mmiussd">4.3. Стратегия
+S1 — сетевая переадресация (MMI/USSD)</h3>
+<table>
+<thead>
+<tr class="header">
+<th>ID</th>
+<th>Требование</th>
+<th>Приоритет</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>FR-3.1</td>
+<td>Поддержка полного набора кодов для каждой SIM: безусловная (21), по
+занятости (67), по недоступности (62), по отсутствию ответа (61), «все
+условные» (002/004), «все» (04) — установка/снятие/запрос. Идентификатор
+SIM получать из <code>PhoneAccountHandle.id</code> (поле
+<code>@hide</code>) с fallback на разбор <code>toString()</code> —
+формат <code>[&lt;pkg&gt;] &lt;id&gt;</code></td>
+<td>M</td>
+</tr>
+<tr class="even">
+<td>FR-3.2</td>
+<td>Отправка кода — через публичную сигнатуру
+<code>TelecomManager.placeCall(Uri.fromParts("tel", "*21*&lt;номер&gt;#", null), extras)</code>
+(API 26+) без показа UI; выбор SIM — через
+<code>extras.putParcelable("android.telecom.extra.PHONE_ACCOUNT_HANDLE", handle)</code>;
+приём ответа USSD — через
+<code>extras.putParcelable("android.telecom.extra.RESULT_RECEIVER", ResultReceiver)</code>
+и ключ <code>android.telecom.extra.USSD_RESPONSE</code> (обе константы
+<code>@hide</code>, используются литералы). Fallback —
+<code>Intent.ACTION_CALL</code></td>
+<td>M</td>
+</tr>
+<tr class="odd">
+<td>FR-3.3</td>
+<td>Нормализация номера цели в E.164 (<code>libphonenumber</code>) перед
+подстановкой в код; запрет на подстановку невалидных символов</td>
+<td>M</td>
+</tr>
+<tr class="even">
+<td>FR-3.4</td>
+<td>Получение ответа USSD-запроса: использовать
+<code>TelecomManager.placeCall</code> с
+<code>EXTRA_RESULT_RECEIVER</code>/<code>ResultReceiver</code> (API 28+)
+и/или <code>PhoneStateListener</code>/<code>TelephonyCallback</code> для
+разбора результата; при недоступности — фиксировать «статус
+неизвестен»</td>
+<td>S</td>
+</tr>
+<tr class="odd">
+<td>FR-3.5</td>
+<td>Локальное «желаемое состояние» (desired state) каждой настройки CF
+хранится в БД и отображается в UI отдельно от «фактического состояния
+сети» (если его удалось прочитать)</td>
+<td>M</td>
+</tr>
+<tr class="even">
+<td>FR-3.6</td>
+<td>Таймаут операции 15 с, ретрай не более 2 раз, явная индикация
+результата в UI и уведомлением</td>
+<td>M</td>
+</tr>
+<tr class="odd">
+<td>FR-3.7</td>
+<td>Поддержка «быстрых пресетов»: Всё → номер; Занято → номер; Не
+ответил (N сек) → номер; Снять всё</td>
+<td>M</td>
+</tr>
+<tr class="even">
+<td>FR-3.8</td>
+<td>Обработка ошибок оператора (не поддерживается, нет сети,
+роуминг-запрет) с человекочитаемым сообщением и кодом причины из
+USSD-ответа</td>
+<td>S</td>
+</tr>
+</tbody>
+</table>
+<h3 id="44-стратегия-s2--screening--callback-дозвон">4.4. Стратегия S2 —
+screening + callback-дозвон</h3>
+<table>
+<thead>
+<tr class="header">
+<th>ID</th>
+<th>Требование</th>
+<th>Приоритет</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>FR-4.1</td>
+<td>Последовательность:
+<code>respondToCall(disallow=true, reject=true)</code> → ожидание
+завершения вызова (не более 1500 мс) → исходящий дозвон на цель</td>
+<td>M</td>
+</tr>
+<tr class="even">
+<td>FR-4.2</td>
+<td>Дозвон: <code>Intent.ACTION_CALL</code> (профиль B / при наличии
+<code>CALL_PHONE</code>) либо <code>TelecomManager.placeCall</code>;
+номер цели — из правила</td>
+<td>M</td>
+</tr>
+<tr class="odd">
+<td>FR-4.3</td>
+<td>Защита от петель: если целевой номер == номеру звонящего или ==
+номеру владельца — правило отклоняется как некорректное ещё на этапе
+сохранения (валидация в UI)</td>
+<td>M</td>
+</tr>
+<tr class="even">
+<td>FR-4.4</td>
+<td>Защита от «шторма»: не более N дозвонов за период T (по умолчанию
+N=3, T=10 мин), настраивается</td>
+<td>M</td>
+</tr>
+<tr class="odd">
+<td>FR-4.5</td>
+<td>Режимы дозвона: «сразу», «с задержкой X сек», «только если экран
+включён», «спросить уведомлением» (кнопка «Перезвонить на цель»)</td>
+<td>S</td>
+</tr>
+<tr class="even">
+<td>FR-4.6</td>
+<td>Исходный номер звонящего сохраняется в журнал события и показывается
+в уведомлении; по возможности передаётся цели (см. 10.6)</td>
+<td>M</td>
+</tr>
+<tr class="odd">
+<td>FR-4.7</td>
+<td>При неудаче дозвона — уведомление с причиной и повторной
+кнопкой</td>
+<td>M</td>
+</tr>
+</tbody>
+</table>
+<h3 id="45-стратегия-s3--sipvoip-мост">4.5. Стратегия S3 —
+SIP/VoIP-мост</h3>
+<table>
+<thead>
+<tr class="header">
+<th>ID</th>
+<th>Требование</th>
+<th>Приоритет</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>FR-5.1</td>
+<td>Подключение ≥1 SIP-аккаунта: домен, пользователь, пароль, порт,
+транспорт (UDP/TCP/TLS), прокси; хранение пароля — в
+<code>EncryptedSharedPreferences</code>/Keystore</td>
+<td>S</td>
+</tr>
+<tr class="even">
+<td>FR-5.2</td>
+<td>Реализовать <code>ConnectionService</code> с self-managed
+соединениями (<code>registerSelfManagedConnection</code>, разрешение
+<code>MANAGE_OWN_CALLS</code>) для SIP-плеера</td>
+<td>S</td>
+</tr>
+<tr class="odd">
+<td>FR-5.3</td>
+<td>Режимы: (a) «слепая переадресация» — GSM-вызов отклоняется,
+SIP-плеер звонит на цель; (b) «мост» — GSM-вызов
+удерживается/принимается, поднимается SIP-плеер, аудио связывается; (c)
+«конференция»</td>
+<td>S</td>
+</tr>
+<tr class="even">
+<td>FR-5.4</td>
+<td>Аудио-мост: захват через
+<code>AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION)</code>
++ воспроизведение в SIP-плеер; обратное направление — симметрично;
+задержка ≤ 250 мс</td>
+<td>S</td>
+</tr>
+<tr class="odd">
+<td>FR-5.5</td>
+<td>Явно предупреждать пользователя: на устройствах без root захват
+аудио GSM-плеера ограничен политиками Android 10+
+(<code>CAPTURE_AUDIO_OUTPUT</code> — signature-разрешение); полный мост
+возможен в профиле C (root) или через удержание вызова в self-managed
+connection</td>
+<td>M (как требование к документации и UI)</td>
+</tr>
+<tr class="even">
+<td>FR-5.6</td>
+<td>Восстановление после обрыва интернета: ретрай регистрации SIP ≤ 3
+раз, при неуспехе — fallback на S2/S4</td>
+<td>S</td>
+</tr>
+<tr class="odd">
+<td>FR-5.7</td>
+<td>DTMF-транзит (RFC 2833 / SIP INFO)</td>
+<td>C</td>
+</tr>
+</tbody>
+</table>
+<h3 id="46-стратегия-s4--уведомление--эскалация">4.6. Стратегия S4 —
+уведомление / эскалация</h3>
+<table>
+<thead>
+<tr class="header">
+<th>ID</th>
+<th>Требование</th>
+<th>Приоритет</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>FR-6.1</td>
+<td>Мгновенное уведомление (high priority) с: именем/номером, SIM,
+сработавшим правилом, кнопками «Ответить», «Переадресовать на X»,
+«Заблокировать», «Открыть журнал»</td>
+<td>M</td>
+</tr>
+<tr class="even">
+<td>FR-6.2</td>
+<td>Отправка события в Telegram (Bot API <code>sendMessage</code>), в
+произвольный webhook (HTTP POST JSON), по SMS на второй номер
+(опционально)</td>
+<td>S</td>
+</tr>
+<tr class="odd">
+<td>FR-6.3</td>
+<td>Повторная отправка при отсутствии сети (WorkManager, backoff ≤ 15
+мин, очередь ≤ 100 событий)</td>
+<td>S</td>
+</tr>
+<tr class="even">
+<td>FR-6.4</td>
+<td>Настройка «минимальная длительность звонка, о которой уведомлять»
+(фильтр флеш-звонков)</td>
+<td>C</td>
+</tr>
+</tbody>
+</table>
+<h3 id="47-журнал-событий">4.7. Журнал событий</h3>
+<table>
+<thead>
+<tr class="header">
+<th>ID</th>
+<th>Требование</th>
+<th>Приоритет</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>FR-7.1</td>
+<td>Каждое срабатывание пишется в Room: время, номер (и хэш),
+направление, SIM, ID/имя правила, стратегия, цель, результат,
+длительность, причина ошибки, тайминги этапов (мс)</td>
+<td>M</td>
+</tr>
+<tr class="even">
+<td>FR-7.2</td>
+<td>Фильтры: по дате, правилу, результату, номеру; поиск;
+сортировка</td>
+<td>M</td>
+</tr>
+<tr class="odd">
+<td>FR-7.3</td>
+<td>Экспорт в CSV/JSON; очистка по возрасту (автоудаление старше N дней,
+по умолчанию 90)</td>
+<td>S</td>
+</tr>
+<tr class="even">
+<td>FR-7.4</td>
+<td>Хранение — только локально; номер может быть замаскирован в UI по
+настройке «приватность»</td>
+<td>M</td>
+</tr>
+</tbody>
+</table>
+<h3 id="48-управление-и-интеграция-с-системой">4.8. Управление и
+интеграция с системой</h3>
+<table>
+<thead>
+<tr class="header">
+<th>ID</th>
+<th>Требование</th>
+<th>Приоритет</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>FR-8.1</td>
+<td>Мастер первичной настройки (onboarding): шаги «разрешения → роль
+screening → роль dialer (опционально) → исключение из battery
+optimization → автозапуск (OEM) → проверка тест-звонком»</td>
+<td>M</td>
+</tr>
+<tr class="even">
+<td>FR-8.2</td>
+<td>Экран диагностики: таблица «что выдано / что нужно / команда adb,
+которая это выдаёт» + кнопка «скопировать команду»</td>
+<td>M</td>
+</tr>
+<tr class="odd">
+<td>FR-8.3</td>
+<td>Quick Settings Tile «Переадресация: вкл/выкл» и переключение
+активного пресета</td>
+<td>S</td>
+</tr>
+<tr class="even">
+<td>FR-8.4</td>
+<td>Виджет 2×2 / 4×1 с текущим статусом и быстрым переключением</td>
+<td>C</td>
+</tr>
+<tr class="odd">
+<td>FR-8.5</td>
+<td>Приём команд извне: broadcast-intent
+<code>fi.callshift.app.ACTION_SET_PRESET</code> с extra
+<code>preset</code> (для Tasker/Automate); защита — только с
+<code>adb</code>/системы (permission
+<code>android.permission.DUMP</code> или собственная
+signature-permission)</td>
+<td>S</td>
+</tr>
+<tr class="even">
+<td>FR-8.6</td>
+<td>Автозапуск после перезагрузки (<code>BOOT_COMPLETED</code>) —
+восстановление desired-state и foreground-сервиса, если он был
+включён</td>
+<td>M</td>
+</tr>
+</tbody>
+</table>
+<h3 id="49-настройки">4.9. Настройки</h3>
+<table>
+<thead>
+<tr class="header">
+<th>ID</th>
+<th>Требование</th>
+<th>Приоритет</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>FR-9.1</td>
+<td>Глобальный «мастер-переключатель» (вся переадресация одним
+тумблером)</td>
+<td>M</td>
+</tr>
+<tr class="even">
+<td>FR-9.2</td>
+<td>Политика по умолчанию при отсутствии совпадений</td>
+<td>M</td>
+</tr>
+<tr class="odd">
+<td>FR-9.3</td>
+<td>Уровень логирования (off/error/info/debug), экспорт логов в
+файл</td>
+<td>M</td>
+</tr>
+<tr class="even">
+<td>FR-9.4</td>
+<td>Приватность: маскировать номера, не хранить номера в логах, TTL
+журнала</td>
+<td>M</td>
+</tr>
+<tr class="odd">
+<td>FR-9.5</td>
+<td>«Режим паники»: одна кнопка снимает все MMI-переадресации со всех
+SIM и выключает все правила</td>
+<td>M</td>
+</tr>
+<tr class="even">
+<td>FR-9.6</td>
+<td>Тёмная тема, языки RU/EN</td>
+<td>S</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5-нефункциональные-требования">5. Нефункциональные
+требования</h2>
+<table>
+<thead>
+<tr class="header">
+<th>ID</th>
+<th>Категория</th>
+<th>Требование</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>NFR-1</td>
+<td>Производительность</td>
+<td>Реакция screening-сервиса ≤ 3000 мс (p95 ≤ 300 мс); холодный старт
+процесса по вызову screening ≤ 800 мс</td>
+</tr>
+<tr class="even">
+<td>NFR-2</td>
+<td>Надёжность</td>
+<td>0 (ноль) необработанных исключений в критическом пути вызова; при
+любом сбое — вызов пропускается (fail-open). Исключение: правила
+«блокировать спамеров» — fail-open тоже, но с уведомлением</td>
+</tr>
+<tr class="odd">
+<td>NFR-3</td>
+<td>Ресурсы</td>
+<td>Потребление ОЗУ в простое ≤ 40 МБ; отсутствие wakeup-lock'ов в
+простое; ≤ 1 % батареи за 24 ч в режиме ожидания (без активных
+мостов)</td>
+</tr>
+<tr class="even">
+<td>NFR-4</td>
+<td>Совместимость</td>
+<td>Android 9 (API 28) — минимум, Android 16 (API 36) — целевая
+проверка; <code>targetSdk = 35</code>; ABI: <code>arm64-v8a</code>,
+<code>armeabi-v7a</code>, <code>x86_64</code></td>
+</tr>
+<tr class="odd">
+<td>NFR-5</td>
+<td>OEM</td>
+<td>Проверено и документировано на: Xiaomi/MIUI-HyperOS, Samsung One UI,
+Huawei/HarmonyOS(EMUI), Google Pixel, OnePlus/Oppo. Для каждого —
+инструкция по автозапуску и whitelisting</td>
+</tr>
+<tr class="even">
+<td>NFR-6</td>
+<td>Безопасность</td>
+<td>Пароли SIP и токены — только в Android
+Keystore/EncryptedSharedPreferences; экспорт конфигурации — опционально
+с шифрованием (AES-GCM, пароль пользователя); никакие данные не покидают
+устройство, кроме явно настроенных webhook/Telegram</td>
+</tr>
+<tr class="odd">
+<td>NFR-7</td>
+<td>Приватность PII</td>
+<td>Номера телефонов не отправляются в аналитику; crash-репорты (если
+включены) — с маскированием номеров; журнал — локально</td>
+</tr>
+<tr class="even">
+<td>NFR-8</td>
+<td>Сопровождаемость</td>
+<td>Покрытие unit-тестами домена (матч правил, нормализация номеров) ≥
+80 %; detekt/ktlint в CI; версионирование SemVer; CHANGELOG.md</td>
+</tr>
+<tr class="odd">
+<td>NFR-9</td>
+<td>Размер</td>
+<td>APK ≤ 15 МБ (без SIP-модуля); с SIP-модулем — ≤ 40 МБ</td>
+</tr>
+<tr class="even">
+<td>NFR-10</td>
+<td>Доступность</td>
+<td>Поддержка TalkBack, минимальный размер шрифта 14sp, контраст ≥
+4.5:1</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="6-архитектура">6. Архитектура</h2>
+<h3 id="61-общая-схема">6.1. Общая схема</h3>
+<pre><code>                        ┌──────────────────────────────────────────────────────┐
+                        │                   Android Telecom                     │
+                        │  (системный процесс: InCallService, CallManager)      │
+                        └───────┬───────────────────────────────┬───────────────┘
+             onScreenCall(...)  │                               │  placeCall / MMI / USSD
+                                ▼                               ▲
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│  Приложение CallShift                                                             │
+│                                                                                   │
+│  ┌───────────────────────┐   ┌────────────────────────┐   ┌────────────────────┐ │
+│  │ ScreeningLayer        │   │ TelecomLayer           │   │ ForwardLayer       │ │
+│  │ CallScreeningService  │──▶│ InCallService (B)      │──▶│ ForwardDispatcher  │ │
+│  │ RoleDetector          │   │ SelfManagedConnService │   │  ├ MmiStrategy(S1) │ │
+│  │ CallNormalizer        │   │ CallbackDialer         │   │  ├ CallbackStr(S2) │ │
+│  └──────────┬────────────┘   └────────────────────────┘   │  ├ SipBridge(S3)   │ │
+│             │                                              │  └ NotifyStrat(S4) │ │
+│             ▼                                              └─────────┬──────────┘ │
+│  ┌──────────────────────────────────────────────────────────────────▼──────────┐ │
+│  │ Domain: RuleEngine (match/evaluate) · Schedule · Policy · Guards (антипетля) │ │
+│  └──────────────────────────────────┬───────────────────────────────────────────┘ │
+│                                     ▼                                             │
+│  ┌──────────────────────────────────────────────────────────────────────────────┐ │
+│  │ Data: Room (rules, events, cf_state) · DataStore (settings) · ContactsRepo   │ │
+│  │       Keystore (secrets) · WorkManager (retry, TTL-очистка, boot-restore)    │ │
+│  └──────────────────────────────────────────────────────────────────────────────┘ │
+│                                     ▲                                             │
+│  ┌──────────────────────────────────┴───────────────────────────────────────────┐ │
+│  │ UI: MainActivity · RulesScreen · LogScreen · DiagnosticsScreen · Onboarding  │ │
+│  │     (MVP: Views+RecyclerView; M3: Compose) · Tile · Widget                   │ │
+│  └──────────────────────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────────────────┘</code></pre>
+<h3 id="62-слои-и-их-ответственность">6.2. Слои и их
+ответственность</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Слой</th>
+<th>Ответственность</th>
+<th>Запрещено</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>screening</code></td>
+<td>Приём <code>Call.Details</code>, нормализация, быстрый (≤ 3 с)
+запрос решения у RuleEngine, формирование <code>CallResponse</code></td>
+<td>Любые сетевые вызовы, работа с БД на главном потоке, блокирующие
+IO</td>
+</tr>
+<tr class="even">
+<td><code>domain</code></td>
+<td>Чистая логика: матчинг правил, расписания, guard'ы. Без
+Android-зависимостей (кроме моделей данных)</td>
+<td>Знать о Telecom/Room</td>
+</tr>
+<tr class="odd">
+<td><code>forward</code></td>
+<td>Исполнение стратегий; каждая — отдельный класс за интерфейсом
+<code>ForwardStrategy</code></td>
+<td>Хранить состояние правил</td>
+</tr>
+<tr class="even">
+<td><code>telecom</code></td>
+<td>Инкапсуляция системных API: <code>placeCall</code>, MMI,
+<code>ConnectionService</code>, <code>InCallService</code></td>
+<td>Логика правил</td>
+</tr>
+<tr class="odd">
+<td><code>data</code></td>
+<td>Room, DataStore, Keystore, WorkManager, репозитории</td>
+<td>Прямые вызовы UI</td>
+</tr>
+<tr class="even">
+<td><code>ui</code></td>
+<td>Отображение состояния, ввод правил, диагностика</td>
+<td>Прямая работа с Telecom API (только через ViewModel → UseCase)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="63-ключевые-интерфейсы-контракт-для-разработчика">6.3. Ключевые
+интерфейсы (контракт для разработчика)</h3>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode kotlin"><code class="sourceCode kotlin"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">// domain/ForwardStrategy.kt</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">interface</span> ForwardStrategy <span class="op">{</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> <span class="va">id</span><span class="op">:</span> StrategyId           <span class="co">// S1_MMI | S2_CALLBACK | S3_SIP | S4_NOTIFY | BLOCK | PASS</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    suspend <span class="kw">fun</span> <span class="fu">execute</span><span class="op">(</span><span class="va">ctx</span><span class="op">:</span> <span class="dt">CallContext</span><span class="op">):</span> <span class="dt">ForwardResult</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">fun</span> <span class="fu">isAvailable</span><span class="op">(</span><span class="va">profile</span><span class="op">:</span> <span class="dt">PermissionProfile</span><span class="op">):</span> <span class="dt">Boolean</span>   <span class="co">// деградация по профилю A/B/C</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="co">// domain/CallContext.kt</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="kw">class</span> <span class="fu">CallContext</span><span class="op">(</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> <span class="va">rawHandle</span><span class="op">:</span> <span class="dt">String</span><span class="op">?,</span>          <span class="co">// может быть null (скрытый номер)</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> <span class="va">e164</span><span class="op">:</span> <span class="dt">String</span><span class="op">?,</span>               <span class="co">// нормализованный</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> <span class="va">direction</span><span class="op">:</span> <span class="dt">Direction</span><span class="op">,</span>        <span class="co">// INCOMING | OUTGOING</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> <span class="va">phoneAccount</span><span class="op">:</span> <span class="dt">PhoneAccountRef</span><span class="op">?,</span> <span class="co">// SIM</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> <span class="va">isEmergency</span><span class="op">:</span> <span class="dt">Boolean</span><span class="op">,</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> <span class="va">isSelfManaged</span><span class="op">:</span> <span class="dt">Boolean</span><span class="op">,</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> <span class="va">timestampEpochMs</span><span class="op">:</span> <span class="dt">Long</span><span class="op">,</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> <span class="va">extras</span><span class="op">:</span> <span class="dt">Map</span>&lt;<span class="va">String</span><span class="op">,</span> <span class="va">String</span>&gt;</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="op">)</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="co">// domain/RuleEngine.kt</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a><span class="kw">interface</span> <span class="fu">RuleEngine</span> <span class="op">{</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    suspend <span class="kw">fun</span> <span class="fu">evaluate</span><span class="op">(</span><span class="va">ctx</span><span class="op">:</span> <span class="dt">CallContext</span><span class="op">):</span> <span class="dt">Decision</span>   <span class="co">// &lt; 3000 мс, fail-open</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="kw">class</span> <span class="fu">Decision</span><span class="op">(</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> <span class="va">verdict</span><span class="op">:</span> <span class="dt">Verdict</span><span class="op">,</span>            <span class="co">// PASS | DISALLOW_REJECT | DISALLOW_AS_MISSED | SILENCE</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> <span class="va">strategy</span><span class="op">:</span> <span class="dt">StrategyId</span><span class="op">?,</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> <span class="va">target</span><span class="op">:</span> <span class="dt">String</span><span class="op">?,</span></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> <span class="va">ruleId</span><span class="op">:</span> <span class="dt">Long</span><span class="op">?,</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> <span class="va">reason</span><span class="op">:</span> <span class="dt">String</span><span class="op">,</span>              <span class="co">// для журнала и отладки</span></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>    <span class="kw">val</span> <span class="va">screeningResponse</span><span class="op">:</span> <span class="dt">ScreeningFlags</span></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a><span class="op">)</span></span></code></pre></div>
+<h3 id="64-потоки-и-конкурентность">6.4. Потоки и конкурентность</h3>
+<ul>
+<li>Все suspend-функции — на <code>Dispatchers.Default</code> (логика) и
+<code>Dispatchers.IO</code> (БД/сеть).</li>
+<li>Screening-сервис живёт в основном процессе приложения; для
+минимизации cold start — <strong>не</strong> выносить в отдельный
+процесс (иначе каждый вызов платит за старт процесса).</li>
+<li>Долгие операции (дозвон, SIP-мост, webhook) — в
+<code>ForwardDispatcher</code>, запускаемом через foreground-сервис
+<code>type="phoneCall"</code> (Android 14+ требует явного типа
+FGS).</li>
+<li>Единая точка сериализации событий — <code>Actor</code>-подобная
+очередь (Channel), чтобы два одновременных входящих не устроили гонку
+дозвона.</li>
+</ul>
+<h3 id="65-хранение">6.5. Хранение</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Сущность</th>
+<th>Хранилище</th>
+<th>Комментарий</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>rules</code></td>
+<td>Room</td>
+<td>версионирование схемы через Migration,
+<code>exportSchema = true</code></td>
+</tr>
+<tr class="even">
+<td><code>events</code> (журнал)</td>
+<td>Room</td>
+<td>индекс по <code>timestamp</code>, TTL-очистка WorkManager'ом</td>
+</tr>
+<tr class="odd">
+<td><code>cf_state</code> (desired state MMI по SIM)</td>
+<td>Room</td>
+<td>ключ = (simId, serviceCode)</td>
+</tr>
+<tr class="even">
+<td><code>settings</code></td>
+<td>DataStore Preferences</td>
+<td>типизированный wrapper</td>
+</tr>
+<tr class="odd">
+<td><code>secrets</code> (SIP-пароли, токены)</td>
+<td>EncryptedSharedPreferences / Keystore</td>
+<td>никогда не в Room и не в экспорте без пароля</td>
+</tr>
+</tbody>
+</table>
+<h3 id="66-диаграмма-последовательности-s2--основной-сценарий">6.6.
+Диаграмма последовательности (S2 — основной сценарий)</h3>
+<pre><code>Сеть ─▶ Telecom ─▶ CallScreeningService.onScreenCall(details)
+                        │  (1) CallNormalizer → e164 / isEmergency
+                        │  (2) RuleEngine.evaluate(ctx)  [кэш контактов, расписание]
+                        │  (3) Decision = DISALLOW_REJECT + S2 + target
+                        ▼
+                   respondToCall(disallow=true, reject=true, skipNotification=?)
+                        │
+                        ▼
+             ForwardDispatcher (FGS type=phoneCall)
+                        │  (4) guard: антипетля, антишторм, задержка
+                        │  (5) TelecomManager.placeCall(target) / ACTION_CALL
+                        ▼
+                   Событие в Room + уведомление пользователю</code></pre>
+<hr />
+<h2 id="7-системные-роли-разрешения-и-установка-критический-раздел">7.
+Системные роли, разрешения и установка (критический раздел)</h2>
+<h3 id="71-матрица-разрешений">7.1. Матрица разрешений</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Разрешение</th>
+<th>Уровень защиты</th>
+<th>Зачем</th>
+<th>Как получить (sideload)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>READ_PHONE_STATE</code></td>
+<td>dangerous</td>
+<td>состояние линии, SIM</td>
+<td>runtime-диалог или <code>adb shell pm grant</code></td>
+</tr>
+<tr class="even">
+<td><code>READ_PHONE_NUMBERS</code> (API 29+)</td>
+<td>dangerous</td>
+<td>собственный номер</td>
+<td>runtime / adb</td>
+</tr>
+<tr class="odd">
+<td><code>CALL_PHONE</code></td>
+<td>dangerous</td>
+<td>исходящий дозвон (S2)</td>
+<td>runtime / adb</td>
+</tr>
+<tr class="even">
+<td><code>ANSWER_PHONE_CALLS</code></td>
+<td>dangerous</td>
+<td><code>setSilenceCall</code>, управление вызовом</td>
+<td><strong>только</strong> <code>adb shell pm grant</code> или роль
+dialer</td>
+</tr>
+<tr class="odd">
+<td><code>READ_CALL_LOG</code> / <code>WRITE_CALL_LOG</code></td>
+<td>dangerous</td>
+<td>чтение/пометка вызовов</td>
+<td>runtime / adb / неявно по роли dialer</td>
+</tr>
+<tr class="even">
+<td><code>READ_CONTACTS</code></td>
+<td>dangerous</td>
+<td>условие «в контактах»</td>
+<td>runtime / adb</td>
+</tr>
+<tr class="odd">
+<td><code>POST_NOTIFICATIONS</code> (API 33+)</td>
+<td>dangerous</td>
+<td>уведомления</td>
+<td>runtime / adb</td>
+</tr>
+<tr class="even">
+<td><code>MANAGE_OWN_CALLS</code></td>
+<td>normal</td>
+<td>self-managed <code>ConnectionService</code> (SIP)</td>
+<td>автоматически</td>
+</tr>
+<tr class="odd">
+<td><code>INTERNET</code>, <code>ACCESS_NETWORK_STATE</code></td>
+<td>normal</td>
+<td>webhook/Telegram, детект сети</td>
+<td>автоматически</td>
+</tr>
+<tr class="even">
+<td><code>FOREGROUND_SERVICE</code>,
+<code>FOREGROUND_SERVICE_PHONE_CALL</code> (API 34+)</td>
+<td>normal</td>
+<td>фоновая фаза дозвона/моста</td>
+<td>автоматически</td>
+</tr>
+<tr class="odd">
+<td><code>RECEIVE_BOOT_COMPLETED</code></td>
+<td>normal</td>
+<td>восстановление после перезагрузки</td>
+<td>автоматически</td>
+</tr>
+<tr class="even">
+<td><code>REQUEST_IGNORE_BATTERY_OPTIMIZATIONS</code></td>
+<td>normal</td>
+<td>выживаемость</td>
+<td>runtime-диалог системы</td>
+</tr>
+<tr class="odd">
+<td><code>RECEIVE_SMS</code> / <code>SEND_SMS</code></td>
+<td>dangerous</td>
+<td>опционально: S4 через SMS</td>
+<td>только если включён модуль</td>
+</tr>
+<tr class="even">
+<td><code>ACCESS_FINE_LOCATION</code></td>
+<td>dangerous</td>
+<td>опционально: гео-условия</td>
+<td>только если включён модуль</td>
+</tr>
+<tr class="odd">
+<td><code>CAPTURE_AUDIO_OUTPUT</code>,
+<code>MODIFY_AUDIO_ROUTING</code>,
+<code>READ_PRECISE_PHONE_STATE</code></td>
+<td><strong>signature/privileged</strong></td>
+<td>полный аудио-мост, точное состояние</td>
+<td><strong>недоступно</strong> без root/system-подписи → профиль C</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Обязательное требование FR-P1:</strong> manifest не должен
+запрашивать signature-разрешения в основной сборке — они вызывают отказ
+установки на некоторых устройствах и не имеют смысла без root. Выносить
+в отдельный <code>root</code> build variant.</p>
+</blockquote>
+<h3 id="72-роли-и-команды-настройки-профиль-b--рекомендуемый">7.2. Роли
+и команды настройки (профиль B — рекомендуемый)</h3>
+<p>Установка через <code>adb</code> (входит в поставку как
+<code>scripts/setup_device.sh</code>):</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="va">PKG</span><span class="op">=</span>fi.callshift.app</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 1) Установка APK</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> install <span class="at">-r</span> <span class="at">-t</span> app-release.apk</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 2) Runtime-разрешения без диалогов</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> p <span class="kw">in</span> READ_PHONE_STATE READ_PHONE_NUMBERS CALL_PHONE ANSWER_PHONE_CALLS <span class="dt">\</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>         READ_CALL_LOG WRITE_CALL_LOG READ_CONTACTS POST_NOTIFICATIONS<span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>  <span class="ex">adb</span> shell pm grant <span class="va">$PKG</span> android.permission.<span class="va">$p</span> <span class="kw">||</span> <span class="fu">true</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 3) Роль screening-приложения (перехват входящих)</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell cmd role add-role-holder <span class="at">--user</span> 0 android.app.role.CALL_SCREENING <span class="va">$PKG</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="co"># 4) Роль dialer (полный контроль Telecom; требует реализованных Dialer/InCallService)</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell cmd role add-role-holder <span class="at">--user</span> 0 android.app.role.DIALER <span class="va">$PKG</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a><span class="co"># проверка:</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell cmd role get-role-holders <span class="at">--user</span> 0 android.app.role.DIALER</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="co"># 5) Исключение из оптимизации батареи</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell dumpsys deviceidle whitelist +<span class="va">$PKG</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a><span class="co"># 6) (Xiaomi/OEM) автозапуск — только вручную в настройках оболочки, см. 11.5</span></span></code></pre></div>
+<p>Откат:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell cmd role remove-role-holder <span class="at">--user</span> 0 android.app.role.CALL_SCREENING <span class="va">$PKG</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell cmd role remove-role-holder <span class="at">--user</span> 0 android.app.role.DIALER <span class="va">$PKG</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell pm revoke <span class="va">$PKG</span> android.permission.ANSWER_PHONE_CALLS</span></code></pre></div>
+<p><strong>Требование FR-P2:</strong> приложение должно уметь показать
+эти команды внутри UI (экран «Диагностика») и проверить результат после
+их выполнения (кнопка «Перепроверить»).</p>
+<p><strong>Требование FR-P3:</strong> при назначении
+<code>ROLE_DIALER</code> системный dialer заменяется — приложение
+<strong>обязано</strong> реализовывать минимально пригодный dialer
+(набор номера, экран входящего/активного вызова, ответ/отбой), иначе
+пользователь останется без телефона. Это требование — самая дорогая
+часть профиля B, оценка в разделе 17.</p>
+<p><strong>Требование FR-P4:</strong> при первом запуске без ролей
+приложение не должно «молча не работать»: показывать баннер «Перехват не
+активен» и вести в мастер настройки.</p>
+<h3 id="73-ручной-путь-без-adb">7.3. Ручной путь (без adb)</h3>
+<p><code>Настройки → Приложения → Приложения по умолчанию → Телефон / Определение номера и спам-фильтр (Call screening)</code>
+→ выбрать CallShift. Пункты меню различаются по OEM — документировать
+скриншотами для каждой оболочки (раздел 11.5).</p>
+<h3 id="74-ограничения-google-play-справочно-т-к-проект--sideload">7.4.
+Ограничения Google Play (справочно, т. к. проект — sideload)</h3>
+<p>Если в будущем потребуется публикация:</p>
+<ul>
+<li>приложение с <code>CallScreeningService</code> обязано объявить в
+manifest
+<code>&lt;uses-permission android:name="android.permission.CALL_SCREENING"/&gt;</code>
+и пройти проверку декларации;</li>
+<li>политика Play запрещает приложения, чья <strong>основная</strong>
+функция — перенаправление вызовов без согласия оператора/пользователя, а
+также «call forwarding» как основной сценарий для немодерируемого
+распространения;</li>
+<li>роль default dialer требует декларации
+<code>MANAGE_OWN_CALLS</code>/<code>ANSWER_PHONE_CALLS</code> и
+видео-демонстрации;</li>
+<li>публикация в Play <strong>не входит</strong> в объём данного ТЗ; при
+заказе — отдельная задача с аудитом политик.</li>
+</ul>
+<hr />
+<h2 id="8-пользовательский-интерфейс">8. Пользовательский интерфейс</h2>
+<h3 id="81-карта-экранов">8.1. Карта экранов</h3>
+<pre><code>MainActivity (Bottom Navigation: Правила | Статус | Журнал | Настройки)
+├── Правила
+│   ├── RulesListScreen           — список, drag-to-reorder приоритетов, свитчи активности
+│   ├── RuleEditScreen            — мастер из 4 шагов: Условия → Действие → Расписание → Проверка
+│   ├── NumberPickerSheet         — контакт / вручную / из журнала / маска
+│   └── RuleTestScreen            — «прогнать» номер, показать решение и причину
+├── Статус
+│   ├── CarrierForwardingScreen   — по каждой SIM: 21/61/62/67/04, desired vs actual, пресеты
+│   ├── DiagnosticsScreen         — таблица разрешений/ролей + adb-команды + кнопка «Перепроверить»
+│   └── SipAccountsScreen (M3)    — список аккаунтов, регистрация, статус
+├── Журнал
+│   ├── EventLogScreen            — фильтры, поиск
+│   └── EventDetailScreen         — тайминги этапов, правило, причина
+└── Настройки
+    ├── GeneralScreen             — мастер-переключатель, политика по умолчанию, режим паники
+    ├── PrivacyScreen             — маскирование, TTL, экспорт/очистка
+    ├── NotificationsScreen       — каналы, webhook/Telegram
+    └── OnboardingWizard          — пошаговая выдача ролей (показывается при первом запуске)</code></pre>
+<h3 id="82-требования-к-ui">8.2. Требования к UI</h3>
+<table>
+<thead>
+<tr class="header">
+<th>ID</th>
+<th>Требование</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>UI-1</td>
+<td>Все деструктивные действия (снятие CF, удаление правила, режим
+паники) — с подтверждением и undo-тостом (5 с)</td>
+</tr>
+<tr class="even">
+<td>UI-2</td>
+<td>На экране «Статус» крупно и однозначно: «Перехват активен / не
+активен», «Сетевая CF: включена на +358…», профиль полномочий A/B/C</td>
+</tr>
+<tr class="odd">
+<td>UI-3</td>
+<td>Любая недоступная из-за профиля функция — не скрывается, а
+показывается «заглушённой» с объяснением и командой для включения</td>
+</tr>
+<tr class="even">
+<td>UI-4</td>
+<td>Форма ввода номера: автоформатирование, валидация E.164, выбор
+страны по умолчанию (FI +358), подсказка о масках (<code>+35840*</code>,
+<code>8*</code>)</td>
+</tr>
+<tr class="odd">
+<td>UI-5</td>
+<td>Material 3, светлая/тёмная тема, поддержка системного размера
+шрифта</td>
+</tr>
+<tr class="even">
+<td>UI-6</td>
+<td>Экран журнала: группировка по дням, бейджи результата
+(успех/ошибка/пропущено), цвет — только с дублирующей иконкой
+(доступность)</td>
+</tr>
+<tr class="odd">
+<td>UI-7</td>
+<td>Время в таймингах события — в мс, с подсветкой &gt; 1000 мс
+(диагностика деградации)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="83-состояния-state-machine-главного-экрана">8.3. Состояния
+(state machine) главного экрана</h3>
+<p><code>NOT_CONFIGURED → PARTIAL (есть роль screening, нет разрешений) → ACTIVE → SUSPENDED (мастер-выключатель) → ERROR (роль отозвана системой)</code></p>
+<p>Переход в <code>ERROR</code> обязан порождать уведомление
+«Переадресация не работает: роль отозвана» — частый сценарий после
+обновления OEM-оболочки.</p>
+<hr />
+<h2 id="9-модель-данных">9. Модель данных</h2>
+<h3 id="91-rules">9.1. <code>rules</code></h3>
+<table>
+<thead>
+<tr class="header">
+<th>Поле</th>
+<th>Тип</th>
+<th>Комментарий</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>id</td>
+<td>INTEGER PK</td>
+<td>autoGenerate</td>
+</tr>
+<tr class="even">
+<td>name</td>
+<td>TEXT</td>
+<td>обязательно</td>
+</tr>
+<tr class="odd">
+<td>enabled</td>
+<td>INTEGER(bool)</td>
+<td></td>
+</tr>
+<tr class="even">
+<td>priority</td>
+<td>INTEGER</td>
+<td>0..999, уникальность не требуется</td>
+</tr>
+<tr class="odd">
+<td>conditions_json</td>
+<td>TEXT</td>
+<td>сериализованная структура условий (см. 9.4)</td>
+</tr>
+<tr class="even">
+<td>strategy</td>
+<td>TEXT</td>
+<td>enum <code>ForwardStrategy</code></td>
+</tr>
+<tr class="odd">
+<td>target_e164</td>
+<td>TEXT?</td>
+<td>цель (номер/SIP URI), nullable для BLOCK/PASS</td>
+</tr>
+<tr class="even">
+<td>sim_selector</td>
+<td>TEXT</td>
+<td>`ANY</td>
+</tr>
+<tr class="odd">
+<td>schedule_json</td>
+<td>TEXT?</td>
+<td>окна времени/дни/даты</td>
+</tr>
+<tr class="even">
+<td>valid_from / valid_to</td>
+<td>INTEGER?</td>
+<td>epoch ms</td>
+</tr>
+<tr class="odd">
+<td>response_flags</td>
+<td>INTEGER</td>
+<td>битовая маска:
+DISALLOW|REJECT|AS_MISSED|SILENCE|SKIP_NOTIFICATION</td>
+</tr>
+<tr class="even">
+<td>created_at / updated_at</td>
+<td>INTEGER</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="92-events">9.2. <code>events</code></h3>
+<table>
+<thead>
+<tr class="header">
+<th>Поле</th>
+<th>Тип</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>id</td>
+<td>INTEGER PK</td>
+</tr>
+<tr class="even">
+<td>ts</td>
+<td>INTEGER (epoch ms)</td>
+</tr>
+<tr class="odd">
+<td>direction</td>
+<td>TEXT</td>
+</tr>
+<tr class="even">
+<td>number_e164 / number_hash</td>
+<td>TEXT / TEXT</td>
+</tr>
+<tr class="odd">
+<td>sim</td>
+<td>TEXT</td>
+</tr>
+<tr class="even">
+<td>rule_id</td>
+<td>INTEGER FK (nullable)</td>
+</tr>
+<tr class="odd">
+<td>strategy</td>
+<td>TEXT</td>
+</tr>
+<tr class="even">
+<td>target</td>
+<td>TEXT</td>
+</tr>
+<tr class="odd">
+<td>result</td>
+<td>TEXT (`OK</td>
+</tr>
+<tr class="even">
+<td>error_code / error_msg</td>
+<td>TEXT</td>
+</tr>
+<tr class="odd">
+<td>timings_json</td>
+<td>TEXT (<code>{screening_ms, dial_ms, total_ms}</code>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="93-cf_state">9.3. <code>cf_state</code></h3>
+<table>
+<thead>
+<tr class="header">
+<th>Поле</th>
+<th>Тип</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>sim_id</td>
+<td>TEXT</td>
+</tr>
+<tr class="even">
+<td>service_code</td>
+<td>TEXT (`21</td>
+</tr>
+<tr class="odd">
+<td>desired_enabled</td>
+<td>INTEGER</td>
+</tr>
+<tr class="even">
+<td>desired_target</td>
+<td>TEXT?</td>
+</tr>
+<tr class="odd">
+<td>desired_no_reply_seconds</td>
+<td>INTEGER?</td>
+</tr>
+<tr class="even">
+<td>actual_enabled</td>
+<td>INTEGER?</td>
+</tr>
+<tr class="odd">
+<td>actual_target</td>
+<td>TEXT?</td>
+</tr>
+<tr class="even">
+<td>last_sync_ts</td>
+<td>INTEGER</td>
+</tr>
+<tr class="odd">
+<td>last_error</td>
+<td>TEXT?</td>
+</tr>
+</tbody>
+</table>
+<h3 id="94-json-схема-условий-пример">9.4. JSON-схема условий
+(пример)</h3>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;any_of&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;all_of&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>        <span class="fu">{</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;number_match&quot;</span><span class="fu">,</span> <span class="dt">&quot;pattern&quot;</span><span class="fu">:</span> <span class="st">&quot;+35840*&quot;</span> <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>        <span class="fu">{</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;in_contacts&quot;</span><span class="fu">,</span> <span class="dt">&quot;value&quot;</span><span class="fu">:</span> <span class="kw">false</span> <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>        <span class="fu">{</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;time_window&quot;</span><span class="fu">,</span> <span class="dt">&quot;days&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="dv">1</span><span class="ot">,</span><span class="dv">2</span><span class="ot">,</span><span class="dv">3</span><span class="ot">,</span><span class="dv">4</span><span class="ot">,</span><span class="dv">5</span><span class="ot">]</span><span class="fu">,</span> <span class="dt">&quot;from&quot;</span><span class="fu">:</span> <span class="st">&quot;22:00&quot;</span><span class="fu">,</span> <span class="dt">&quot;to&quot;</span><span class="fu">:</span> <span class="st">&quot;07:00&quot;</span> <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>        <span class="fu">{</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;sim&quot;</span><span class="fu">,</span> <span class="dt">&quot;value&quot;</span><span class="fu">:</span> <span class="st">&quot;SIM1&quot;</span> <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>        <span class="fu">{</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;network&quot;</span><span class="fu">,</span> <span class="dt">&quot;value&quot;</span><span class="fu">:</span> <span class="st">&quot;ROAMING&quot;</span> <span class="fu">}</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>      <span class="ot">]</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span> <span class="dt">&quot;all_of&quot;</span><span class="fu">:</span> <span class="ot">[</span> <span class="fu">{</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;anonymous&quot;</span><span class="fu">,</span> <span class="dt">&quot;value&quot;</span><span class="fu">:</span> <span class="kw">true</span> <span class="fu">}</span> <span class="ot">]</span> <span class="fu">}</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>Типы условий (MVP): <code>number_match</code>,
+<code>number_in_list</code>, <code>in_contacts</code>,
+<code>anonymous</code>, <code>time_window</code>,
+<code>date_range</code>, <code>sim</code>, <code>line_state</code>,
+<code>network</code>, <code>battery_below</code>. Расширение (M3):
+<code>geo_fence</code>, <code>ssid</code>,
+<code>calendar_busy</code>.</p>
+<hr />
+<h2 id="10-алгоритмы">10. Алгоритмы</h2>
+<h3 id="101-нормализация-номера">10.1. Нормализация номера</h3>
+<ol type="1">
+<li>Получить <code>Call.Details.getHandle()</code> → <code>tel:</code>
+URI → строка.</li>
+<li><code>null</code>/пусто → <code>anonymous = true</code>,
+<code>e164 = null</code>.</li>
+<li><code>PhoneNumberUtil.parse(raw, defaultRegion)</code> →
+<code>format(E.164)</code>.</li>
+<li>Дополнительно хранить <code>national</code> и <code>e164</code> для
+матчинга (оператор может отдать номер в национальном формате).</li>
+<li>Маски: поддержка <code>*</code> (префикс/суффикс) и <code>?</code>
+(цифра); сравнение — по нормализованной строке; недопустимые маски
+отклоняются при сохранении.</li>
+</ol>
+<h3 id="102-матчинг-правил">10.2. Матчинг правил</h3>
+<pre><code>вход: CallContext
+1. if ctx.isEmergency → Decision(PASS, reason=&quot;emergency&quot;)   // абсолютный приоритет
+2. if !settings.masterEnabled → Decision(PASS, reason=&quot;master_off&quot;)
+3. rules = repo.enabledRulesSortedByPriority()               // кэш в памяти, инвалидация по Flow
+4. for rule in rules:
+     if rule.schedule.matches(now) &amp;&amp; rule.conditions.matches(ctx) → return Decision(rule)
+5. return Decision(defaultPolicy)
+Ограничение: весь цикл ≤ 3000 мс; при TimeoutException → PASS + событие &quot;engine_timeout&quot;</code></pre>
+<p>Кэш контактов: предзагрузка множества нормализованных номеров в
+<code>HashSet</code> при старте процесса и по
+<code>ContentObserver</code>; при размере &gt; 20 000 — переход на
+Room-запрос по индексу.</p>
+<h3 id="103-антипетля-и-антишторм-обязательно">10.3. Антипетля и
+антишторм (обязательно)</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Guard</th>
+<th>Правило</th>
+<th>Действие при срабатывании</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Loop-self</td>
+<td><code>target == callerNumber</code></td>
+<td>отклонить правило, событие <code>guard_loop</code></td>
+</tr>
+<tr class="even">
+<td>Loop-owner</td>
+<td><code>target == ownNumber(SIM)</code></td>
+<td>то же</td>
+</tr>
+<tr class="odd">
+<td>Loop-recursion</td>
+<td>входящий от <code>target</code> при активном правиле с тем же
+<code>target</code></td>
+<td>пропустить вызов (PASS), событие <code>guard_recursion</code></td>
+</tr>
+<tr class="even">
+<td>Storm</td>
+<td>&gt; N дозвонов за T</td>
+<td>PASS + уведомление «сработала защита от шторма»</td>
+</tr>
+<tr class="odd">
+<td>Cooldown</td>
+<td>тот же номер дважды за &lt; 30 с</td>
+<td>второе событие — PASS</td>
+</tr>
+<tr class="even">
+<td>Cost</td>
+<td>номер цели в премиум-диапазоне (список по стране)</td>
+<td>запрос подтверждения в настройках правила</td>
+</tr>
+</tbody>
+</table>
+<h3 id="104-работа-с-mmi">10.4. Работа с MMI</h3>
+<pre><code>buildMmi(service, target, noReplySec, mode) →
+  REGISTER:  &quot;*&lt;code&gt;*&lt;target&gt;#&quot;, для 61: &quot;*61*&lt;target&gt;**&lt;sec&gt;#&quot;
+  ERASE:     &quot;##&lt;code&gt;#&quot;
+  INTERROGATE: &quot;*#&lt;code&gt;#&quot;
+  ERASE_ALL: &quot;##002#&quot;
+send: TelecomManager.placeCall(phoneAccountHandle, Uri.parse(&quot;tel:&lt;mmi&gt;&quot;), extras)
+      fallback: Intent.ACTION_CALL (профиль A без placeCall)
+result: ResultReceiver → разбор текста USSD (best-effort, по локали оператора) → cf_state.actual_*</code></pre>
+<p>Требование: коды отправлять <strong>именно на нужный
+SIM-account</strong> (<code>PhoneAccountHandle</code> из
+<code>TelecomManager.getCallCapablePhoneAccounts()</code>), иначе на
+двухсимочных устройствах настройка уйдёт не на ту SIM.</p>
+<h3 id="105-тайминги-s2-reject--callback">10.5. Тайминги S2 (reject →
+callback)</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Параметр</th>
+<th>Значение по умолчанию</th>
+<th>Обоснование</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>reject_to_dial_delay_ms</code></td>
+<td>800</td>
+<td>Telecom должен завершить обработку сброса, иначе новый вызов может
+быть отклонён как конфликтующий</td>
+</tr>
+<tr class="even">
+<td><code>dial_timeout_ms</code></td>
+<td>20000</td>
+<td>ожидание соединения</td>
+</tr>
+<tr class="odd">
+<td><code>max_retries</code></td>
+<td>1</td>
+<td></td>
+</tr>
+<tr class="even">
+<td><code>screening_budget_ms</code></td>
+<td>3000</td>
+<td>системный таймаут ~5 с</td>
+</tr>
+</tbody>
+</table>
+<h3 id="106-передача-исходного-номера-цели-ограничение-платформы">10.6.
+Передача исходного номера цели (ограничение платформы)</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Вариант</th>
+<th>Работает</th>
+<th>Комментарий</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Подмена CLI в GSM</td>
+<td>❌</td>
+<td>невозможно для стороннего приложения</td>
+</tr>
+<tr class="even">
+<td>DTMF после соединения</td>
+<td>⚠️ только если цель — IVR/АТС, поддерживающая ввод</td>
+<td>реализуемо в профиле B
+(<code>InCallService.playDtmfTone</code>)</td>
+</tr>
+<tr class="odd">
+<td>Голосовое объявление номера (TTS в мост)</td>
+<td>⚠️ требует аудио-моста (S3/root)</td>
+<td>вариант для M4</td>
+</tr>
+<tr class="even">
+<td>SIP-заголовок <code>P-Asserted-Identity</code> /
+<code>Diversion</code></td>
+<td>✅ в S3</td>
+<td>правильный способ для VoIP-инфраструктуры</td>
+</tr>
+<tr class="odd">
+<td>Предварительное SMS/уведомление цели «вам перезвонит +X»</td>
+<td>✅</td>
+<td>MVP-компенсация, рекомендуется включить в FR-4.6</td>
+</tr>
+</tbody>
+</table>
+<h3 id="107-аудио-мост-s3--m4--уровни-возможности">10.7. Аудио-мост (S3
+/ M4) — уровни возможности</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Уровень</th>
+<th>Условие</th>
+<th>Что доступно</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>L0</td>
+<td>Сток, профиль A/B</td>
+<td>Только «слепая» переадресация без моста: GSM-вызов отклоняется,
+SIP-плеер звонит цели. Аудио не связывается</td>
+</tr>
+<tr class="even">
+<td>L1</td>
+<td>Сток + self-managed connection удерживает GSM-плеер</td>
+<td>Частичный мост: захват <code>VOICE_COMMUNICATION</code>, передача в
+SIP; качество зависит от OEM</td>
+</tr>
+<tr class="odd">
+<td>L2</td>
+<td>Root (<code>su</code>)</td>
+<td><code>AudioRecord(REMOTE_SUBMIX)</code> / <code>VOICE_CALL</code>
+при системных правах, полный двусторонний мост, возможна запись</td>
+</tr>
+<tr class="even">
+<td>L3</td>
+<td>System-подпись / кастомная прошивка</td>
+<td>Полный доступ к modem-audio, интеграция на уровне
+<code>ims</code>/<code>telephony</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Требование FR-A1:</strong> приложение обязано детектировать
+уровень (root-проверка <code>su</code>, проверка granted
+signature-permissions) и явно писать в UI, какой режим моста доступен.
+Запрещено обещать пользователю L2/L3 при фактическом L0.</p>
+<hr />
+<h2 id="11-выживаемость-и-борьба-с-ограничениями-oem">11. Выживаемость и
+борьба с ограничениями OEM</h2>
+<h3 id="111-общие-меры">11.1. Общие меры</h3>
+<ol type="1">
+<li><code>CallScreeningService</code> вызывается системой — он
+<strong>не</strong> подвержен обычному kill'у процесса, но холодный
+старт процесса платит за инициализацию → требование: инициализация
+ленивая, без тяжёлых библиотек в <code>Application.onCreate</code>
+(DI-граф — lazy, SIP-стек — только в M3 и только по требованию).</li>
+<li>Foreground service <code>type="phoneCall"</code> — только на время
+активной фазы (дозвон/мост), с корректным <code>stopSelf</code>.</li>
+<li><code>WorkManager</code> для отложенных задач (retry webhook,
+очистка журнала, периодическая сверка <code>cf_state</code> — не чаще 1
+раза в 6 ч).</li>
+<li>Исключение из battery optimization
+(<code>ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS</code> +
+<code>adb deviceidle whitelist</code>).</li>
+<li><code>BOOT_COMPLETED</code> → восстановление desired state,
+повторная проверка ролей.</li>
+<li>Watchdog: <code>JobScheduler</code>-задача раз в 6 ч проверяет
+наличие ролей; при потере — уведомление.</li>
+</ol>
+<h3
+id="112-специфика-oem-таблица-обязательна-к-документации-в-readme">11.2.
+Специфика OEM (таблица обязательна к документации в README)</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Оболочка</th>
+<th>Проблема</th>
+<th>Мера</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>MIUI / HyperOS (Xiaomi)</td>
+<td>«Автозапуск» по умолчанию выключен; агрессивная очистка; собственный
+«Блокировщик вызовов» может перехватить screening</td>
+<td>Инструкция: Settings → Apps → Manage apps → CallShift → Autostart =
+ON; Battery saver = No restrictions; отключить конфликтующий системный
+фильтр</td>
+</tr>
+<tr class="even">
+<td>One UI (Samsung)</td>
+<td>«Sleeping apps» / «Deep sleeping apps»; роль screening называется
+«Caller ID and spam protection»</td>
+<td>Добавить в Unmonitored apps; <code>adb</code>-гранты работают
+штатно</td>
+</tr>
+<tr class="odd">
+<td>EMUI / HarmonyOS (Huawei)</td>
+<td>Ограничение фоновой активности; на устройствах без GMS роль dialer
+может вести себя иначе</td>
+<td>Ручная выдача «Allow background activity»; проверка на конкретной
+модели обязательна</td>
+</tr>
+<tr class="even">
+<td>ColorOS/Realme UI, OxygenOS</td>
+<td>App Cloner/Phone Manager убивает процессы</td>
+<td>Whitelist в Phone Manager</td>
+</tr>
+<tr class="odd">
+<td>Pixel / AOSP</td>
+<td>Наиболее предсказуемо; роль screening выдаётся через «Caller ID
+&amp; spam»</td>
+<td>Эталонное устройство для CI-ручного тестирования</td>
+</tr>
+</tbody>
+</table>
+<h3 id="113-конфликт-с-системными-screening-приложениями">11.3. Конфликт
+с системными screening-приложениями</h3>
+<p>Требование FR-S1: на устройствах, где роль
+<code>CALL_SCREENING</code> уже занята (например, Google Phone / Mi
+Dialer), установка нашей роли <strong>отзывает</strong> предыдущую —
+приложение должно предупредить об этом в onboarding и предложить возврат
+(команда <code>adb shell cmd role remove-role-holder</code>).</p>
+<p>Требование FR-S2: если пользователь держит системный спам-фильтр, наш
+движок правил должен учитывать, что часть вызовов может быть
+отфильтрована до нас — документировать, а не «бороться».</p>
+<hr />
+<h2 id="12-обработка-ошибок-и-краевые-случаи">12. Обработка ошибок и
+краевые случаи</h2>
+<table>
+<thead>
+<tr class="header">
+<th>№</th>
+<th>Ситуация</th>
+<th>Ожидаемое поведение</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>E-01</td>
+<td>Screening-роль отозвана системой/пользователем</td>
+<td>Уведомление «перехват неактивен», статус ERROR, предложение команды
+восстановления</td>
+</tr>
+<tr class="even">
+<td>E-02</td>
+<td>Не выдан <code>READ_CONTACTS</code>, правило его требует</td>
+<td>Правило помечается «деградировано», условие трактуется как «не в
+контактах» с явной пометкой в журнале; вызов не блокируется ошибкой</td>
+</tr>
+<tr class="odd">
+<td>E-03</td>
+<td>Скрытый номер (<code>handle == null</code>)</td>
+<td>Ветка «анонимный вызов»; если нет правила — политика по
+умолчанию</td>
+</tr>
+<tr class="even">
+<td>E-04</td>
+<td>Экстренный номер</td>
+<td>Всегда PASS, событие в журнал не пишется (приватность), кроме
+отладочного уровня</td>
+</tr>
+<tr class="odd">
+<td>E-05</td>
+<td>Второй входящий во время дозвона цели</td>
+<td>Новый вызов обрабатывается независимо; дозвон прерывается по guard
+«cooldown»; в журнал — <code>superseded</code></td>
+</tr>
+<tr class="even">
+<td>E-06</td>
+<td>Входящий во время активного разговора (занято)</td>
+<td>Учитывать условие <code>line_state</code>; MMI-код 67 — только через
+S1</td>
+</tr>
+<tr class="odd">
+<td>E-07</td>
+<td>Нет сети при отправке MMI</td>
+<td>Retry ≤ 2, затем ошибка <code>NO_NETWORK</code>, desired state
+остаётся «ожидает применения», задача в WorkManager</td>
+</tr>
+<tr class="even">
+<td>E-08</td>
+<td>Оператор не поддерживает код (USSD-ошибка)</td>
+<td>Понятное сообщение + предложение альтернативы (S2)</td>
+</tr>
+<tr class="odd">
+<td>E-09</td>
+<td>Цель недоступна (дозвон не удался)</td>
+<td>Уведомление, повтор по кнопке, событие <code>DIAL_FAILED</code> с
+причиной из <code>InCallService</code>/<code>Call.State</code></td>
+</tr>
+<tr class="even">
+<td>E-10</td>
+<td>Роуминг</td>
+<td>По умолчанию — предупреждение о стоимости дозвона цели (guard
+<code>Cost</code>)</td>
+</tr>
+<tr class="odd">
+<td>E-11</td>
+<td>VoWiFi / VoLTE вызов</td>
+<td>Поведение screening то же; MMI может быть недоступен → fallback
+S2</td>
+</tr>
+<tr class="even">
+<td>E-12</td>
+<td>Вызов из другого приложения (self-managed: WhatsApp/Telegram)</td>
+<td>По умолчанию не перехватывается (<code>isSelfManaged</code>),
+настраивается</td>
+</tr>
+<tr class="odd">
+<td>E-13</td>
+<td>Режим «Не беспокоить»</td>
+<td>Screening продолжает работать (система вызывает сервис), но дозвон
+цели может быть подавлен DND → предупреждение в UI</td>
+</tr>
+<tr class="even">
+<td>E-14</td>
+<td>Обновление приложения при активной роли</td>
+<td>Роли сохраняются; миграции БД обязаны быть обратно совместимыми;
+проверка в CI</td>
+</tr>
+<tr class="odd">
+<td>E-15</td>
+<td>Смена SIM/eSIM, удаление SIM</td>
+<td><code>cf_state</code> помечается <code>stale</code>; правила с
+селектором <code>HANDLE:&lt;id&gt;</code> — перепривязка по
+<code>PhoneAccountHandle.id</code>, не по индексу; если id прочитать не
+удалось (ограничение платформы, FR-2.5) — правило трактуется как «любая
+SIM»</td>
+</tr>
+<tr class="even">
+<td>E-16</td>
+<td>Пользователь удалил приложение, CF в сети осталась</td>
+<td>В onboarding/README — обязательное предупреждение: перед удалением
+выполнить «Режим паники» (<code>##002#</code>); при удалении через
+<code>ACTION_PACKAGE_FULLY_REMOVED</code> приложение уже не может ничего
+сделать — документировать</td>
+</tr>
+<tr class="odd">
+<td>E-17</td>
+<td>Часы устройства сдвинуты / смена TZ</td>
+<td>Расписание считается в локальной TZ с фиксацией <code>ZoneId</code>;
+при смене TZ — пересчёт</td>
+</tr>
+<tr class="even">
+<td>E-18</td>
+<td>Переполнение журнала</td>
+<td>Ротация: при &gt; 50 000 записей удалять старейшие</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="13-логирование-наблюдаемость-приватность">13. Логирование,
+наблюдаемость, приватность</h2>
+<table>
+<thead>
+<tr class="header">
+<th>ID</th>
+<th>Требование</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>LOG-1</td>
+<td>Уровни: <code>ERROR / WARN / INFO / DEBUG</code>; в релизе по
+умолчанию <code>WARN</code>; переключается в настройках</td>
+</tr>
+<tr class="even">
+<td>LOG-2</td>
+<td>В критическом пути screening — обязательные метки времени:
+<code>t0_onScreenCall</code>, <code>t1_rule_matched</code>,
+<code>t2_respond</code>, <code>t3_dial_start</code>,
+<code>t4_dial_result</code></td>
+</tr>
+<tr class="odd">
+<td>LOG-3</td>
+<td>Номера в логах — маскируются (<code>+35840***123</code>) при уровне
+<code>INFO</code> и ниже; полный номер — только <code>DEBUG</code> и
+только локально</td>
+</tr>
+<tr class="even">
+<td>LOG-4</td>
+<td>Экспорт логов — в файл в <code>Documents/CallShift/</code>, с
+указанием версии приложения, Android API, модели, OEM, профиля
+полномочий</td>
+</tr>
+<tr class="odd">
+<td>LOG-5</td>
+<td>Crash-репортинг — <strong>выключен по умолчанию</strong>; при
+включении (опционально, только для отладки разработчиком) — без PII</td>
+</tr>
+<tr class="even">
+<td>LOG-6</td>
+<td>Никакой сторонней аналитики, рекламных SDK, трекеров. Это требование
+заказчика (личное использование)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="14-тестирование">14. Тестирование</h2>
+<h3 id="141-уровни">14.1. Уровни</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Уровень</th>
+<th>Инструменты</th>
+<th>Что покрываем</th>
+<th>Порог</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Unit</td>
+<td>JUnit5, MockK, Truth</td>
+<td>RuleEngine, нормализация номеров, маски, расписания, guard'ы,
+MMI-builder</td>
+<td>≥ 80 % строк в <code>domain</code></td>
+</tr>
+<tr class="even">
+<td>Интеграционные (локальные)</td>
+<td>Robolectric</td>
+<td>Room-миграции, репозитории, сериализация условий</td>
+<td>все миграции</td>
+</tr>
+<tr class="odd">
+<td>Приборные</td>
+<td>AndroidX Test, Espresso/UI Automator</td>
+<td>UI-потоки создания правила, диагностика, экспорт</td>
+<td>smoke-набор</td>
+</tr>
+<tr class="even">
+<td>Telecom-инструментальный</td>
+<td><code>adb shell cmd telecom</code> +
+<code>TelecomManager</code>-фейки, тестовый SIP-сервер (FreePBX в
+Docker)</td>
+<td>placeCall, self-managed connection</td>
+<td>M3</td>
+</tr>
+<tr class="odd">
+<td>Ручные полевые</td>
+<td>Реальная SIM, 2 устройства, тестовый номер</td>
+<td><strong>Единственный способ</strong> проверить screening и MMI</td>
+<td>чек-лист 14.3</td>
+</tr>
+<tr class="even">
+<td>Нагрузочные/стресс</td>
+<td>50 последовательных входящих (автодозвон со второго устройства)</td>
+<td>отсутствие гонок, шторма, утечек</td>
+<td>0 падений</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Важно:</strong> эмулятор Android не поддерживает входящие
+GSM-вызовы и MMI/USSD; для CI допустимы только
+unit/Robolectric/Espresso. Полевые тесты — обязательная часть
+приёмки.</p>
+</blockquote>
+<h3 id="142-матрица-устройств-минимум">14.2. Матрица устройств
+(минимум)</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Устройство</th>
+<th>Android</th>
+<th>Оболочка</th>
+<th>Профиль</th>
+<th>Обязательность</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Pixel 6/7/8</td>
+<td>14–16</td>
+<td>AOSP</td>
+<td>B</td>
+<td>обязательно</td>
+</tr>
+<tr class="even">
+<td>Xiaomi (Redmi/Note)</td>
+<td>12–14</td>
+<td>MIUI/HyperOS</td>
+<td>A/B</td>
+<td>обязательно</td>
+</tr>
+<tr class="odd">
+<td>Samsung Galaxy</td>
+<td>13–15</td>
+<td>One UI 6/7</td>
+<td>A/B</td>
+<td>обязательно</td>
+</tr>
+<tr class="even">
+<td>Устройство заказчика (основное)</td>
+<td>факт</td>
+<td>факт</td>
+<td>B/C</td>
+<td>обязательно</td>
+</tr>
+<tr class="odd">
+<td>Huawei/Honor</td>
+<td>10–12</td>
+<td>EMUI</td>
+<td>A</td>
+<td>желательно</td>
+</tr>
+</tbody>
+</table>
+<h3
+id="143-чек-лист-приёмочных-полевых-тестов-выдержка-полный--в-docstest_checklistmd">14.3.
+Чек-лист приёмочных полевых тестов (выдержка, полный — в
+<code>docs/TEST_CHECKLIST.md</code>)</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />Входящий с неизвестного номера
+отклоняется и уходит дозвон на цель (S2) — ≤ 3 с от звонка до начала
+дозвона</label></li>
+<li><label><input type="checkbox" />Входящий из whitelist проходит
+штатно, без задержки и без уведомления</label></li>
+<li><label><input type="checkbox" />Ночное расписание срабатывает в
+23:00 и не срабатывает в 22:59 (проверка на реальном
+времени)</label></li>
+<li><label><input type="checkbox" />Правило на SIM2 не влияет на
+SIM1</label></li>
+<li><label><input type="checkbox" />Экстренный вызов <code>112</code>
+проходит всегда, даже при включённом правиле «блокировать
+всё»</label></li>
+<li><label><input type="checkbox" /><code>*21*&lt;номер&gt;#</code>
+реально включил переадресацию: проверка звонком с третьего номера
+<strong>при выключенном телефоне</strong></label></li>
+<li><label><input type="checkbox" /><code>##002#</code> снял все
+переадресации</label></li>
+<li><label><input type="checkbox" />После перезагрузки устройства
+правила работают без ручных действий</label></li>
+<li><label><input type="checkbox" />После 24 ч в фоне (экран выключен,
+Doze) — перехват сработал</label></li>
+<li><label><input type="checkbox" />Отзыв роли через системные настройки
+→ приложение показывает ERROR и уведомление</label></li>
+<li><label><input type="checkbox" />«Режим паники» за ≤ 10 с снимает все
+MMI и выключает все правила</label></li>
+<li><label><input type="checkbox" />Журнал содержит все события с
+корректными таймингами</label></li>
+<li><label><input type="checkbox" />Экспорт/импорт правил сохраняет их
+без потерь (включая расписания и маски)</label></li>
+<li><label><input type="checkbox" />Нет петель: цель не звонит сама
+себе; при звонке с цели — вызов проходит</label></li>
+<li><label><input type="checkbox" />Потребление батареи за 24 ч ожидания
+≤ 1 % (по <code>dumpsys batterystats</code>)</label></li>
+</ul>
+<h3 id="144-критерии-качества">14.4. Критерии качества</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Метрика</th>
+<th>Целевое значение</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Доля корректно перехваченных вызовов (полевые, n ≥ 50)</td>
+<td>≥ 99 %</td>
+</tr>
+<tr class="even">
+<td>p95 latency screening</td>
+<td>≤ 300 мс</td>
+</tr>
+<tr class="odd">
+<td>Crash-free sessions</td>
+<td>100 % (личное использование, допустимый минимум 99,5 %)</td>
+</tr>
+<tr class="even">
+<td>Ложные срабатывания (блокировка нужного вызова)</td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="15-сборка-подписание-поставка-apk">15. Сборка, подписание,
+поставка APK</h2>
+<h3 id="151-конфигурация-gradle-базовые-требования">15.1. Конфигурация
+Gradle (базовые требования)</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Параметр</th>
+<th>Значение</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>AGP</td>
+<td>8.5+</td>
+</tr>
+<tr class="even">
+<td>Gradle</td>
+<td>8.9+</td>
+</tr>
+<tr class="odd">
+<td>Kotlin</td>
+<td>2.0+</td>
+</tr>
+<tr class="even">
+<td><code>compileSdk</code> / <code>targetSdk</code></td>
+<td>35</td>
+</tr>
+<tr class="odd">
+<td><code>minSdk</code></td>
+<td>28 (Android 9) — опционально 26, если нужен Android 8</td>
+</tr>
+<tr class="even">
+<td><code>versionCode</code> / <code>versionName</code></td>
+<td>автоинкремент в CI; SemVer <code>MAJOR.MINOR.PATCH</code></td>
+</tr>
+<tr class="odd">
+<td>Build types</td>
+<td><code>debug</code>, <code>release</code> (R8 full mode,
+<code>minifyEnabled=true</code>, <code>shrinkResources=true</code>),
+variant <code>root</code> (доп. разрешения, L2-аудио)</td>
+</tr>
+<tr class="even">
+<td>ABI splits</td>
+<td><code>arm64-v8a</code>, <code>armeabi-v7a</code>,
+<code>x86_64</code> + universal</td>
+</tr>
+<tr class="odd">
+<td>Подпись</td>
+<td>APK Signature Scheme <strong>v2 или v3</strong> (v1/JAR не требуется
+при <code>minSdk 28</code>). Практика: при
+<code>enableV3Signing=true</code> apksigner поглощает блок v2, и
+<code>apksigner verify</code> показывает
+<code>v2: false, v3: true</code> — это штатное поведение. Поставочная
+сборка подписана <strong>v3</strong>, проверка
+<code>apksigner verify --min-sdk-version 28</code> = Verifies. Keystore
+<strong>не</strong> в репозитории: передаётся через CI secrets или
+локальный <code>keystore.properties</code> (в <code>.gitignore</code>),
+резервная копия — у заказчика (критерий A-9)</td>
+</tr>
+<tr class="even">
+<td>Репозиторий</td>
+<td>Git (GitHub/GitLab), ветка <code>main</code> + feature-ветки,
+обязательный CI на PR</td>
+</tr>
+</tbody>
+</table>
+<h3
+id="152-ci-конвейер-github-actions-файл-githubworkflowsandroidyml">15.2.
+CI-конвейер (GitHub Actions, файл
+<code>.github/workflows/android.yml</code>)</h3>
+<ol type="1">
+<li><code>checkout</code> → <code>setup-java (temurin 21)</code> → кэш
+Gradle;</li>
+<li><code>./gradlew ktlint detekt</code> (стиль и статический анализ) —
+блокирующий шаг;</li>
+<li><code>./gradlew testDebugUnitTest</code> +
+<code>jacocoTestReport</code> — порог покрытия <code>domain</code> ≥ 80
+%;</li>
+<li><code>./gradlew assembleRelease</code> → артефакты
+<code>app-arm64-v8a-release.apk</code>,
+<code>app-universal-release.apk</code>;</li>
+<li>подпись через <code>apksigner</code> (или Gradle signing config) +
+<code>zipalign</code>;</li>
+<li><code>./gradlew bundleRelease</code> — опционально (AAB для будущей
+публикации);</li>
+<li>публикация артефактов в Releases с автогенерацией changelog из
+conventional commits;</li>
+<li>проверка <code>apkanalyzer manifest print</code> — контроль состава
+разрешений (регресс-защита от «случайно добавленного» разрешения).</li>
+</ol>
+<h3 id="153-поставка-заказчику">15.3. Поставка заказчику</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Артефакт</th>
+<th>Формат</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>CallShift-vX.Y.Z-universal-release.apk</code></td>
+<td>подписанный APK</td>
+</tr>
+<tr class="even">
+<td><code>CallShift-vX.Y.Z-arm64-v8a-release.apk</code></td>
+<td>оптимизированный APK</td>
+</tr>
+<tr class="odd">
+<td>Исходный код</td>
+<td>Git-репозиторий с тегами</td>
+</tr>
+<tr class="even">
+<td><code>scripts/setup_device.sh</code></td>
+<td>ADB-скрипт выдачи ролей и разрешений (раздел 7.2)</td>
+</tr>
+<tr class="odd">
+<td><code>scripts/uninstall_cleanup.sh</code></td>
+<td>снятие ролей + <code>##002#</code>-инструкция +
+<code>adb uninstall</code></td>
+</tr>
+<tr class="even">
+<td><code>README.md</code>, <code>INSTALL.md</code>,
+<code>OEM_NOTES.md</code>, <code>TEST_CHECKLIST.md</code>,
+<code>CHANGELOG.md</code></td>
+<td>документация</td>
+</tr>
+<tr class="odd">
+<td>Keystore + пароль</td>
+<td>передаются заказчику отдельным защищённым каналом (обязательно: без
+него будущие обновления не встанут поверх)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="154-установка-на-устройство">15.4. Установка на устройство</h3>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> install <span class="at">-r</span> <span class="at">-t</span> CallShift-v1.0.0-universal-release.apk</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="fu">bash</span> scripts/setup_device.sh</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co"># проверка</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell cmd role get-role-holders <span class="at">--user</span> 0 android.app.role.CALL_SCREENING</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> logcat <span class="at">-s</span> CallShift:D</span></code></pre></div>
+<hr />
+<h2 id="16-риски">16. Риски</h2>
+<table>
+<thead>
+<tr class="header">
+<th>ID</th>
+<th>Риск</th>
+<th>Вероятность</th>
+<th>Влияние</th>
+<th>Митигция</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>R-1</td>
+<td>Пользователь ждёт «настоящей» сетевой переадресации с сохранением
+номера звонящего, а получает S2</td>
+<td>Высокая</td>
+<td>Высокое</td>
+<td>Явное разделение S1/S2 в UI и документации (3.3); пресет «Сетевая
+CF» как основной для сценария «телефон выключен»</td>
+</tr>
+<tr class="even">
+<td>R-2</td>
+<td>OEM-оболочка отзывает роль / убивает процесс</td>
+<td>Высокая</td>
+<td>Высокое</td>
+<td>Watchdog, уведомления, инструкции (11.2), тестирование на целевом
+устройстве заказчика в M0</td>
+</tr>
+<tr class="odd">
+<td>R-3</td>
+<td>Оператор не поддерживает MMI-коды (MVNO, виртуальные АТС, eSIM)</td>
+<td>Средняя</td>
+<td>Высокое</td>
+<td>Детект ошибки USSD, fallback S2/S3, тест на SIM заказчика в M0
+(спайк)</td>
+</tr>
+<tr class="even">
+<td>R-4</td>
+<td>Профиль B (default dialer) требует полноценного dialer-UI — рост
+трудозатрат</td>
+<td>Высокая</td>
+<td>Среднее</td>
+<td>M1 работает в профиле A; dialer-модуль — отдельный milestone M2/M3 с
+явной оценкой</td>
+</tr>
+<tr class="odd">
+<td>R-5</td>
+<td>Аудио-мост (S3) недостижим без root на стоковом устройстве</td>
+<td>Высокая</td>
+<td>Среднее</td>
+<td>Честная детекция уровня L0–L3 (10.7); поставка «слепой»
+переадресации в SIP как основного сценария</td>
+</tr>
+<tr class="even">
+<td>R-6</td>
+<td>Системный screening-таймаут (5 с) → вызов проходит, правило не
+сработало</td>
+<td>Средняя</td>
+<td>Высокое</td>
+<td>Бюджет 3000 мс, кэши, fail-open, метрики таймингов в журнале</td>
+</tr>
+<tr class="odd">
+<td>R-7</td>
+<td>Юридические риски: переадресация чужих вызовов, перехват,
+запись</td>
+<td>Средняя</td>
+<td>Высокое</td>
+<td>Приложение для личного устройства и своих SIM; в README — дисклеймер
+о согласии сторон и законодательстве (в т. ч. GDPR/152-ФЗ при передаче
+данных в webhook)</td>
+</tr>
+<tr class="even">
+<td>R-8</td>
+<td>Потеря keystore → невозможность обновления</td>
+<td>Низкая</td>
+<td>Высокое</td>
+<td>Передача keystore заказчику, бэкап, документирование</td>
+</tr>
+<tr class="odd">
+<td>R-9</td>
+<td>Конфликт с системным спам-фильтром / другим
+screening-приложением</td>
+<td>Средняя</td>
+<td>Среднее</td>
+<td>FR-S1/S2, диагностика в UI</td>
+</tr>
+<tr class="even">
+<td>R-10</td>
+<td>«Режим паники» не снимет CF, если нет сети</td>
+<td>Средняя</td>
+<td>Среднее</td>
+<td>Очередь команд в WorkManager + явное предупреждение
+пользователю</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="17-план-работ-milestones-и-оценка">17. План работ, milestones и
+оценка</h2>
+<p>Оценка в человеко-днях (1 middle+/senior Android-разработчик).
+Включает код + тесты + документацию.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Milestone</th>
+<th>Состав</th>
+<th>Дни</th>
+<th>Результат</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>M0. Спайк и фундамент</strong> (3–4 дня)</td>
+<td>Каркас проекта, CI, подпись, проверка на целевом устройстве: выдача
+<code>ROLE_CALL_SCREENING</code> через adb, простейший
+<code>CallScreeningService</code> (отклонить все), отправка MMI
+<code>*21*…</code>/<code>##002#</code>, проверка USSD-ответа на SIM
+заказчика. <strong>Обязательный gate:</strong> если MMI не работает у
+оператора — фиксируем решение о приоритете S2/S3</td>
+<td>4</td>
+<td><code>apk</code>-заготовка + отчёт о возможностях
+оператора/устройства</td>
+</tr>
+<tr class="even">
+<td><strong>M1. Ядро: правила + S1 + S2</strong> (10–12 дней)</td>
+<td>RuleEngine, нормализация/маски, Room, UI списка и редактора правил,
+расписания, guard'ы, MMI-экран по SIM (desired/actual), callback-дозвон,
+журнал событий, уведомления, onboarding + диагностика, экспорт/импорт,
+режим паники, boot-restore</td>
+<td>12</td>
+<td>Рабочий APK профиля A: перехват + сетевая CF + callback</td>
+</tr>
+<tr class="odd">
+<td><strong>M2. Профиль B и выживаемость</strong> (7–9 дней)</td>
+<td>Минимальный dialer (DialActivity, InCallService, экран
+входящего/активного вызова, answer/reject/DTMF), выдача
+<code>ROLE_DIALER</code>, tile/виджет, watchdog ролей, OEM-инструкции,
+полный полевой прогон чек-листа</td>
+<td>8</td>
+<td>Максимальные полномочия, стабильность на 24 ч+</td>
+</tr>
+<tr class="even">
+<td><strong>M3. S4 + SIP (S3, уровень L0/L1)</strong> (9–12 дней)</td>
+<td>Telegram/webhook, очередь и retry, SIP-стек (PJSIP/linphone),
+self-managed <code>ConnectionService</code>, «слепая» SIP-переадресация,
+частичный аудио-мост L1, Compose-миграция UI (опционально)</td>
+<td>11</td>
+<td>SIP-переадресация, эскалация</td>
+</tr>
+<tr class="odd">
+<td><strong>M4. Root-модуль и аудио L2</strong> (5–7 дней,
+опционально)</td>
+<td><code>root</code> build variant,
+<code>REMOTE_SUBMIX</code>/<code>VOICE_CALL</code>-захват, полный мост,
+TTS-объявление номера, DTMF-передача исходного номера</td>
+<td>6</td>
+<td>Полноценный мост на root-устройстве</td>
+</tr>
+<tr class="even">
+<td><strong>M5. Полировка и приёмка</strong> (4–5 дней)</td>
+<td>Оптимизация cold start, R8-правила, доступность, тёмная тема,
+финальные полевые тесты на 3 устройствах, документация, передача
+keystore</td>
+<td>5</td>
+<td>Релиз v1.0.0</td>
+</tr>
+<tr class="odd">
+<td></td>
+<td><strong>Итого</strong></td>
+<td><strong>46–52 дня</strong></td>
+<td>~9–10 недель при полной загрузке; при урезании до M1+M2 — **24 дня
+(~5 недель)**</td>
+</tr>
+</tbody>
+</table>
+<h3
+id="171-рекомендуемый-минимальный-объём-для-личного-использования">17.1.
+Рекомендуемый минимальный объём для личного использования</h3>
+<p><code>M0 + M1 + M2</code> = <strong>24 чел.-дня</strong>: перехват
+входящих по правилам, сетевая переадресация MMI, callback-дозвон,
+журнал, диагностика, tile, выживаемость на OEM. SIP (M3) и root-аудио
+(M4) — по решению заказчика.</p>
+<h3
+id="172-определение-готовности-definition-of-done-для-каждой-задачи">17.2.
+Определение готовности (Definition of Done) для каждой задачи</h3>
+<ul>
+<li>код + unit-тесты для доменной логики;</li>
+<li>отсутствие новых разрешений в manifest без явной отметки в
+ТЗ/CHANGELOG;</li>
+<li>проверка на реальном устройстве (не эмулятор) для задач, связанных с
+Telecom;</li>
+<li>обновление <code>README</code>/<code>OEM_NOTES</code>, если
+затронуты инструкции;</li>
+<li>прохождение CI (lint, detekt, test, assembleRelease).</li>
+</ul>
+<hr />
+<h2 id="18-критерии-приёмки">18. Критерии приёмки</h2>
+<table>
+<thead>
+<tr class="header">
+<th>№</th>
+<th>Критерий</th>
+<th>Как проверяем</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>A-1</td>
+<td>APK устанавливается на целевое устройство и подписан (V2/V3);
+<code>adb install -r</code> поверх предыдущей версии работает</td>
+<td><code>apksigner verify --verbose</code>, установка</td>
+</tr>
+<tr class="even">
+<td>A-2</td>
+<td>После <code>scripts/setup_device.sh</code> приложение показывает
+профиль полномочий A или B и статус «Перехват активен»</td>
+<td>скриншот экрана диагностики</td>
+</tr>
+<tr class="odd">
+<td>A-3</td>
+<td>Все сценарии US-1…US-8 воспроизведены на реальной SIM</td>
+<td>полевой протокол</td>
+</tr>
+<tr class="even">
+<td>A-4</td>
+<td>Чек-лист 14.3 выполнен на 100 % для M1/M2</td>
+<td>протокол тестирования</td>
+</tr>
+<tr class="odd">
+<td>A-5</td>
+<td>Покрытие <code>domain</code> unit-тестами ≥ 80 %, CI зелёный</td>
+<td>отчёт JaCoCo</td>
+</tr>
+<tr class="even">
+<td>A-6</td>
+<td>Нет сторонних SDK/трекеров; сетевые вызовы только на явно
+настроенные пользователем endpoint'ы</td>
+<td>аудит зависимостей (<code>./gradlew dependencies</code>),
+<code>mitmproxy</code>-прогон</td>
+</tr>
+<tr class="odd">
+<td>A-7</td>
+<td>Потребление батареи в ожидании ≤ 1 % / 24 ч</td>
+<td><code>dumpsys batterystats</code></td>
+</tr>
+<tr class="even">
+<td>A-8</td>
+<td>Документация: README, INSTALL, OEM_NOTES, TEST_CHECKLIST, CHANGELOG
+— полные и актуальные</td>
+<td>ревью</td>
+</tr>
+<tr class="odd">
+<td>A-9</td>
+<td>Keystore и пароли переданы заказчику, инструкция по резервному
+копированию приложена</td>
+<td>подтверждение</td>
+</tr>
+<tr class="even">
+<td>A-10</td>
+<td>«Режим паники» за ≤ 10 с снимает все переадресации на всех SIM</td>
+<td>полевой тест с проверкой <code>*#21#</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="19-приложение-a-справочник-mmi-кодов-gsm3gpp-ts-22082-27007">19.
+Приложение A. Справочник MMI-кодов (GSM/3GPP TS 22.082, 27.007)</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Сервис</th>
+<th>Код</th>
+<th>Установка</th>
+<th>Снятие</th>
+<th>Запрос статуса</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Безусловная переадресация (CFU)</td>
+<td>21</td>
+<td><code>*21*&lt;номер&gt;#</code></td>
+<td><code>##21#</code></td>
+<td><code>*#21#</code></td>
+</tr>
+<tr class="even">
+<td>Переадресация по занятости (CFB)</td>
+<td>67</td>
+<td><code>*67*&lt;номер&gt;#</code></td>
+<td><code>##67#</code></td>
+<td><code>*#67#</code></td>
+</tr>
+<tr class="odd">
+<td>По недоступности (CFNRc)</td>
+<td>62</td>
+<td><code>*62*&lt;номер&gt;#</code></td>
+<td><code>##62#</code></td>
+<td><code>*#62#</code></td>
+</tr>
+<tr class="even">
+<td>По отсутствию ответа (CFNRy)</td>
+<td>61</td>
+<td><code>*61*&lt;номер&gt;**&lt;сек&gt;#</code></td>
+<td><code>##61#</code></td>
+<td><code>*#61#</code></td>
+</tr>
+<tr class="odd">
+<td>Все условные</td>
+<td>002</td>
+<td>—</td>
+<td><code>##002#</code></td>
+<td>—</td>
+</tr>
+<tr class="even">
+<td>Все переадресации</td>
+<td>04</td>
+<td>—</td>
+<td><code>##04#</code></td>
+<td>—</td>
+</tr>
+<tr class="odd">
+<td>Регистрация/деактивация/стирание/запрос (общий синтаксис)</td>
+<td>—</td>
+<td><code>*&lt;код&gt;*&lt;номер&gt;#</code></td>
+<td><code>#&lt;код&gt;#</code> / <code>##&lt;код&gt;#</code></td>
+<td><code>*#&lt;код&gt;#</code></td>
+</tr>
+<tr class="even">
+<td>Ожидание вызова (Call Waiting)</td>
+<td>43</td>
+<td><code>*43#</code></td>
+<td><code>#43#</code></td>
+<td><code>*#43#</code></td>
+</tr>
+<tr class="odd">
+<td>Определение номера (CLIP/CLIR)</td>
+<td>30/31</td>
+<td><code>*31#</code> (скрыть)</td>
+<td><code>#31#</code></td>
+<td><code>*#31#</code></td>
+</tr>
+</tbody>
+</table>
+<p>Примечания:</p>
+<ol type="1">
+<li>Времена для CFNRy: допустимые значения зависят от оператора (обычно
+5, 10, 15, 20, 25, 30 с).</li>
+<li>Некоторые операторы требуют формат <code>*21*&lt;номер&gt;#</code> с
+номером в международном формате; другие принимают национальный.
+Требование FR-3.3: всегда E.164.</li>
+<li><code>##002#</code> — «снять все условные переадресации»;
+рекомендуется в «Режиме паники» вместе с <code>##21#</code>.</li>
+<li>На VoLTE/eSIM часть кодов может обрабатываться иначе или возвращать
+ошибку — проверять в M0 на SIM заказчика.</li>
+</ol>
+<h2 id="20-приложение-b-adb-шпаргалка">20. Приложение B.
+ADB-шпаргалка</h2>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># роли</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell cmd role get-role-holders <span class="at">--user</span> 0 android.app.role.CALL_SCREENING</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell cmd role add-role-holder  <span class="at">--user</span> 0 android.app.role.CALL_SCREENING fi.callshift.app</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell cmd role remove-role-holder <span class="at">--user</span> 0 android.app.role.CALL_SCREENING fi.callshift.app</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell cmd role add-role-holder  <span class="at">--user</span> 0 android.app.role.DIALER fi.callshift.app</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="co"># разрешения</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell pm grant fi.callshift.app android.permission.ANSWER_PHONE_CALLS</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell dumpsys package fi.callshift.app <span class="kw">|</span> <span class="fu">grep</span> <span class="at">-A2</span> <span class="st">&quot;runtime permissions&quot;</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="co"># telecom / SIM</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell cmd telecom list-phone-accounts</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell cmd telecom set-sim-call-manager fi.callshift.app   <span class="co"># для self-managed</span></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell dumpsys telecom <span class="kw">|</span> <span class="fu">less</span></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a><span class="co"># батарея / фоновые ограничения</span></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell dumpsys deviceidle whitelist +fi.callshift.app</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell dumpsys deviceidle get deep</span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a><span class="co"># логи</span></span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> logcat <span class="at">-s</span> CallShift:D Telecom:V TelephonyManager:V</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a><span class="ex">adb</span> shell dumpsys batterystats <span class="at">--charged</span> fi.callshift.app</span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a><span class="co"># проверка подписи</span></span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a><span class="ex">apksigner</span> verify <span class="at">--verbose</span> <span class="at">--print-certs</span> CallShift-v1.0.0-universal-release.apk</span></code></pre></div>
+<h2 id="21-приложение-c-источники-нормативная-база-для-разработчика">21.
+Приложение C. Источники (нормативная база для разработчика)</h2>
+<ol type="1">
+<li>Android Developers — <code>CallScreeningService</code>,
+<code>CallScreeningService.CallResponse.Builder</code> (ограничения
+<code>setRejectCall</code>/<code>setRejectedAsMissed</code>/<code>setSkipCallLog</code>/<code>setSkipNotification</code>).</li>
+<li>Android Developers — <code>ConnectionService</code>,
+<code>Connection</code>, self-managed connections,
+<code>TelecomManager</code> (<code>placeCall</code>,
+<code>getCallCapablePhoneAccounts</code>,
+<code>EXTRA_RESULT_RECEIVER</code>).</li>
+<li>Android Developers — <code>RoleManager</code>
+(<code>ROLE_CALL_SCREENING</code>, <code>ROLE_DIALER</code>), guide
+«Call screening app», «Build a dialer app».</li>
+<li>Android Developers — «Background mic/camera restrictions» (Android
+10+), «Foreground service types» (Android 14+), «Permissions for
+phone-related apps».</li>
+<li>3GPP TS 22.082 (Call Forwarding supplementary services), TS 27.007
+(AT/MMI-команды), TS 24.080 (SS-протокол).</li>
+<li>Google Play — «Call Screening / CALL_SCREENING declaration»,
+«Permissions and Declarations policy» (справочно для раздела 7.4).</li>
+<li><code>libphonenumber</code> — нормализация E.164.</li>
+<li>PJSIP / linphone-sdk — лицензионная совместимость (GPL/LGPL) при
+включении SIP-модуля: <strong>обязательная проверка лицензии перед
+поставкой</strong> (влияет на возможность закрытого
+распространения).</li>
+</ol>
+<h2 id="22-приложение-d-юридическая-оговорка-обязательна-в-readme">22.
+Приложение D. Юридическая оговорка (обязательна в README)</h2>
+<p>Приложение предназначено для управления <strong>собственными</strong>
+вызовами на <strong>собственных</strong> SIM-картах и устройствах.
+Переадресация вызовов третьих лиц без их согласия, перехват чужих
+переговоров и запись разговоров могут нарушать законодательство страны
+использования (в ЕС — GDPR и национальные законы о тайне связи; в РФ —
+ст. 23 Конституции, 138 УК РФ, 152-ФЗ). Ответственность за использование
+несёт пользователь. Разработчик обязан включить этот текст в README и в
+экран первого запуска (одноразовое подтверждение).</p>
+<hr />
+<h3 id="лист-согласования">Лист согласования</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Роль</th>
+<th>ФИО</th>
+<th>Подпись</th>
+<th>Дата</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Заказчик</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="even">
+<td>Разработчик (исполнитель)</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td>QA</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Конец документа.</strong> Версия 1.1 — при изменении любого
+из разделов 3.3, 7, 10.7, 17 документ требует повторного
+согласования.</p>
+<hr />
+<h2
+id="23-приложение-e-ограничения-публичного-android-sdk-выявленные-при-разработке-референс-сборки">23.
+Приложение E. Ограничения публичного Android SDK, выявленные при
+разработке референс-сборки</h2>
+<p>Раздел добавлен по итогам сборки M0/M1. Все пункты
+<strong>обязательны к учёту</strong> исполнителем: они меняют способ
+реализации, но не меняют функциональные требования.</p>
+<table>
+<thead>
+<tr class="header">
+<th>№</th>
+<th>Ограничение</th>
+<th>Следствие</th>
+<th>Обход (реализован в референс-сборке)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>P-1</td>
+<td><code>CallScreeningService.respondToCall(Call.Details, CallResponse)</code>
+— первый параметр <strong>объект <code>Call.Details</code></strong>, а
+не строковый <code>callId</code></td>
+<td>Наивная реализация «по документации из интернета» не
+компилируется</td>
+<td>Сохраняем <code>Call.Details</code> из колбэка и передаём его же в
+<code>respondToCall</code></td>
+</tr>
+<tr class="even">
+<td>P-2</td>
+<td><code>Call.Details.getPhoneAccountHandle()</code> —
+<code>@hide</code>/<code>@SystemApi</code></td>
+<td>Стороннее screening-приложение <strong>не видит, на какую SIM пришёл
+звонок</strong></td>
+<td>Reflection → <code>extras</code> → «не определено» (fail-open).
+Полное решение — профиль B (<code>ROLE_DIALER</code>)</td>
+</tr>
+<tr class="odd">
+<td>P-3</td>
+<td><code>PhoneAccountHandle.id</code> — <code>@hide</code></td>
+<td>Нельзя напрямую сопоставить SIM и правило</td>
+<td>Reflection к полю <code>id</code>, fallback — разбор
+<code>toString()</code> (<code>[pkg] id</code>)</td>
+</tr>
+<tr class="even">
+<td>P-4</td>
+<td><code>CallResponse.Builder.setRejectedAsMissed()</code> и
+<code>setSilenceCall()</code> отсутствуют/скрыты в части версий SDK</td>
+<td>Нельзя полагаться на прямые вызовы</td>
+<td>Reflection <code>invokeIfAvailable(...)</code> + мягкая деградация с
+записью в журнал</td>
+</tr>
+<tr class="odd">
+<td>P-5</td>
+<td><code>Call.Details.PROPERTY_EMERGENCY_CALLBACK</code> —
+<code>@hide</code></td>
+<td>Прямая проверка недоступна</td>
+<td>Чтение константы через reflection по имени; базовая проверка —
+нормализатор + локальный список коротких номеров (FR-2.6)</td>
+</tr>
+<tr class="even">
+<td>P-6</td>
+<td>Публичная сигнатура
+<code>TelecomManager.placeCall(Uri, Bundle)</code> — без отдельного
+параметра <code>PhoneAccountHandle</code></td>
+<td>Выбор SIM «в лоб» не компилируется</td>
+<td><code>EXTRA_PHONE_ACCOUNT_HANDLE</code> в <code>Bundle</code>
+(литерал <code>"android.telecom.extra.PHONE_ACCOUNT_HANDLE"</code>)</td>
+</tr>
+<tr class="odd">
+<td>P-7</td>
+<td><code>TelecomManager.EXTRA_RESULT_RECEIVER</code> и
+<code>EXTRA_USSD_RESPONSE</code> — <code>@hide</code></td>
+<td>Приём ответа USSD через константы недоступен</td>
+<td>Строковые литералы ключей; <code>ResultReceiver</code> с
+<code>onReceiveResult</code> (API 28+, требуется
+<code>ANSWER_PHONE_CALLS</code>)</td>
+</tr>
+<tr class="even">
+<td>P-8</td>
+<td><code>TelecomManager.getDefaultCallScreeningApp()</code> —
+<code>@SystemApi</code></td>
+<td>На Android 9 (API 28) проверить роль нельзя</td>
+<td><code>RoleManager</code> на API 29+; на API 28 — только профиль B
+(см. D1)</td>
+</tr>
+<tr class="odd">
+<td>P-9</td>
+<td><code>PhoneNumberUtil.isEmergencyNumber()</code> отсутствует в
+публичном API libphonenumber</td>
+<td>Проверка экстренных номеров «библиотечным» способом невозможна</td>
+<td>Локальный набор коротких номеров + префиксов
+<code>112</code>/<code>911</code> (FR-2.6); в M2 — сверка с
+<code>CarrierConfig</code></td>
+</tr>
+<tr class="even">
+<td>P-10</td>
+<td>Kotlin-тесты с не-ASCII именами ломают сборку на JVM с не-UTF-8
+<code>sun.jnu.encoding</code> (<code>InvalidPathException</code>)</td>
+<td>CI падает на этапе <code>compileUnitTestKotlin</code></td>
+<td>Имена тестов — ASCII; в <code>gradle.properties</code> заданы
+<code>systemProp.sun.jnu.encoding=UTF-8</code> и
+<code>systemProp.file.encoding=UTF-8</code></td>
+</tr>
+<tr class="odd">
+<td>P-11</td>
+<td><code>setSkipCallLog()</code> игнорируется системой для сторонних
+приложений; вызовы всё равно пишутся в <code>CallLog</code> с типом
+<code>BLOCKED_TYPE</code></td>
+<td>«Скрыть след» в системном журнале нельзя</td>
+<td>Документируем в UI; собственный журнал событий (FR-7.1) — источник
+правды</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Практический вывод для заказчика.</strong> Пункты P-2, P-3,
+P-5 и P-11 означают, что «максимум возможностей» на стоковом устройстве
+достигается только в профиле B (<code>ROLE_DIALER</code>, ТЗ п. 3.5 и
+FR-P3) либо в профиле C (root). В профиле A приложение корректно
+перехватывает и отклоняет вызовы, выполняет сетевую переадресацию MMI и
+callback-дозвон, но не различает SIM и не может скрыть запись в
+системном журнале.</p>
+</blockquote>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.CallShift" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/brand_accent</item>
+        <item name="colorSecondary">@color/brand_secondary</item>
+        <item name="android:statusBarColor">@color/brand_primary</item>
+        <item name="android:navigationBarColor">@color/brand_primary</item>
+        <item name="android:windowBackground">@color/brand_primary</item>
+    </style>
+
+    <!-- Тема экрана звонка: без action bar, тёмный фон, показ поверх блокировки -->
+    <style name="Theme.CallShift.InCall" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/brand_primary</item>
+        <item name="android:statusBarColor">@color/brand_primary</item>
+        <item name="android:navigationBarColor">@color/brand_primary</item>
+        <item name="android:windowFullscreen">false</item>
+    </style>
+
+    <style name="Text.CallShift.Title" parent="TextAppearance.Material3.TitleLarge">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="Text.CallShift.Body" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textColor">@color/text_secondary</item>
+    </style>
+
+    <style name="Text.CallShift.Caption" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:textColor">@color/text_muted</item>
+    </style>
+
+    <style name="Widget.CallShift.CallAction" parent="Widget.Material3.Button.TonalButton">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_marginStart">3dp</item>
+        <item name="android:layout_marginEnd">3dp</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetRight">0dp</item>
+    </style>
+
+    <style name="Widget.CallShift.CallBig" parent="Widget.Material3.Button">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">64dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textSize">15sp</item>
+    </style>
+
+    <style name="Widget.CallShift.DtmfKey" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:layout_width">76dp</item>
+        <item name="android:layout_height">56dp</item>
+        <item name="android:layout_margin">3dp</item>
+        <item name="android:textSize">20sp</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetRight">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="strokeColor">#5A7A6B</item>
+    </style>
+
+    <style name="Widget.CallShift.DialKey" parent="Widget.Material3.Button.TextButton">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">68dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:textSize">24sp</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetRight">0dp</item>
+    </style>
+</resources>
