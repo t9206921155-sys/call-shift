@@ -162,6 +162,32 @@
             android:text="DTMF-передача исходного номера цели (профиль B)"
             android:textColor="@color/text_secondary" />
 
+        <!-- SMS-автоответ звонящему после отбоя -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilSmsReply"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:hint="SMS-автоответ после отбоя (необязательно)">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etSmsReply"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textMultiLine|textCapSentences"
+                android:maxLength="201"
+                android:minLines="2"
+                android:textColor="@color/text_primary" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:text="Только при вердикте DISALLOW_*. Не чаще 1 SMS на номер за 30 мин; скрытым и коротким номерам не отправляется. Оплачивается по тарифу оператора."
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+
         <!-- Кнопки управления -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSave"

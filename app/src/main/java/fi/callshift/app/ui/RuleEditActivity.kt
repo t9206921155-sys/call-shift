@@ -28,6 +28,17 @@ class RuleEditActivity : AppCompatActivity() {
     private var ruleId: Long = 0L
     private var existingRule: Rule? = null
 
+    private val smsPermLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        Toast.makeText(
+            this,
+            if (granted) "Правило сохранено, SMS разрешены" else "Правило сохранено, но без разрешения SMS автоответ не уйдёт",
+            Toast.LENGTH_LONG,
+        ).show()
+        finish()
+    }
+
     private val strategies = StrategySpec.values().map { it.name }
     private val verdicts = VerdictSpec.values().map { it.name }
 
@@ -81,6 +92,7 @@ class RuleEditActivity : AppCompatActivity() {
             binding.spinnerVerdict.setSelection(verdicts.indexOf(rule.action.verdict.name).coerceAtLeast(0))
             binding.etTarget.setText(rule.action.target ?: "")
             binding.cbDtmfTransfer.isChecked = rule.action.dtmfTransferOriginal
+            binding.etSmsReply.setText(rule.action.autoReplySms ?: "")
 
             binding.btnDelete.visibility = View.VISIBLE
         }
@@ -121,6 +133,11 @@ class RuleEditActivity : AppCompatActivity() {
         val verdict = VerdictSpec.valueOf(binding.spinnerVerdict.selectedItem as String)
         val target = binding.etTarget.text.toString().trim().ifBlank { null }
         val dtmfTransfer = binding.cbDtmfTransfer.isChecked
+        val smsReply = binding.etSmsReply.text.toString().trim().ifBlank { null }
+        if (smsReply != null && verdict != VerdictSpec.DISALLOW_REJECT && verdict != VerdictSpec.DISALLOW_AS_MISSED) {
+            Toast.makeText(this, "SMS-автоответ работает только с вердиктом DISALLOW_REJECT / DISALLOW_AS_MISSED", Toast.LENGTH_LONG).show()
+            return
+        }
 
         // Сборка условий
         val condList = mutableListOf<ConditionSpec>()
@@ -141,6 +158,7 @@ class RuleEditActivity : AppCompatActivity() {
             strategy = strategy,
             target = target,
             dtmfTransferOriginal = dtmfTransfer,
+            autoReplySms = smsReply,
         )
 
         val toSave = Rule(
@@ -155,6 +173,10 @@ class RuleEditActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             app.ruleStore.save(toSave)
+            if (smsReply != null && !app.smsReplier.hasPermission()) {
+                smsPermLauncher.launch(android.Manifest.permission.SEND_SMS)
+                return@launch
+            }
             Toast.makeText(this@RuleEditActivity, "Правило сохранено", Toast.LENGTH_SHORT).show()
             finish()
         }

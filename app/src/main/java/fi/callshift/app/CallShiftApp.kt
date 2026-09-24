@@ -60,6 +60,8 @@ class CallShiftApp : Application() {
         private set
     lateinit var dispatcher: ForwardDispatcher
         private set
+    lateinit var smsReplier: fi.callshift.app.sms.SmsAutoReplier
+        private set
 
     val profile: PermissionProfile
         get() = detector.detect().profile
@@ -114,6 +116,8 @@ class CallShiftApp : Application() {
             normalizer = normalizer,
             scope = appScope,
         )
+
+        smsReplier = fi.callshift.app.sms.SmsAutoReplier(this, eventStore, normalizer)
 
         ruleEngine = RuleEngine(
             ruleStore = ruleStore,

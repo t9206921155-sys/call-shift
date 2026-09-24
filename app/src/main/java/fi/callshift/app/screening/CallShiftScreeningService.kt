@@ -70,6 +70,9 @@ class CallShiftScreeningService : CallScreeningService() {
             serviceScope.launch {
                 runCatching { app.dispatcher.submit(ctx, decision, action) }
                     .onFailure { Log.e(TAG, "dispatch failed", it) }
+                // SMS-автоответ после отбоя (если задан в правиле).
+                runCatching { app.smsReplier.maybeReply(ctx, decision, action.autoReplySms) }
+                    .onFailure { Log.e(TAG, "sms auto-reply failed", it) }
             }
 
             Log.i(

@@ -78,6 +78,11 @@ data class Action(
     val dtmfTransferOriginal: Boolean = false,
     /** Префикс DTMF-последовательности, если АТС его ожидает (например "*9"). */
     val dtmfPrefix: String = "",
+    /**
+     * Автоответ SMS звонящему после отбоя (вердикт DISALLOW_*). null/пусто — не отправлять.
+     * Анти-спам: не чаще одного SMS на номер за [SmsAutoReplyPolicy.COOLDOWN_MS].
+     */
+    val autoReplySms: String? = null,
 )
 
 /**
