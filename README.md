@@ -17,10 +17,10 @@ SIP-мост (S3) — заглушка до M3.
 
 ```bash
 # 1. Установить готовый релизный APK (подписан v3-ключом, R8, 2.9 МБ)
-adb install -r -t apks/CallShift-v0.2.0-m2-standard-release.apk
+adb install -r -t apks/CallShift-v0.2.1-m2-standard-release.apk
 
 # 2. Настроить роли и разрешения одной командой
-bash scripts/setup_device.sh apks/CallShift-v0.2.0-m2-standard-release.apk
+bash scripts/setup_device.sh apks/CallShift-v0.2.1-m2-standard-release.apk
 
 # 3. Открыть приложение → «Мастер настройки» → «Перепроверить»
 
@@ -46,12 +46,12 @@ adb logcat -s CallShift:D
 | `scripts/setup_device.sh` | Выдача ролей и разрешений через ADB |
 | `scripts/uninstall_cleanup.sh` | Корректное удаление: снятие MMI-переадресаций, ролей, разрешений |
 | `app/` | Исходный код (Kotlin, Views + ViewBinding) |
-| `apks/CallShift-v0.2.0-m2-standard-release.apk` | **Готовый подписанный APK** (2,9 МБ, R8, v3-подпись) |
-| `apks/CallShift-v0.2.0-m2-standard-debug.apk` | Отладочный APK (14 МБ, без обфускации, packageId `.debug`) |
+| `apks/CallShift-v0.2.1-m2-standard-release.apk` | **Готовый подписанный APK** (2,9 МБ, R8, v3-подпись) |
+| `apks/CallShift-v0.2.1-m2-standard-debug.apk` | Отладочный APK (14 МБ, без обфускации, packageId `.debug`) |
 | `CHANGELOG.md` | История версий (M0/M1/M2) |
 
 Готовые APK лежат в `apks/` — их можно сразу поставить на устройство
-(`adb install -r -t apks/CallShift-v0.2.0-m2-standard-release.apk`).
+(`adb install -r -t apks/CallShift-v0.2.1-m2-standard-release.apk`).
 
 ---
 

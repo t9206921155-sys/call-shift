@@ -15,8 +15,9 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- Верхняя карточка: Мастер-переключатель и профиль -->
+            <!-- Верхняя карточка: Мастер-переключатель, профиль и кнопка выдачи роли -->
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardStatus"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="12dp"
@@ -59,6 +60,28 @@
                         android:layout_marginTop="6dp"
                         android:textColor="@color/text_secondary"
                         android:textSize="14sp" />
+
+                    <!-- Кнопка немедленной активации роли перехвата (если роль не выдана) -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnGrantRole"
+                        style="@style/Widget.Material3.Button"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:backgroundTint="@color/status_warn"
+                        android:text="Выдать роль перехвата вызовов"
+                        android:textColor="#FFFFFF"
+                        android:visibility="gone" />
+
+                    <!-- Кнопка выдачи runtime-разрешений -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnGrantPerms"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="Запросить разрешения (Телефон/Контакты)"
+                        android:visibility="gone" />
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

@@ -29,12 +29,67 @@
             android:textColor="@color/text_secondary"
             android:textSize="13sp" />
 
+        <!-- Интерактивные кнопки настройки прямо на устройстве -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:layout_marginBottom="6dp"
-            android:text="ADB-команды для полного профиля:"
+            android:text="Управление ролями и правами:"
+            android:textColor="@color/brand_accent"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnActionScreening"
+            style="@style/Widget.Material3.Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:backgroundTint="@color/brand_accent_dark"
+            android:text="Назначить роль Call Screening"
+            android:textColor="#FFFFFF" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnActionDialer"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:text="Сделать телефоном по умолчанию (Dialer)" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnActionPerms"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:text="Запросить все разрешения (Телефон/Контакты)" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnActionBattery"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:text="Исключить из оптимизации батареи (Doze)" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnActionDefaultApps"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:text="Открыть настройки приложений по умолчанию"
+            android:textColor="@color/brand_accent" />
+
+        <!-- ADB команды -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="6dp"
+            android:text="ADB-команды для полного профиля (альтернатива через ПК):"
             android:textColor="@color/brand_accent"
             android:textSize="14sp"
             android:textStyle="bold" />

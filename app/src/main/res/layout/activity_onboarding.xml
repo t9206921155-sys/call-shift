@@ -14,18 +14,18 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
+            android:layout_marginTop="20dp"
             android:layout_marginBottom="8dp"
-            android:text="Добро пожаловать в CallShift"
+            android:text="Мастер настройки CallShift"
             android:textColor="@color/text_primary"
-            android:textSize="24sp"
+            android:textSize="22sp"
             android:textStyle="bold" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
-            android:text="Приложение для умного перехвата и переадресации входящих вызовов."
+            android:text="Для работы перехвата и переадресации звонков приложению необходимы системные роли и разрешения."
             android:textColor="@color/text_secondary"
             android:textSize="14sp" />
 
@@ -33,7 +33,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="6dp"
-            android:text="Юридическое уведомление и дисклеймер:"
+            android:text="Юридическое уведомление:"
             android:textColor="@color/brand_accent"
             android:textSize="14sp"
             android:textStyle="bold" />
@@ -43,7 +43,7 @@
             android:layout_height="wrap_content"
             android:background="@color/surface_card"
             android:padding="12dp"
-            android:text="CallShift предназначен исключительно для личного использования и администрирования собственных телефонных номеров. Вы несёте полную ответственность за соблюдение законодательства о связи и конфиденциальности. Экстренные вызовы (112, 911 и др.) никогда не блокируются приложением."
+            android:text="CallShift предназначен для личного использования на ваших собственных SIM-картах. Экстренные вызовы (112, 911 и др.) никогда не блокируются."
             android:textColor="@color/text_secondary"
             android:textSize="12sp" />
 
@@ -51,10 +51,39 @@
             android:id="@+id/cbDisclaimer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="24dp"
-            android:text="Я прочитал(а) и принимаю условия использования"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="16dp"
+            android:text="Я прочитал(а) и принимаю условия"
             android:textColor="@color/text_primary" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="Шаги активации перехвата:"
+            android:textColor="@color/brand_accent"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnRequestPerms"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:enabled="false"
+            android:text="1. Запросить разрешения (Телефон/Контакты)" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnRequestRole"
+            style="@style/Widget.Material3.Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:backgroundTint="@color/brand_accent_dark"
+            android:enabled="false"
+            android:text="2. Назначить роль Call Screening"
+            android:textColor="#FFFFFF" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnContinue"

@@ -1,16 +1,27 @@
 package fi.callshift.app.ui
 
+import android.Manifest
+import android.app.role.RoleManager
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
+import android.telecom.TelecomManager
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import fi.callshift.app.CallShiftApp
+import fi.callshift.app.R
 import fi.callshift.app.databinding.ActivityMainBinding
 import fi.callshift.app.databinding.ItemRuleBinding
+import fi.callshift.app.domain.PermissionProfile
 import fi.callshift.app.domain.Rule
 import fi.callshift.app.telecom.MmiCodes
 import kotlinx.coroutines.launch
@@ -19,6 +30,24 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private val app: CallShiftApp by lazy { CallShiftApp.from(this) }
+
+    private val screeningRoleLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) {
+        updateStatus()
+    }
+
+    private val dialerRoleLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) {
+        updateStatus()
+    }
+
+    private val permissionsLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) {
+        updateStatus()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,6 +79,24 @@ class MainActivity : AppCompatActivity() {
                 val rulesCount = app.ruleStore.rules().count { it.enabled }
                 app.notifier.showStatus(isChecked, app.profile.name, rulesCount)
             }
+        }
+
+        // Кнопка назначения роли Call Screening прямо из приложения
+        binding.btnGrantRole.setOnClickListener {
+            requestScreeningRole()
+        }
+
+        // Клик по статусной карточке также вызывает запрос роли, если она не выдана
+        binding.cardStatus.setOnClickListener {
+            val report = app.detector.detect()
+            if (!report.isCallScreeningRole && !report.isDefaultDialer) {
+                requestScreeningRole()
+            }
+        }
+
+        // Кнопка выдачи разрешений
+        binding.btnGrantPerms.setOnClickListener {
+            requestRuntimePermissions()
         }
 
         binding.btnDialer.setOnClickListener {
@@ -84,23 +131,111 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    fun requestScreeningRole() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val roleManager = getSystemService(RoleManager::class.java)
+            if (roleManager.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)) {
+                if (roleManager.isRoleHeld(RoleManager.ROLE_CALL_SCREENING)) {
+                    Toast.makeText(this, "Роль перехвата уже назначена!", Toast.LENGTH_SHORT).show()
+                } else {
+                    val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING)
+                    screeningRoleLauncher.launch(intent)
+                }
+                return
+            }
+        }
+
+        // Fallback для устройств, где RoleManager недоступен или на кастомных прошивках (MIUI/ColorOS)
+        showDefaultAppsDialog()
+    }
+
+    fun requestDialerRole() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val roleManager = getSystemService(RoleManager::class.java)
+            if (roleManager.isRoleAvailable(RoleManager.ROLE_DIALER)) {
+                val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_DIALER)
+                dialerRoleLauncher.launch(intent)
+                return
+            }
+        }
+
+        @Suppress("DEPRECATION")
+        val intent = Intent(TelecomManager.ACTION_CHANGE_DEFAULT_DIALER).apply {
+            putExtra(TelecomManager.EXTRA_CHANGE_DEFAULT_DIALER_PACKAGE_NAME, packageName)
+        }
+        runCatching { startActivity(intent) }.onFailure { showDefaultAppsDialog() }
+    }
+
+    private fun requestRuntimePermissions() {
+        val perms = mutableListOf(
+            Manifest.permission.READ_PHONE_STATE,
+            Manifest.permission.CALL_PHONE,
+            Manifest.permission.READ_CONTACTS,
+            Manifest.permission.READ_CALL_LOG,
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            perms.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        permissionsLauncher.launch(perms.toTypedArray())
+    }
+
+    private fun showDefaultAppsDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Настройка роли перехвата")
+            .setMessage("В настройках вашего устройства откройте:\nПриложения → Приложения по умолчанию → «Определение номера и спам-фильтр» (Caller ID & spam) и выберите CallShift.")
+            .setPositiveButton("Открыть настройки") { _, _ ->
+                runCatching {
+                    startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
+                }.onFailure {
+                    runCatching {
+                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.parse("package:$packageName")
+                        }
+                        startActivity(intent)
+                    }
+                }
+            }
+            .setNegativeButton("Позже", null)
+            .show()
+    }
+
     private fun updateStatus() {
         val report = app.detector.detect()
         binding.switchMaster.isChecked = app.settings.masterEnabled
 
-        val profileStr = when (report.profile) {
-            fi.callshift.app.domain.PermissionProfile.SYSTEM -> "Профиль C (System / Root)"
-            fi.callshift.app.domain.PermissionProfile.DIALER -> "Профиль B (Default Dialer)"
-            fi.callshift.app.domain.PermissionProfile.SCREENING -> "Профиль A (Call Screening)"
-            fi.callshift.app.domain.PermissionProfile.NONE -> "Внимание: нет роли перехвата!"
+        val hasRole = report.isCallScreeningRole || report.isDefaultDialer
+        val missingPerms = report.grantedPermissions.filter { !it.value }.keys
+
+        if (!hasRole) {
+            binding.tvStatus.text = "Статус: Внимание! Нет роли перехвата вызовов.\nНажмите кнопку ниже, чтобы включить защиту."
+            binding.tvStatus.setTextColor(getColor(R.color.status_error))
+            binding.btnGrantRole.visibility = View.VISIBLE
+            binding.btnGrantRole.text = "Выдать роль перехвата (Call Screening)"
+            binding.cardStatus.strokeColor = getColor(R.color.status_error)
+        } else {
+            val profileStr = when (report.profile) {
+                PermissionProfile.SYSTEM -> "Профиль C (System / Root)"
+                PermissionProfile.DIALER -> "Профиль B (Основной телефон)"
+                PermissionProfile.SCREENING -> "Профиль A (Call Screening)"
+                PermissionProfile.NONE -> "Внимание: нет роли!"
+            }
+            val simCount = app.telecom.phoneAccounts().size
+            binding.tvStatus.text = buildString {
+                append("Статус: ")
+                append(if (app.settings.masterEnabled) "АКТИВЕН" else "ОТКЛЮЧЁН")
+                append(" · ").append(profileStr)
+                if (simCount > 0) append(" · SIM: ").append(simCount)
+            }
+            binding.tvStatus.setTextColor(getColor(R.color.text_secondary))
+            binding.btnGrantRole.visibility = View.GONE
+            binding.cardStatus.strokeColor = getColor(R.color.brand_accent)
         }
 
-        val simCount = app.telecom.phoneAccounts().size
-        binding.tvStatus.text = buildString {
-            append("Статус: ")
-            append(if (app.settings.masterEnabled) "АКТИВЕН" else "ОТКЛЮЧЁН")
-            append(" · ").append(profileStr)
-            if (simCount > 0) append(" · SIM-карт: ").append(simCount)
+        // Если не хватает базовых разрешений — показываем кнопку
+        if (missingPerms.isNotEmpty()) {
+            binding.btnGrantPerms.visibility = View.VISIBLE
+        } else {
+            binding.btnGrantPerms.visibility = View.GONE
         }
     }
 
