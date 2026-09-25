@@ -73,7 +73,7 @@
 
     <!-- ===== Экран звонка ===== -->
     <!-- Круглая кнопка управления (микрофон/динамик/…) 64dp -->
-    <style name="Widget.CallShift.RoundControl">
+    <style name="Widget.CallShift.RoundControl" parent="">
         <item name="android:layout_width">64dp</item>
         <item name="android:layout_height">64dp</item>
         <item name="android:background">@drawable/bg_circle</item>
@@ -84,7 +84,7 @@
     </style>
 
     <!-- Большая круглая кнопка вызова/сброса 76dp -->
-    <style name="Widget.CallShift.RoundCall">
+    <style name="Widget.CallShift.RoundCall" parent="">
         <item name="android:layout_width">76dp</item>
         <item name="android:layout_height">76dp</item>
         <item name="android:background">@drawable/bg_circle</item>
@@ -95,7 +95,7 @@
     </style>
 
     <!-- Подпись под круглой кнопкой -->
-    <style name="Text.CallShift.ControlLabel">
+    <style name="Text.CallShift.ControlLabel" parent="">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginTop">6dp</item>
@@ -104,7 +104,7 @@
     </style>
 
     <!-- Круглая клавиша цифровой клавиатуры (цифра + буквы задаются в коде) -->
-    <style name="Widget.CallShift.RoundKey">
+    <style name="Widget.CallShift.RoundKey" parent="">
         <item name="android:layout_width">72dp</item>
         <item name="android:layout_height">72dp</item>
         <item name="android:layout_marginStart">12dp</item>
