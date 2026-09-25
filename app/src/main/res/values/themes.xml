@@ -11,8 +11,9 @@
     <!-- Тема экрана звонка: без action bar, тёмный фон, показ поверх блокировки -->
     <style name="Theme.CallShift.InCall" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowBackground">@color/brand_primary</item>
-        <item name="android:statusBarColor">@color/brand_primary</item>
-        <item name="android:navigationBarColor">@color/brand_primary</item>
+        <!-- Прозрачные панели: градиент экрана звонка виден под часами и навигацией -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowFullscreen">false</item>
     </style>
 
