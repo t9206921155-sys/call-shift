@@ -54,6 +54,7 @@ class DiagnosticsActivity : AppCompatActivity() {
     }
 
     private fun setupButtons() {
+        binding.btnTestSms.setOnClickListener { testSms() }
         binding.btnActionScreening.setOnClickListener {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val roleManager = getSystemService(RoleManager::class.java)
@@ -127,6 +128,45 @@ class DiagnosticsActivity : AppCompatActivity() {
                 startActivity(intent)
             }
         }
+    }
+
+    /** Real SMS only after explicit number/SIM confirmation, never on opening diagnostics. */
+    private fun testSms() {
+        val accounts = app.telecom.phoneAccounts().entries.toList()
+        if (accounts.isEmpty() || !app.smsReplier.hasPermission()) {
+            Toast.makeText(this, "Сначала выдайте разрешения «Телефон» и «SMS» кнопкой ниже", Toast.LENGTH_LONG).show()
+            return
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Выберите SIM для тестовой SMS")
+            .setItems(accounts.mapIndexed { i, e -> "SIM ${i + 1}: ${e.value}" }.toTypedArray()) { _, position ->
+                val account = accounts[position]
+                if (!app.smsReplier.canUseAccount(account.key)) {
+                    Toast.makeText(this, "Эта SIM не определена для SMS. Другая карта не будет использована.", Toast.LENGTH_LONG).show()
+                    return@setItems
+                }
+                val input = android.widget.EditText(this).apply {
+                    hint = "+7… — номер получателя"
+                    inputType = android.text.InputType.TYPE_CLASS_PHONE
+                }
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("Тестовая SMS с ${account.value}")
+                    .setMessage("Введите номер своего второго телефона. Будет отправлена настоящая SMS «CallShift test» по тарифу оператора. Правила и лимит автоответов в этом ручном тесте не используются.")
+                    .setView(input)
+                    .setPositiveButton("Далее") { _, _ ->
+                        val number = app.normalizer.normalize(input.text.toString()).e164
+                        if (number == null || !fi.callshift.app.domain.ReplyChannel.isPhoneAddress(number)) {
+                            Toast.makeText(this, "Некорректный номер", Toast.LENGTH_LONG).show()
+                        } else androidx.appcompat.app.AlertDialog.Builder(this)
+                            .setTitle("Отправить SMS?")
+                            .setMessage("Получатель: $number\nSIM: ${account.value}\nТекст: CallShift test\nВозможна оплата по тарифу. Результат появится в Журнале → SMS.")
+                            .setPositiveButton("Отправить") { _, _ ->
+                                val error = app.smsReplier.sendQuickReply(number, "CallShift test", account.key)
+                                Toast.makeText(this, error ?: "Запрос отправки принят. Результат — в журнале SMS.", Toast.LENGTH_LONG).show()
+                            }.setNegativeButton("Отмена", null).show()
+                    }
+                    .setNegativeButton("Отмена", null).show()
+            }.setNegativeButton("Отмена", null).show()
     }
 
     private fun renderReport() {

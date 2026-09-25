@@ -29,6 +29,12 @@
             android:textColor="@color/text_secondary"
             android:textSize="13sp" />
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnTestSms"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Проверить SMS с выбранной SIM" />
+
         <!-- Интерактивные кнопки настройки прямо на устройстве -->
         <TextView
             android:layout_width="match_parent"
@@ -64,7 +70,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="6dp"
-            android:text="Запросить все разрешения (Телефон/Контакты)" />
+            android:text="Запросить разрешения (Телефон / SMS / Уведомления)" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnActionBattery"
