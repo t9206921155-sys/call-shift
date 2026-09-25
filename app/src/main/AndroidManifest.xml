@@ -215,6 +215,10 @@
         </receiver>
 
         <receiver
+            android:name=".ui.CallReminderReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".ui.BootReceiver"
             android:directBootAware="true"
             android:exported="true">

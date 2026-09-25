@@ -56,6 +56,14 @@
             android:background="@drawable/bg_avatar">
 
             <ImageView
+                android:id="@+id/ivPhoto"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="@null"
+                android:scaleType="centerCrop"
+                android:visibility="gone" />
+
+            <ImageView
                 android:id="@+id/ivAvatar"
                 android:layout_width="64dp"
                 android:layout_height="64dp"
@@ -335,63 +343,81 @@
             android:orientation="vertical" />
     </LinearLayout>
 
-    <!-- ===== Нижний ряд: входящий ===== -->
+    <!-- ===== Входящий: быстрые действия + «проведите, чтобы ответить» ===== -->
     <LinearLayout
         android:id="@+id/incomingRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center"
-        android:orientation="horizontal">
+        android:orientation="vertical">
 
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="center_horizontal"
-            android:orientation="vertical">
+            android:layout_marginBottom="24dp"
+            android:orientation="horizontal">
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
 
-            <ImageButton
-                android:id="@+id/btnReject"
-                style="@style/Widget.CallShift.RoundCall"
-                android:backgroundTint="#E53935"
-                android:contentDescription="@string/incall_reject"
-                android:src="@drawable/ic_call_end" />
+                <ImageButton
+                    android:id="@+id/btnRemind"
+                    style="@style/Widget.CallShift.RoundControl"
+                    android:contentDescription="Напомнить"
+                    android:src="@drawable/ic_alarm" />
 
-            <TextView style="@style/Text.CallShift.ControlLabel" android:text="@string/incall_reject" />
+                <TextView
+                    android:id="@+id/lblRemind"
+                    style="@style/Text.CallShift.ControlLabel"
+                    android:text="Напомнить" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
+
+                <ImageButton
+                    android:id="@+id/btnSms"
+                    style="@style/Widget.CallShift.RoundControl"
+                    android:contentDescription="Сообщение"
+                    android:src="@drawable/ic_message" />
+
+                <TextView
+                    android:id="@+id/lblSms"
+                    style="@style/Text.CallShift.ControlLabel"
+                    android:text="Сообщение" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
+
+                <ImageButton
+                    android:id="@+id/btnSilence"
+                    style="@style/Widget.CallShift.RoundControl"
+                    android:contentDescription="Без звонка"
+                    android:src="@drawable/ic_volume_off" />
+
+                <TextView
+                    android:id="@+id/lblSilence"
+                    style="@style/Text.CallShift.ControlLabel"
+                    android:text="Без звонка" />
+            </LinearLayout>
         </LinearLayout>
 
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="center_horizontal"
-            android:orientation="vertical">
-
-            <ImageButton
-                android:id="@+id/btnSms"
-                style="@style/Widget.CallShift.RoundControl"
-                android:contentDescription="SMS"
-                android:src="@drawable/ic_message" />
-
-            <TextView style="@style/Text.CallShift.ControlLabel" android:text="SMS" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="center_horizontal"
-            android:orientation="vertical">
-
-            <ImageButton
-                android:id="@+id/btnAnswer"
-                style="@style/Widget.CallShift.RoundCall"
-                android:backgroundTint="#43A047"
-                android:contentDescription="@string/incall_answer"
-                android:src="@drawable/ic_call" />
-
-            <TextView style="@style/Text.CallShift.ControlLabel" android:text="@string/incall_answer" />
-        </LinearLayout>
+        <fi.callshift.app.ui.SwipeCallView
+            android:id="@+id/swipeCall"
+            android:layout_width="match_parent"
+            android:layout_height="84dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:layout_marginBottom="8dp" />
     </LinearLayout>
 
     <!-- ===== Нижний ряд: Динамик · Завершить · Панель набора ===== -->

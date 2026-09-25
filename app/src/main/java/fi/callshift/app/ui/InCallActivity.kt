@@ -62,6 +62,7 @@ class InCallActivity : AppCompatActivity(), InCallController.Listener {
         binding = ActivityInCallBinding.inflate(layoutInflater)
         setContentView(binding.root)
         CallBackground.apply(this, binding.root)
+        binding.avatarFrame.clipToOutline = true
 
         setupLockScreenFlags()
         setupButtons()
@@ -89,11 +90,14 @@ class InCallActivity : AppCompatActivity(), InCallController.Listener {
     }
 
     private fun setupButtons() {
-        binding.btnAnswer.setOnClickListener {
-            it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-            primary()?.let { p -> controller.answer(p.id) }
+        binding.swipeCall.onAnswer = { primary()?.let { p -> controller.answer(p.id) } }
+        binding.swipeCall.onReject = { primary()?.let { p -> controller.reject(p.id) } }
+        binding.btnSilence.setOnClickListener {
+            runCatching { getSystemService(android.telecom.TelecomManager::class.java)?.silenceRinger() }
+            Keypad.setToggle(binding.btnSilence, true)
+            binding.lblSilence.text = "Тихо"
         }
-        binding.btnReject.setOnClickListener { primary()?.let { p -> controller.reject(p.id) } }
+        binding.btnRemind.setOnClickListener { askReminder() }
         binding.btnHangup.setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
             primary()?.let { p -> controller.disconnect(p.id) }
@@ -144,7 +148,7 @@ class InCallActivity : AppCompatActivity(), InCallController.Listener {
                 android.widget.Toast.LENGTH_LONG).show()
         }
         binding.btnNotes.setOnClickListener { showNotes() }
-        listOf(binding.btnMute, binding.btnSpeaker, binding.btnHold, binding.btnKeypad, binding.btnSms, binding.btnAddCall,
+        listOf(binding.btnMute, binding.btnSpeaker, binding.btnHold, binding.btnKeypad, binding.btnSms, binding.btnAddCall, binding.btnRemind, binding.btnSilence,
             binding.btnRecord, binding.btnVideo, binding.btnNotes)
             .forEach { Keypad.setToggle(it, false) }
     }
@@ -166,6 +170,54 @@ class InCallActivity : AppCompatActivity(), InCallController.Listener {
                 d.dismiss()
             }
             .show()
+    }
+
+    // ---------------- Напомнить позже ----------------
+
+    private fun askReminder() {
+        val p = primary() ?: return
+        val number = p.number
+        if (number.isNullOrBlank()) {
+            Toast.makeText(this, "Номер скрыт — напоминание невозможно", Toast.LENGTH_SHORT).show(); return
+        }
+        val name = p.name?.takeIf { it.isNotBlank() } ?: names[number]
+        val opts = listOf("Через 10 минут" to 10L, "Через 30 минут" to 30L, "Через 1 час" to 60L, "Через 3 часа" to 180L)
+        AlertDialog.Builder(this)
+            .setTitle("Отклонить и напомнить")
+            .setItems(opts.map { it.first }.toTypedArray()) { _, i ->
+                CallReminderReceiver.schedule(this, number, name, opts[i].second * 60_000L)
+                controller.reject(p.id)
+                Toast.makeText(applicationContext, "Напомню перезвонить: ${opts[i].first.lowercase()}", Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    // ---------------- Фото контакта ----------------
+
+    private val photos = mutableMapOf<String, android.graphics.Bitmap?>()
+
+    private fun loadPhoto(number: String) {
+        photos[number] = null
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_CONTACTS)
+            != android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        lifecycleScope.launch {
+            val bmp = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    val uri = android.net.Uri.withAppendedPath(
+                        android.provider.ContactsContract.PhoneLookup.CONTENT_FILTER_URI, android.net.Uri.encode(number))
+                    val photoUri = contentResolver.query(uri, arrayOf(android.provider.ContactsContract.PhoneLookup.PHOTO_URI),
+                        null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: return@runCatching null
+                    contentResolver.openInputStream(android.net.Uri.parse(photoUri))?.use {
+                        android.graphics.BitmapFactory.decodeStream(it)
+                    }
+                }.getOrNull()
+            }
+            if (bmp != null) {
+                photos[number] = bmp
+                primary()?.let { renderPrimary(it) }
+            }
+        }
     }
 
     // ---------------- Запись ----------------
@@ -250,6 +302,25 @@ class InCallActivity : AppCompatActivity(), InCallController.Listener {
             }
             .setNegativeButton("Отмена", null)
             .show()
+    }
+
+    // Пульсация аватара во время входящего, как в штатной звонилке.
+    private var ringPulse: android.animation.ObjectAnimator? = null
+
+    private fun startRingPulse() {
+        if (ringPulse != null) return
+        ringPulse = android.animation.ObjectAnimator.ofPropertyValuesHolder(binding.avatarFrame,
+            android.animation.PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.06f),
+            android.animation.PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.06f)).apply {
+            duration = 700; repeatMode = android.animation.ValueAnimator.REVERSE
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            start()
+        }
+    }
+
+    private fun stopRingPulse() {
+        ringPulse?.cancel(); ringPulse = null
+        binding.avatarFrame.scaleX = 1f; binding.avatarFrame.scaleY = 1f
     }
 
     private fun setupDtmfPad() {
@@ -344,10 +415,14 @@ class InCallActivity : AppCompatActivity(), InCallController.Listener {
         binding.tvCallNumber.text = if (contactName != null) shownNumber.orEmpty() else ""
         binding.tvCallNumber.visibility = if (binding.tvCallNumber.text.isNullOrEmpty()) View.GONE else View.VISIBLE
 
+        if (info.number != null && !photos.containsKey(info.number)) loadPhoto(info.number)
+        val photo = info.number?.let { photos[it] }
         val initials = Keypad.initials(contactName)
+        binding.ivPhoto.setImageBitmap(photo)
+        binding.ivPhoto.visibility = if (photo != null) View.VISIBLE else View.GONE
         binding.tvAvatar.text = initials.orEmpty()
-        binding.tvAvatar.visibility = if (initials != null) View.VISIBLE else View.GONE
-        binding.ivAvatar.visibility = if (initials != null) View.GONE else View.VISIBLE
+        binding.tvAvatar.visibility = if (photo == null && initials != null) View.VISIBLE else View.GONE
+        binding.ivAvatar.visibility = if (photo == null && initials == null) View.VISIBLE else View.GONE
 
         val sim = info.simLabel ?: info.simId?.let { app.telecom.phoneAccounts()[it] }
         val simCount = app.telecom.phoneAccounts().size
@@ -374,6 +449,7 @@ class InCallActivity : AppCompatActivity(), InCallController.Listener {
 
         val ringing = info.isRinging
         binding.incomingRow.visibility = if (ringing) View.VISIBLE else View.GONE
+        if (ringing) startRingPulse() else { stopRingPulse(); binding.swipeCall.reset() }
         binding.activeRow.visibility = if (ringing) View.GONE else View.VISIBLE
         binding.controlsRow.visibility = if (ringing) View.INVISIBLE else View.VISIBLE
         if (!ringing) {
