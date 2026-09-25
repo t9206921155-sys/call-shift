@@ -27,6 +27,7 @@ class RuleEditActivity : AppCompatActivity() {
     private lateinit var binding: ActivityRuleEditBinding
     private val app: CallShiftApp by lazy { CallShiftApp.from(this) }
     private var ruleId: Long = 0L
+    private var replySavedState: Bundle? = null
     private var existingRule: Rule? = null
     private lateinit var scheduleEditor: ScheduleEditor
 
