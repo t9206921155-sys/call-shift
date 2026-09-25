@@ -105,6 +105,16 @@
             android:background="@color/surface_card" />
 
         <TextView
+            android:id="@+id/tvSimWarn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="⚠ Правило сработает только для звонков на эту SIM. Для всех звонков выберите «Любая SIM»."
+            android:textColor="@color/status_warn"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"

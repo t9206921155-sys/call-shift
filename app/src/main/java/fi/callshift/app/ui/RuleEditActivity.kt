@@ -82,6 +82,12 @@ class RuleEditActivity : AppCompatActivity() {
         simOptions = opts
         binding.spinnerSim.adapter = darkSpinnerAdapter(this, opts.map { it.second })
         binding.spinnerSim.setSelection(opts.indexOfFirst { it.first == selected }.coerceAtLeast(0))
+        binding.spinnerSim.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p: android.widget.AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                binding.tvSimWarn.visibility = if (pos > 0) View.VISIBLE else View.GONE
+            }
+            override fun onNothingSelected(p: android.widget.AdapterView<*>?) {}
+        }
     }
 
     private fun setupSpinners() {
