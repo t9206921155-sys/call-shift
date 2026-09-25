@@ -35,6 +35,15 @@ class AutoReplyActivity : AppCompatActivity() {
     private lateinit var btnWhitelist: MaterialButton
     private var simOptions: List<Pair<String, String>> = emptyList()
 
+    private val replyPermission = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        Toast.makeText(this, if (granted) "Разрешение выдано. Настройки сохранены."
+            else "Настройки сохранены, но без разрешения ответ не будет отправлен/показан.",
+            Toast.LENGTH_LONG).show()
+        finish()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         title = "Автоответчик"
@@ -122,6 +131,16 @@ class AutoReplyActivity : AppCompatActivity() {
         ))
         AutoReplyTileService.requestUpdate(this)
         Toast.makeText(this, if (swEnabled.isChecked) "Автоответчик включён" else "Сохранено", Toast.LENGTH_SHORT).show()
+        val channel = tagOf(rgChannel) ?: "SMS"
+        if (swEnabled.isChecked && channel == "SMS" && !app.smsReplier.hasPermission()) {
+            replyPermission.launch(android.Manifest.permission.SEND_SMS)
+            return
+        }
+        if (swEnabled.isChecked && channel != "SMS" && android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            replyPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            return
+        }
         finish()
     }
 

@@ -13,10 +13,6 @@ import fi.callshift.app.domain.Signal
 import fi.callshift.app.domain.StrategySpec
 import fi.callshift.app.domain.Verdict
 import fi.callshift.app.domain.VerdictSpec
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
@@ -41,7 +37,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 class CallShiftScreeningService : CallScreeningService() {
 
     private val app: CallShiftApp by lazy { CallShiftApp.from(this) }
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onScreenCall(callDetails: Call.Details) {
         val started = System.nanoTime()
@@ -68,7 +63,12 @@ class CallShiftScreeningService : CallScreeningService() {
                 strategy = StrategySpec.NONE,
                 target = decision.target,
             )
-            serviceScope.launch {
+            // Telecom may unbind/destroy this service immediately after the response.
+            // Replies must not be cancelled together with the screening service.
+            app.appScope.launch {
+                // Reply must not wait for a forwarding/network strategy.
+                runCatching { app.smsReplier.maybeReply(ctx, decision, action.autoReplySms) }
+                    .onFailure { Log.e(TAG, "auto-reply failed", it) }
                 runCatching { app.dispatcher.submit(ctx, decision, action) }
                     .onFailure { Log.e(TAG, "dispatch failed", it) }
                 // Без переадресации диспетчер ничего не пишет — фиксируем сам факт перехвата,
@@ -77,9 +77,6 @@ class CallShiftScreeningService : CallScreeningService() {
                     runCatching { recordScreened(ctx, decision, started) }
                         .onFailure { Log.e(TAG, "journal write failed", it) }
                 }
-                // SMS-автоответ после отбоя (если задан в правиле).
-                runCatching { app.smsReplier.maybeReply(ctx, decision, action.autoReplySms) }
-                    .onFailure { Log.e(TAG, "sms auto-reply failed", it) }
             }
 
             Log.i(
@@ -194,11 +191,6 @@ class CallShiftScreeningService : CallScreeningService() {
     private fun hasAnswerPermission(): Boolean =
         checkSelfPermission(android.Manifest.permission.ANSWER_PHONE_CALLS) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
-
-    override fun onDestroy() {
-        runCatching { serviceScope.cancel() }
-        super.onDestroy()
-    }
 
     companion object {
         private const val TAG = "CallShift"

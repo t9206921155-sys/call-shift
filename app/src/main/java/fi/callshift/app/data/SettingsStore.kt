@@ -127,7 +127,7 @@ class SettingsStore(context: Context) : SettingsPort {
     // ---------------- Повторный звонок ----------------
 
     val repeatCallEnabled: Boolean
-        get() = prefs.getBoolean(KEY_REPEAT_ENABLED, true)
+        get() = prefs.getBoolean(KEY_REPEAT_ENABLED, false)
 
     val repeatCallMinutes: Int
         get() = prefs.getInt(KEY_REPEAT_MINUTES, 3)

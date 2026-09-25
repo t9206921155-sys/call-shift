@@ -281,6 +281,10 @@ class MainActivity : AppCompatActivity() {
                 append(if (app.settings.masterEnabled) "АКТИВЕН" else "ОТКЛЮЧЁН")
                 append(" · ").append(profileStr)
                 if (simCount > 0) append("\n").append(getString(R.string.status_sim_count, simCount))
+                if (app.settings.repeatCallEnabled) {
+                    append("\nПовторные звонки за ").append(app.settings.repeatCallMinutes)
+                        .append(" мин проходят — исключение включено")
+                }
             }
             binding.tvStatus.setTextColor(getColor(R.color.text_secondary))
             binding.btnGrantRole.visibility = View.GONE

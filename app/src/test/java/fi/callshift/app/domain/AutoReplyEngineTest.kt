@@ -80,6 +80,11 @@ class AutoReplyEngineTest {
         assertEquals(RuleEngine.REASON_WHITELIST, dec.reason)
     }
 
+    @Test fun repeatCallStillRejectsWhenExceptionDisabled() = runTest(d) {
+        val settings = Settings(repeatCallWindowMs = 0, rejected = mapOf(number to now - 60_000))
+        assertEquals(Verdict.DISALLOW_REJECT, engine(settings, listOf(rejectAll)).evaluate(ctx).verdict)
+    }
+
     @Test fun repeatCallPasses() = runTest(d) {
         val s = Settings(repeatCallWindowMs = 180_000, rejected = mapOf(number to now - 60_000))
         assertEquals(RuleEngine.REASON_REPEAT_CALL, engine(s, listOf(rejectAll)).evaluate(ctx).reason)
