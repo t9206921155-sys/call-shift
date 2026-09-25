@@ -39,10 +39,91 @@
             app:iconTint="#FFFFFF" />
     </LinearLayout>
 
-    <Space
+    <!-- Вкладки -->
+    <com.google.android.material.button.MaterialButtonToggleGroup
+        android:id="@+id/tabs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        app:checkedButton="@+id/tabPad"
+        app:selectionRequired="true"
+        app:singleSelection="true">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/tabPad"
+            style="@style/Widget.CallShift.DialTab"
+            android:text="Набор" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/tabRecents"
+            style="@style/Widget.CallShift.DialTab"
+            android:text="Недавние" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/tabContacts"
+            style="@style/Widget.CallShift.DialTab"
+            android:text="Контакты" />
+    </com.google.android.material.button.MaterialButtonToggleGroup>
+
+    <!-- Список: недавние / контакты -->
+    <LinearLayout
+        android:id="@+id/panelList"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <EditText
+            android:id="@+id/etSearch"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_search"
+            android:drawableStart="@android:drawable/ic_menu_search"
+            android:drawablePadding="8dp"
+            android:hint="Поиск по имени или номеру"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#8EA89C" />
+
+        <TextView
+            android:id="@+id/tvListEmpty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:padding="24dp"
+            android:textColor="#BFD6C9"
+            android:textSize="15sp"
+            android:visibility="gone" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/listItems"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:paddingTop="6dp" />
+    </LinearLayout>
+
+    <!-- Панель набора -->
+    <LinearLayout
+        android:id="@+id/panelPad"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+    <!-- Подсказки T9 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/listT9"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:paddingTop="6dp" />
 
     <!-- Номер -->
     <LinearLayout
@@ -150,5 +231,7 @@
         android:backgroundTint="#43A047"
         android:contentDescription="Позвонить"
         android:src="@drawable/ic_call" />
+
+    </LinearLayout>
 
 </LinearLayout>

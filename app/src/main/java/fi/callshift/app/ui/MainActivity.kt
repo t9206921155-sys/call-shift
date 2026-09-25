@@ -84,6 +84,7 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         updateStatus()
         loadRules()
+        updateTodayStats()
     }
 
     private fun setupListeners() {
@@ -132,12 +133,31 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, CarrierForwardActivity::class.java))
         }
 
+        binding.tvTodayStats.setOnClickListener { startActivity(Intent(this, LogActivity::class.java)) }
+
         binding.btnLogs.setOnClickListener {
             startActivity(Intent(this, LogActivity::class.java))
         }
 
         binding.btnDiag.setOnClickListener {
             startActivity(Intent(this, DiagnosticsActivity::class.java))
+        }
+
+        binding.btnTheme.setOnClickListener {
+            val modes = listOf(
+                fi.callshift.app.data.SettingsStore.THEME_DARK to "Тёмная",
+                fi.callshift.app.data.SettingsStore.THEME_LIGHT to "Светлая",
+                fi.callshift.app.data.SettingsStore.THEME_SYSTEM to "Как в системе",
+            )
+            val cur = modes.indexOfFirst { it.first == app.settings.themeMode }.coerceAtLeast(0)
+            AlertDialog.Builder(this)
+                .setTitle("Тема оформления")
+                .setSingleChoiceItems(modes.map { it.second }.toTypedArray(), cur) { d, i ->
+                    d.dismiss()
+                    app.settings.setThemeMode(modes[i].first)
+                    fi.callshift.app.CallShiftApp.applyTheme(modes[i].first)
+                }
+                .show()
         }
 
         binding.btnPanic.setOnClickListener {
@@ -230,7 +250,7 @@ class MainActivity : AppCompatActivity() {
         val active = ar.isActiveAt(System.currentTimeMillis())
         binding.switchAutoReply.isChecked = active
         binding.tvAutoReply.text = AutoReplyActivity.summary(ar)
-        binding.cardAutoReply.setStrokeColor(if (active) getColor(R.color.brand_accent) else 0xFF3D5A4C.toInt())
+        binding.cardAutoReply.setStrokeColor(if (active) getColor(R.color.brand_accent) else getColor(R.color.card_stroke))
         binding.btnWhitelist.text = "Белый список (${app.settings.whitelist.size})"
     }
 
@@ -294,6 +314,24 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Цвет правила по действию: сброс — красный, без звука — оранжевый, пропуск — зелёный, перенаправление — бирюзовый. */
+    private fun ruleColor(rule: Rule): Int = when {
+        !rule.enabled -> getColor(R.color.rule_disabled)
+        rule.action.strategy.name != "NONE" && rule.action.strategy.name != "NOTIFY" -> EventView.Kind.FORWARDED.color
+        rule.action.verdict == fi.callshift.app.domain.VerdictSpec.PASS -> EventView.Kind.PASSED.color
+        rule.action.verdict == fi.callshift.app.domain.VerdictSpec.SILENCE -> EventView.Kind.SILENCED.color
+        else -> EventView.Kind.REJECTED.color
+    }
+
+    private fun updateTodayStats() {
+        lifecycleScope.launch {
+            val today = EventView.startOfToday()
+            val events = app.eventStore.events(limit = 1000).filter { it.ts >= today }
+            binding.tvTodayStats.text = if (events.isEmpty()) "📊 Сегодня событий не было"
+            else "📊 Сегодня: " + EventView.stats(events).text() + "  ›"
+        }
+    }
+
     private fun bindRuleItem(item: ItemRuleBinding, rule: Rule) {
         item.tvPriority.text = when {
             rule.priority <= 50 -> "1-е"
@@ -338,12 +376,17 @@ class MainActivity : AppCompatActivity() {
                 append(" → ").append(target)
             }
             append(" · ").append(RuleLabels.verdictTitle(rule.action.verdict))
+            item.vRuleStripe.setBackgroundColor(ruleColor(rule))
+            item.tvAction.setTextColor(ruleColor(rule))
         }
 
         item.switchEnabled.setOnCheckedChangeListener { _, isChecked ->
             lifecycleScope.launch {
                 app.ruleStore.setEnabled(rule.id, isChecked)
             }
+            val c = ruleColor(rule.copy(enabled = isChecked))
+            item.vRuleStripe.setBackgroundColor(c)
+            item.tvAction.setTextColor(c)
         }
 
         item.root.setOnClickListener {

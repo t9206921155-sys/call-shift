@@ -108,6 +108,13 @@ class SettingsStore(context: Context) : SettingsPort {
 
     fun setAutoReplyEnabled(enabled: Boolean) = setAutoReply(autoReply.copy(enabled = enabled))
 
+    // ---------------- Тема ----------------
+
+    val themeMode: String
+        get() = prefs.getString(KEY_THEME, THEME_DARK) ?: THEME_DARK
+
+    fun setThemeMode(mode: String) = prefs.edit().putString(KEY_THEME, mode).apply()
+
     // ---------------- Белый список ----------------
 
     override val whitelist: Set<String>
@@ -168,6 +175,11 @@ class SettingsStore(context: Context) : SettingsPort {
             .toMap()
 
     companion object {
+        const val THEME_DARK = "dark"
+        const val THEME_LIGHT = "light"
+        const val THEME_SYSTEM = "system"
+        private const val KEY_THEME = "theme_mode"
+
         private const val KEY_MASTER = "master_enabled"
         private const val KEY_DEFAULT_VERDICT = "default_verdict"
         private const val KEY_DEFAULT_STRATEGY = "default_strategy"

@@ -29,10 +29,14 @@ object SystemBarsInsets : Application.ActivityLifecycleCallbacks {
         root.setTag(R.id.tag_insets_applied, true)
 
         WindowCompat.setDecorFitsSystemWindows(activity.window, false)
-        // Тёмный фон приложения → светлые значки в строке состояния и навигации.
+        // Тёмный фон → светлые значки; светлая тема → тёмные. Экраны звонка всегда тёмные.
+        val night = (activity.resources.configuration.uiMode and
+            android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        val alwaysDark = activity is InCallActivity || activity is DialerActivity
+        val lightBars = !night && !alwaysDark
         WindowCompat.getInsetsController(activity.window, root).apply {
-            isAppearanceLightStatusBars = false
-            isAppearanceLightNavigationBars = false
+            isAppearanceLightStatusBars = lightBars
+            isAppearanceLightNavigationBars = lightBars
         }
 
         val base = Padding(root.paddingLeft, root.paddingTop, root.paddingRight, root.paddingBottom)

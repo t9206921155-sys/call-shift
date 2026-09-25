@@ -1,0 +1,68 @@
+package fi.callshift.app.ui
+
+import fi.callshift.app.forward.CallEvent
+
+/** Человеческое представление записи журнала. */
+object EventView {
+    enum class Kind(val title: String, val icon: String, val color: Int) {
+        REJECTED("Сброшен", "⊘", 0xFFE57373.toInt()),
+        SILENCED("Без звука", "🔕", 0xFFFFB74D.toInt()),
+        PASSED("Пропущен", "✓", 0xFF81C784.toInt()),
+        SMS_SENT("SMS отправлено", "✉", 0xFF64B5F6.toInt()),
+        SMS_SKIPPED("SMS не отправлено", "✉", 0xFF90A4AE.toInt()),
+        FORWARDED("Перенаправлен", "↪", 0xFF4DB6AC.toInt()),
+        ERROR("Ошибка", "⚠", 0xFFFF5252.toInt()),
+    }
+
+    fun kind(e: CallEvent): Kind = when (e.strategy) {
+        "SCREENED" -> when {
+            e.result == "PASS" -> Kind.PASSED
+            e.errorMessage?.startsWith("звонок без звука") == true -> Kind.SILENCED
+            else -> Kind.REJECTED
+        }
+        "SMS_REPLY" -> when (e.result) {
+            "OK", "SENT" -> Kind.SMS_SENT
+            "FAILED", "ERROR" -> Kind.ERROR
+            else -> Kind.SMS_SKIPPED
+        }
+        else -> when (e.result) {
+            "OK" -> Kind.FORWARDED
+            "PASS" -> Kind.PASSED
+            else -> Kind.ERROR
+        }
+    }
+
+    /** Текст «почему» без технических префиксов. */
+    fun sentence(e: CallEvent): String {
+        val msg = e.errorMessage?.takeIf { it.isNotBlank() }
+        val base = when (kind(e)) {
+            Kind.FORWARDED -> "Стратегия «" + RuleLabels.strategyTitle(e.strategy) + "»" + (msg?.let { ": $it" } ?: "")
+            Kind.ERROR -> if (e.strategy != "SMS_REPLY") "«" + RuleLabels.strategyTitle(e.strategy) + "»: " + (msg ?: e.result) else msg ?: e.result
+            else -> msg ?: e.reason
+        }
+        return base.replaceFirstChar { it.uppercase() }
+    }
+
+    data class Stats(val rejected: Int, val passed: Int, val sms: Int, val forwarded: Int, val errors: Int) {
+        fun text(): String = buildList {
+            add("сброшено $rejected")
+            add("пропущено $passed")
+            add("SMS $sms")
+            if (forwarded > 0) add("перенаправлено $forwarded")
+            if (errors > 0) add("ошибок $errors")
+        }.joinToString(" · ")
+    }
+
+    fun stats(events: List<CallEvent>): Stats {
+        val k = events.map { kind(it) }
+        return Stats(
+            rejected = k.count { it == Kind.REJECTED || it == Kind.SILENCED },
+            passed = k.count { it == Kind.PASSED },
+            sms = k.count { it == Kind.SMS_SENT },
+            forwarded = k.count { it == Kind.FORWARDED },
+            errors = k.count { it == Kind.ERROR },
+        )
+    }
+
+    fun startOfToday(): Long = java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+}

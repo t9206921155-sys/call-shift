@@ -1,17 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Светлая тема. Тёмная палитра — в values-night/colors.xml. -->
 <resources>
-    <color name="brand_primary">#1C3328</color>
-    <color name="brand_secondary">#2E4A3E</color>
-    <color name="brand_accent">#4CAF82</color>
-    <color name="brand_accent_dark">#2E7D52</color>
+    <color name="brand_primary">#F2F6F3</color>
+    <color name="brand_secondary">#DCE8E0</color>
+    <color name="brand_accent">#2E8B5E</color>
+    <color name="brand_accent_dark">#1F6B45</color>
 
     <color name="status_ok">#2E7D32</color>
-    <color name="status_warn">#F57C00</color>
-    <color name="status_error">#D32F2F</color>
+    <color name="status_warn">#E65100</color>
+    <color name="status_error">#C62828</color>
 
-    <color name="surface_card">#274033</color>
+    <color name="surface_card">#FFFFFF</color>
     <color name="surface_card_dark">#182B21</color>
-    <color name="text_primary">#FFFFFF</color>
-    <color name="text_secondary">#BFD6C9</color>
-    <color name="text_muted">#8EA89C</color>
+    <color name="text_primary">#13241B</color>
+    <color name="text_secondary">#3F5A4C</color>
+    <color name="text_muted">#6B8377</color>
+    <color name="card_stroke">#D3E0D8</color>
+    <color name="rule_disabled">#90A4AE</color>
 </resources>

@@ -73,6 +73,7 @@ class CallShiftApp : Application() {
 
         normalizer = PhoneNumberNormalizer(defaultRegion = "FI")
         settings = SettingsStore(this)
+        applyTheme(settings.themeMode)
         ruleStore = JsonFileRuleStore(this)
         eventStore = FileEventStore(this)
         contacts = ContactsChecker(this, normalizer)
@@ -133,5 +134,16 @@ class CallShiftApp : Application() {
     companion object {
         fun from(context: Context): CallShiftApp =
             context.applicationContext as CallShiftApp
+
+        /** Тёмная (по умолчанию) / светлая / как в системе. Экраны звонка всегда тёмные. */
+        fun applyTheme(mode: String) {
+            androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(
+                when (mode) {
+                    fi.callshift.app.data.SettingsStore.THEME_LIGHT -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO
+                    fi.callshift.app.data.SettingsStore.THEME_SYSTEM -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+                    else -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES
+                },
+            )
+        }
     }
 }
