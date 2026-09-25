@@ -358,9 +358,13 @@ class InCallActivity : AppCompatActivity(), InCallController.Listener {
             hint = "Текст SMS"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_MULTI_LINE
         }
+        val form = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.VERTICAL; addView(input) }
+        val parts = TextView(this).apply { setPadding(16, 8, 16, 8) }
+        form.addView(parts)
+        SmsParts.attach(input, parts)
         AlertDialog.Builder(this)
             .setTitle("Отклонить и отправить SMS")
-            .setView(input)
+            .setView(form)
             .setPositiveButton("Отправить") { _, _ ->
                 input.text.toString().trim().takeIf { it.isNotEmpty() }?.let(::rejectWithSms)
             }

@@ -59,7 +59,7 @@ class SmsRuleActivity : AppCompatActivity() {
         simSpinner = ui.add(Spinner(this).apply { adapter = darkSpinnerAdapter(this@SmsRuleActivity, sims.map { it.second }); setSelection(sims.indexOfFirst { it.first == chosen }.coerceAtLeast(0)) })
         simKeys = sims.map { it.first }
         ui.header("Кому отвечать")
-        val inContacts = rule.conditions.anyOf.flatten().firstOrNull { it.type == RuleEngine.TYPE_IN_CONTACTS }?.value
+        val inContacts = rule.conditions.anyOf.flatten().firstOrNull { it.type == RuleEngine.TYPE_IN_CONTACTS }?.let { it.value ?: true }
         whoSpinner = ui.add(Spinner(this).apply {
             adapter = darkSpinnerAdapter(this@SmsRuleActivity, listOf("Все звонящие", "Только контакты", "Только незнакомые"))
             setSelection(state?.getInt("who") ?: when (inContacts) { true -> 1; false -> 2; null -> 0 })
@@ -111,7 +111,9 @@ class SmsRuleActivity : AppCompatActivity() {
                         replyChannel = "SMS", replyChannels = listOf("SMS"), replyCooldownMinutes = intervalKeys[intervalSpinner.selectedItemPosition]))
                 fun save() { lifecycleScope.launch {
                     runCatching { app.ruleStore.save(draft) }.onSuccess {
-                        val missing = ReplyPermissions.missing(this@SmsRuleActivity, listOf("SMS"))
+                        val missing = (ReplyPermissions.missing(this@SmsRuleActivity, listOf("SMS")).toList() +
+                            if (whoSpinner.selectedItemPosition != 0 && checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                                listOf(android.Manifest.permission.READ_CONTACTS) else emptyList()).toTypedArray()
                         if (missing.isNotEmpty()) permissions.launch(missing) else {
                             Toast.makeText(this@SmsRuleActivity, "Правило сохранено", Toast.LENGTH_SHORT).show(); finish()
                         }

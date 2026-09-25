@@ -118,7 +118,7 @@ class SmsAutoReplier(
                 }
                 // Reserve before asynchronous sending. Unknown/partial outcomes must
                 // not cause an automatic duplicate or another paid multipart SMS.
-                prefs.edit().putLong(key, now).apply()
+                check(prefs.edit().putLong(key, now).commit()) { "Не удалось сохранить паузу SMS" }
                 try {
                     TrackedSmsSender.send(appContext, smsManager(subId), r.number, r.text,
                         event(ctx, decision, "SUBMITTED", null, "Ожидаем подтверждение отправки"))

@@ -18,9 +18,9 @@ class SettingsBackupManager(private val app: CallShiftApp) {
     suspend fun restore(backup: SettingsBackup) = withContext(Dispatchers.IO) {
         lock.withLock {
             // Validate before touching any live data.
-            BackupCodec.decode(BackupCodec.encode(backup))
+            val validated = BackupCodec.decode(BackupCodec.encode(backup))
             val previous = snapshot()
-            val safe = BackupCodec.safeRestore(backup)
+            val safe = BackupCodec.safeRestore(validated)
             app.settings.pauseForRestore()
             try {
                 app.ruleStore.replaceAll(safe.rules)
