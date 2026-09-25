@@ -212,6 +212,8 @@ class DialerActivity : AppCompatActivity() {
                 Toast.makeText(this, "Добавлено в белый список", Toast.LENGTH_SHORT).show()
             }
         }
+        items += "⏺ Записи разговоров" to { showRecordings() }
+        items += "📝 Примечания к звонкам" to { showAllNotes() }
         items += "📼 Голосовая почта (долгое нажатие «1»)" to { callVoicemail() }
         items += "⚙ Настройки вызовов SIM" to {
             runCatching { startActivity(Intent(android.telecom.TelecomManager.ACTION_SHOW_CALL_SETTINGS)) }
@@ -221,6 +223,56 @@ class DialerActivity : AppCompatActivity() {
         items += "💬 Автоответчик" to { startActivity(Intent(this, AutoReplyActivity::class.java)) }
         AlertDialog.Builder(this)
             .setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }
+            .show()
+    }
+
+    private fun showRecordings() {
+        val files = CallRecorder.list(this)
+        if (files.isEmpty()) {
+            Toast.makeText(this, "Записей пока нет. Кнопка «Запись» — на экране разговора.", Toast.LENGTH_LONG).show(); return
+        }
+        val labels = files.map { f ->
+            val parts = f.nameWithoutExtension.split("_")
+            val num = parts.getOrNull(2).orEmpty()
+            val kb = f.length() / 1024
+            "${parts.getOrNull(0).orEmpty()} ${parts.getOrNull(1).orEmpty().replace('-', ':')} · $num · ${kb} КБ"
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Записи разговоров (${files.size})")
+            .setItems(labels.toTypedArray()) { _, i -> recordingActions(files[i]) }
+            .show()
+    }
+
+    private fun recordingActions(f: java.io.File) {
+        val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.fileprovider", f)
+        val acts = listOf("▶ Прослушать", "↗ Поделиться", "🗑 Удалить")
+        AlertDialog.Builder(this).setTitle(f.name).setItems(acts.toTypedArray()) { _, i ->
+            when (i) {
+                0 -> runCatching {
+                    startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, "audio/mp4").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                }.onFailure { Toast.makeText(this, "Нет приложения для воспроизведения", Toast.LENGTH_SHORT).show() }
+                1 -> startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("audio/mp4")
+                    .putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), "Поделиться записью"))
+                else -> { f.delete(); Toast.makeText(this, "Удалено", Toast.LENGTH_SHORT).show() }
+            }
+        }.show()
+    }
+
+    private fun showAllNotes() {
+        val notes = CallNotes.all(this)
+        if (notes.isEmpty()) {
+            Toast.makeText(this, "Примечаний нет. Кнопка «Примечания» — на экране разговора.", Toast.LENGTH_LONG).show(); return
+        }
+        val df = java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault())
+        AlertDialog.Builder(this)
+            .setTitle("Примечания к звонкам")
+            .setItems(notes.map { "${df.format(java.util.Date(it.ts))} · ${it.name ?: it.number ?: "—"}\n${it.text}" }.toTypedArray()) { _, i ->
+                val n = notes[i]
+                AlertDialog.Builder(this).setTitle(n.name ?: n.number ?: "Примечание").setMessage(n.text)
+                    .setPositiveButton("Позвонить") { _, _ -> n.number?.let { placeCall(it) } }
+                    .setNeutralButton("Удалить") { _, _ -> CallNotes.delete(this, n) }
+                    .setNegativeButton("Закрыть", null).show()
+            }
             .show()
     }
 

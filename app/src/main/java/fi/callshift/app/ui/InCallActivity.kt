@@ -52,6 +52,7 @@ class InCallActivity : AppCompatActivity(), InCallController.Listener {
     private val tick = object : Runnable {
         override fun run() {
             primary()?.let { renderState(it) }
+            if (CallRecorder.isRecording) renderRecording()
             ticker.postDelayed(this, 1000)
         }
     }
@@ -108,10 +109,15 @@ class InCallActivity : AppCompatActivity(), InCallController.Listener {
         }
         binding.btnSpeaker.setOnClickListener {
             val p = primary() ?: return@setOnClickListener
+            // Как в штатной звонилке: если подключены наушники/Bluetooth — выбор, куда выводить звук.
+            val (mask, _) = controller.audioRoutes()
+            val extra = android.telecom.CallAudioState.ROUTE_BLUETOOTH or android.telecom.CallAudioState.ROUTE_WIRED_HEADSET
+            if (mask and extra != 0) { showAudioRoutes(); return@setOnClickListener }
             speakerOn = !speakerOn
             controller.setSpeakerphone(p.id, speakerOn)
             Keypad.setToggle(binding.btnSpeaker, speakerOn)
         }
+        binding.btnSpeaker.setOnLongClickListener { showAudioRoutes(); true }
         binding.btnMute.setOnClickListener {
             muted = !muted
             controller.setMute(muted)
@@ -122,15 +128,24 @@ class InCallActivity : AppCompatActivity(), InCallController.Listener {
             binding.dtmfPad.visibility = if (keypadVisible) View.VISIBLE else View.GONE
             // Клавиатуре нужно место — прячем аватар, имя остаётся.
             binding.avatarFrame.visibility = if (keypadVisible) View.GONE else View.VISIBLE
-            binding.lblKeypad.text = if (keypadVisible) "Скрыть" else "Клавиатура"
+            binding.lblKeypad.text = if (keypadVisible) "Скрыть" else "Панель набора"
             Keypad.setToggle(binding.btnKeypad, keypadVisible)
         }
         binding.btnAddCall.setOnClickListener {
             // Текущий звонок система поставит на удержание при наборе второго.
             startActivity(Intent(this, DialerActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
-        binding.btnAudio.setOnClickListener { showAudioRoutes() }
-        listOf(binding.btnMute, binding.btnSpeaker, binding.btnHold, binding.btnKeypad, binding.btnSms, binding.btnAddCall, binding.btnAudio)
+        binding.btnRecord.setOnClickListener { toggleRecording() }
+        binding.btnVideo.setOnClickListener {
+            val p = primary()
+            android.widget.Toast.makeText(this,
+                if (p?.canVideo == true) "Видеозвонок в CallShift пока не поддерживается — используйте штатную звонилку"
+                else "Видеозвонок недоступен: оператор или собеседник не поддерживает ViLTE",
+                android.widget.Toast.LENGTH_LONG).show()
+        }
+        binding.btnNotes.setOnClickListener { showNotes() }
+        listOf(binding.btnMute, binding.btnSpeaker, binding.btnHold, binding.btnKeypad, binding.btnSms, binding.btnAddCall,
+            binding.btnRecord, binding.btnVideo, binding.btnNotes)
             .forEach { Keypad.setToggle(it, false) }
     }
 
@@ -148,9 +163,92 @@ class InCallActivity : AppCompatActivity(), InCallController.Listener {
                 controller.setAudioRoute(all[i].first)
                 speakerOn = all[i].first == android.telecom.CallAudioState.ROUTE_SPEAKER
                 Keypad.setToggle(binding.btnSpeaker, speakerOn)
-                Keypad.setToggle(binding.btnAudio, all[i].first == android.telecom.CallAudioState.ROUTE_BLUETOOTH)
                 d.dismiss()
             }
+            .show()
+    }
+
+    // ---------------- Запись ----------------
+
+    private val askMic = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) toggleRecording()
+        else android.widget.Toast.makeText(this, "Для записи нужен доступ к микрофону", android.widget.Toast.LENGTH_LONG).show()
+    }
+
+    private fun toggleRecording() {
+        if (CallRecorder.isRecording) {
+            val f = CallRecorder.stop()
+            android.widget.Toast.makeText(this, if (f != null) "Запись сохранена: ${f.name}" else "Запись не сохранилась",
+                android.widget.Toast.LENGTH_LONG).show()
+            renderRecording()
+            return
+        }
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO)
+            != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) { askMic.launch(android.Manifest.permission.RECORD_AUDIO); return }
+        val prefs = getSharedPreferences("recorder", MODE_PRIVATE)
+        if (!prefs.getBoolean("warned", false)) {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Запись разговора")
+                .setMessage("Android не даёт сторонним звонилкам записывать линию напрямую, поэтому запись идёт с микрофона: " +
+                    "ваш голос слышно всегда, собеседника — хорошо при включённом динамике.\n\n" +
+                    "Записи: «⋮» → «Записи разговоров» в звонилке. Предупреждайте собеседника о записи.")
+                .setPositiveButton("Начать") { _, _ -> prefs.edit().putBoolean("warned", true).apply(); toggleRecording() }
+                .setNegativeButton("Отмена", null)
+                .show()
+            return
+        }
+        CallRecorder.start(this, primary()?.number)
+            .onFailure {
+                android.widget.Toast.makeText(this, "Не удалось начать запись: ${it.message}", android.widget.Toast.LENGTH_LONG).show()
+            }
+        renderRecording()
+    }
+
+    private fun renderRecording() {
+        val on = CallRecorder.isRecording
+        Keypad.setToggle(binding.btnRecord, on)
+        binding.lblRecord.text = if (on) {
+            val sec = (System.currentTimeMillis() - CallRecorder.startedAt) / 1000
+            "● %d:%02d".format(sec / 60, sec % 60)
+        } else "Запись"
+        binding.lblRecord.setTextColor(if (on) 0xFFFF5252.toInt() else 0xFFD8E7DE.toInt())
+    }
+
+    // ---------------- Примечания ----------------
+
+    private fun showNotes() {
+        val p = primary()
+        val number = p?.number
+        val name = p?.name?.takeIf { it.isNotBlank() } ?: number?.let { names[it] }
+        val input = android.widget.EditText(this).apply {
+            hint = "Текст примечания"
+            minLines = 3
+            gravity = android.view.Gravity.TOP
+        }
+        val old = CallNotes.forNumber(this, number).take(5)
+        val df = java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault())
+        val box = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            val pad = (20 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad / 2, pad, 0)
+            if (old.isNotEmpty()) addView(android.widget.TextView(context).apply {
+                text = "Прошлые примечания:\n" + old.joinToString("\n") { "• ${df.format(java.util.Date(it.ts))}: ${it.text}" }
+                setPadding(0, 0, 0, pad / 2)
+            })
+            addView(input)
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Примечание — ${name ?: number ?: "звонок"}")
+            .setView(box)
+            .setPositiveButton("Сохранить") { _, _ ->
+                val t = input.text.toString().trim()
+                if (t.isNotEmpty()) {
+                    CallNotes.add(this, CallNotes.Note(System.currentTimeMillis(), number, name, t))
+                    android.widget.Toast.makeText(this, "Примечание сохранено", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Отмена", null)
             .show()
     }
 
@@ -226,6 +324,9 @@ class InCallActivity : AppCompatActivity(), InCallController.Listener {
     override fun onCallsChanged(calls: List<InCallController.CallInfo>) {
         current = calls
         if (calls.isEmpty()) {
+            CallRecorder.stop()?.let {
+                android.widget.Toast.makeText(this, "Запись сохранена: ${it.name}", android.widget.Toast.LENGTH_LONG).show()
+            }
             finish()
             return
         }
@@ -286,7 +387,10 @@ class InCallActivity : AppCompatActivity(), InCallController.Listener {
         setEnabled(binding.btnMute, info.isActive)
         setEnabled(binding.btnKeypad, info.isActive)
         setEnabled(binding.btnAddCall, info.isActive || info.isOnHold)
-        setEnabled(binding.btnAudio, !ringing)
+        setEnabled(binding.btnRecord, info.isActive || CallRecorder.isRecording)
+        setEnabled(binding.btnVideo, info.canVideo)
+        setEnabled(binding.btnNotes, true)
+        renderRecording()
         Keypad.setToggle(binding.btnHold, info.isOnHold)
         binding.lblHold.text = if (info.isOnHold) "Вернуть" else "Удержать"
     }
@@ -312,7 +416,8 @@ class InCallActivity : AppCompatActivity(), InCallController.Listener {
 
     private fun setEnabled(v: View, enabled: Boolean) {
         v.isEnabled = enabled
-        v.alpha = if (enabled) 1f else 0.35f
+        // Как в штатной звонилке: недоступная кнопка тускнеет вместе с подписью.
+        ((v.parent as? View) ?: v).alpha = if (enabled) 1f else 0.4f
     }
 
     private fun lookupName(number: String) {

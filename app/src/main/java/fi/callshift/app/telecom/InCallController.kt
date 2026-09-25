@@ -47,6 +47,8 @@ class InCallController private constructor() {
         val isConference: Boolean,
         /** id PhoneAccountHandle (SIM), на которую/с которой идёт вызов. */
         val simId: String? = null,
+        /** Оператор и телефон поддерживают видеозвонок (ViLTE). */
+        val canVideo: Boolean = false,
     )
 
     fun interface Listener {
@@ -226,6 +228,10 @@ class InCallController private constructor() {
             simLabel = sim,
             isConference = hasConf ?: false,
             simId = runCatching { details?.accountHandle?.id }.getOrNull(),
+            canVideo = runCatching {
+                details?.can(Call.Details.CAPABILITY_SUPPORTS_VT_LOCAL_BIDIRECTIONAL) == true &&
+                    details.can(Call.Details.CAPABILITY_SUPPORTS_VT_REMOTE_BIDIRECTIONAL)
+            }.getOrDefault(false),
         )
     }
 

@@ -180,17 +180,16 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- ===== Кнопки управления разговором: сетка 3×2 (+ «Завершить» ниже) ===== -->
+    <!-- ===== Кнопки разговора: сетка 3×3, как в штатной звонилке ===== -->
     <LinearLayout
         android:id="@+id/controlsRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="20dp"
         android:orientation="vertical">
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="18dp"
+            android:layout_marginBottom="16dp"
             android:orientation="horizontal">
             <LinearLayout
                 android:layout_width="0dp"
@@ -200,58 +199,16 @@
                 android:orientation="vertical">
 
                 <ImageButton
-                    android:id="@+id/btnMute"
+                    android:id="@+id/btnRecord"
                     style="@style/Widget.CallShift.RoundControl"
-                    android:contentDescription="Без звука"
-                    android:src="@drawable/ic_mic_off" />
+                    android:contentDescription="Запись"
+                    android:src="@drawable/ic_record" />
 
                 <TextView
-                    android:id="@+id/lblMute"
+                    android:id="@+id/lblRecord"
                     style="@style/Text.CallShift.ControlLabel"
-                    android:text="Без звука" />
+                    android:text="Запись" />
             </LinearLayout>
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="center_horizontal"
-                android:orientation="vertical">
-
-                <ImageButton
-                    android:id="@+id/btnKeypad"
-                    style="@style/Widget.CallShift.RoundControl"
-                    android:contentDescription="Клавиатура"
-                    android:src="@drawable/ic_dialpad" />
-
-                <TextView
-                    android:id="@+id/lblKeypad"
-                    style="@style/Text.CallShift.ControlLabel"
-                    android:text="Клавиатура" />
-            </LinearLayout>
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="center_horizontal"
-                android:orientation="vertical">
-
-                <ImageButton
-                    android:id="@+id/btnSpeaker"
-                    style="@style/Widget.CallShift.RoundControl"
-                    android:contentDescription="Динамик"
-                    android:src="@drawable/ic_volume_up" />
-
-                <TextView
-                    android:id="@+id/lblSpeaker"
-                    style="@style/Text.CallShift.ControlLabel"
-                    android:text="Динамик" />
-            </LinearLayout>
-        </LinearLayout>
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="0dp"
-            android:orientation="horizontal">
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -288,6 +245,12 @@
                     style="@style/Text.CallShift.ControlLabel"
                     android:text="Добавить вызов" />
             </LinearLayout>
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:orientation="horizontal">
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -296,15 +259,51 @@
                 android:orientation="vertical">
 
                 <ImageButton
-                    android:id="@+id/btnAudio"
+                    android:id="@+id/btnMute"
                     style="@style/Widget.CallShift.RoundControl"
-                    android:contentDescription="Аудио"
-                    android:src="@drawable/ic_bluetooth" />
+                    android:contentDescription="Без звука"
+                    android:src="@drawable/ic_mic_off" />
 
                 <TextView
-                    android:id="@+id/lblAudio"
+                    android:id="@+id/lblMute"
                     style="@style/Text.CallShift.ControlLabel"
-                    android:text="Аудио" />
+                    android:text="Без звука" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
+
+                <ImageButton
+                    android:id="@+id/btnVideo"
+                    style="@style/Widget.CallShift.RoundControl"
+                    android:contentDescription="Видеозвонок"
+                    android:src="@drawable/ic_videocam" />
+
+                <TextView
+                    android:id="@+id/lblVideo"
+                    style="@style/Text.CallShift.ControlLabel"
+                    android:text="Видеозвонок" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
+
+                <ImageButton
+                    android:id="@+id/btnNotes"
+                    style="@style/Widget.CallShift.RoundControl"
+                    android:contentDescription="Примечания"
+                    android:src="@drawable/ic_note" />
+
+                <TextView
+                    android:id="@+id/lblNotes"
+                    style="@style/Text.CallShift.ControlLabel"
+                    android:text="Примечания" />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>
@@ -395,21 +394,69 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- ===== Нижний ряд: разговор ===== -->
+    <!-- ===== Нижний ряд: Динамик · Завершить · Панель набора ===== -->
     <LinearLayout
-        android:id="@+id/activeRow"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:visibility="gone">
+            android:id="@+id/activeRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone"
+            android:orientation="horizontal">
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
 
-        <ImageButton
-            android:id="@+id/btnHangup"
-            style="@style/Widget.CallShift.RoundCall"
-            android:backgroundTint="#E53935"
-            android:contentDescription="@string/incall_hangup"
-            android:src="@drawable/ic_call_end" />
-    </LinearLayout>
+                <ImageButton
+                    android:id="@+id/btnSpeaker"
+                    style="@style/Widget.CallShift.RoundControl"
+                    android:contentDescription="Динамик"
+                    android:src="@drawable/ic_volume_up" />
+
+                <TextView
+                    android:id="@+id/lblSpeaker"
+                    style="@style/Text.CallShift.ControlLabel"
+                    android:text="Динамик" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
+
+                <ImageButton
+                    android:id="@+id/btnHangup"
+                    style="@style/Widget.CallShift.RoundControl"
+                    android:backgroundTint="#E53935"
+                    android:contentDescription="Завершить"
+                    android:src="@drawable/ic_call_end" />
+
+                <TextView
+                    android:id="@+id/lblHangup"
+                    style="@style/Text.CallShift.ControlLabel"
+                    android:text="Завершить" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
+
+                <ImageButton
+                    android:id="@+id/btnKeypad"
+                    style="@style/Widget.CallShift.RoundControl"
+                    android:contentDescription="Панель набора"
+                    android:src="@drawable/ic_dialpad" />
+
+                <TextView
+                    android:id="@+id/lblKeypad"
+                    style="@style/Text.CallShift.ControlLabel"
+                    android:text="Панель набора" />
+            </LinearLayout>
+        </LinearLayout>
 
 </LinearLayout>
