@@ -68,6 +68,7 @@ class CallShiftApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        fi.callshift.app.util.CrashReporter.install(this)
 
         normalizer = PhoneNumberNormalizer(defaultRegion = "FI")
         settings = SettingsStore(this)

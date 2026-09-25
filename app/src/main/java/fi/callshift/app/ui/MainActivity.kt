@@ -62,6 +62,22 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         setupListeners()
+        showLastCrashIfAny()
+    }
+
+    /** Если приложение падало — показать текст ошибки с кнопкой «Копировать». */
+    private fun showLastCrashIfAny() {
+        val report = fi.callshift.app.util.CrashReporter.takeLastCrash(this) ?: return
+        AlertDialog.Builder(this)
+            .setTitle("Приложение было закрыто из-за ошибки")
+            .setMessage(report.take(4000))
+            .setPositiveButton("Копировать") { _, _ ->
+                val cm = getSystemService(android.content.ClipboardManager::class.java)
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("CallShift crash", report))
+                Toast.makeText(this, "Текст ошибки скопирован — отправьте его разработчику", Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton("Закрыть", null)
+            .show()
     }
 
     override fun onResume() {

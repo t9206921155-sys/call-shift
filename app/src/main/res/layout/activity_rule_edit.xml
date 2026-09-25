@@ -193,6 +193,8 @@
             android:id="@+id/btnSave"
             style="@style/Widget.CallShift.CallBig"
             android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_weight="0"
             android:layout_marginBottom="8dp"
             android:backgroundTint="@color/status_ok"
             android:text="Сохранить правило" />
@@ -201,6 +203,7 @@
             android:id="@+id/btnTest"
             style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="match_parent"
+            android:layout_height="56dp"
             android:layout_marginBottom="8dp"
             android:text="Протестировать номер" />
 
@@ -208,6 +211,7 @@
             android:id="@+id/btnDelete"
             style="@style/Widget.Material3.Button.TextButton"
             android:layout_width="match_parent"
+            android:layout_height="56dp"
             android:layout_marginBottom="24dp"
             android:text="Удалить правило"
             android:textColor="@color/status_error"
