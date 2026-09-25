@@ -38,23 +38,27 @@
                 android:textColor="@color/text_primary" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <com.google.android.material.textfield.TextInputLayout
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Порядок проверки:"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <Spinner
+            android:id="@+id/spinnerOrder"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginBottom="4dp"
+            android:background="@color/surface_card" />
+
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
-            android:hint="Приоритет (0..999, меньше = важнее)"
-            android:textColorHint="@color/text_muted"
-            app:boxBackgroundColor="@color/surface_card"
-            app:boxStrokeColor="@color/brand_accent">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etPriority"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="number"
-                android:text="100"
-                android:textColor="@color/text_primary" />
-        </com.google.android.material.textfield.TextInputLayout>
+            android:text="Нужно, только если правил несколько: если звонок подходит под два правила, сработает то, что проверяется раньше. Пример: «Контакты — пропустить» — первым, «Все — сбросить» — последним."
+            android:textColor="@color/text_muted"
+            android:textSize="13sp" />
 
         <!-- Условия -->
         <TextView
@@ -70,7 +74,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
-            android:hint="Маска номера (+35840*, *4567, пусто = любой)"
+            android:hint="Номер или его начало, например +7999* (пусто = любой)"
             android:textColorHint="@color/text_muted"
             app:boxBackgroundColor="@color/surface_card"
             app:boxStrokeColor="@color/brand_accent">
@@ -82,20 +86,57 @@
                 android:textColor="@color/text_primary" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <CheckBox
-            android:id="@+id/cbInContacts"
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Только если номер есть в контактах"
-            android:textColor="@color/text_secondary" />
+            android:text="Для каких звонков:"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
 
-        <CheckBox
-            android:id="@+id/cbAnonymous"
+        <RadioGroup
+            android:id="@+id/rgWho"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:checkedButton="@+id/rbAll"
+            android:orientation="vertical">
+
+            <RadioButton
+                android:id="@+id/rbAll"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Все звонки"
+                android:textColor="@color/text_secondary" />
+
+            <RadioButton
+                android:id="@+id/rbContacts"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Только из контактов"
+                android:textColor="@color/text_secondary" />
+
+            <RadioButton
+                android:id="@+id/rbUnknown"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Только незнакомые (нет в контактах)"
+                android:textColor="@color/text_secondary" />
+
+            <RadioButton
+                android:id="@+id/rbHidden"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Только скрытые номера (если CallShift — основной «Телефон»)"
+                android:textColor="@color/text_secondary" />
+        </RadioGroup>
+
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
-            android:text="Только скрытые номера (работает, если CallShift — основной «Телефон»)"
-            android:textColor="@color/text_secondary" />
+            android:text="Можно дополнительно ограничить номером в поле выше, например +7999* — только номера, начинающиеся на +7999."
+            android:textColor="@color/text_muted"
+            android:textSize="13sp" />
 
         <!-- Действие -->
         <TextView

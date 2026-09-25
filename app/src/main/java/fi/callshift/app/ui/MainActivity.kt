@@ -276,16 +276,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bindRuleItem(item: ItemRuleBinding, rule: Rule) {
-        item.tvPriority.text = "#${rule.priority}"
+        item.tvPriority.text = when {
+            rule.priority <= 50 -> "1-е"
+            rule.priority >= 500 -> "посл."
+            else -> "обыч."
+        }
         item.tvRuleName.text = rule.name
         item.switchEnabled.isChecked = rule.enabled
 
         item.tvSummary.text = buildString {
-            if (rule.conditions.isEmpty) {
-                append("Условие: любые вызовы")
-            } else {
-                append("Условий: ").append(rule.conditions.anyOf.flatten().size)
+            val conds = rule.conditions.anyOf.flatten()
+            val who = when {
+                conds.any { it.type == fi.callshift.app.domain.RuleEngine.TYPE_ANONYMOUS && it.value == true } -> "скрытые номера"
+                conds.any { it.type == fi.callshift.app.domain.RuleEngine.TYPE_IN_CONTACTS && it.value == true } -> "только контакты"
+                conds.any { it.type == fi.callshift.app.domain.RuleEngine.TYPE_IN_CONTACTS && it.value == false } -> "только незнакомые"
+                else -> "все звонки"
             }
+            append("Для: ").append(who)
+            conds.firstOrNull { it.type == fi.callshift.app.domain.RuleEngine.TYPE_NUMBER_MATCH }?.pattern
+                ?.takeIf { it != "*" }?.let { append(" · номер ").append(it) }
+            if (rule.action.autoReplySms != null) append(" · SMS")
             if (rule.schedule != null) append(" · расписание")
             if (rule.simSelector != "ANY") append(" · ").append(rule.simSelector)
         }

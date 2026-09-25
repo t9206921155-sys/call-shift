@@ -9,6 +9,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import fi.callshift.app.CallShiftApp
+import fi.callshift.app.R
 import fi.callshift.app.databinding.ActivityRuleEditBinding
 import fi.callshift.app.domain.Action
 import fi.callshift.app.domain.CallContext
@@ -58,7 +59,14 @@ class RuleEditActivity : AppCompatActivity() {
         }
     }
 
+    private fun orderIndexFor(priority: Int): Int =
+        ORDER_OPTIONS.indices.minBy { kotlin.math.abs(ORDER_OPTIONS[it].second - priority) }
+
     private fun setupSpinners() {
+        binding.spinnerOrder.adapter = ArrayAdapter(
+            this, android.R.layout.simple_spinner_dropdown_item, ORDER_OPTIONS.map { it.first },
+        )
+        binding.spinnerOrder.setSelection(1)
         val stratAdapter = ArrayAdapter(
             this, android.R.layout.simple_spinner_dropdown_item,
             strategyKeys.map { RuleLabels.strategies.getValue(it).title },
@@ -97,7 +105,6 @@ class RuleEditActivity : AppCompatActivity() {
             existingRule = rule
 
             binding.etName.setText(rule.name)
-            binding.etPriority.setText(rule.priority.toString())
 
             // Условия
             val conditions = rule.conditions.anyOf.flatten()
@@ -105,10 +112,17 @@ class RuleEditActivity : AppCompatActivity() {
             binding.etPattern.setText(patternCond?.pattern ?: "")
 
             val contactsCond = conditions.firstOrNull { it.type == RuleEngine.TYPE_IN_CONTACTS }
-            binding.cbInContacts.isChecked = contactsCond?.value ?: false
+            val anonTmp = conditions.firstOrNull { it.type == RuleEngine.TYPE_ANONYMOUS }
+            binding.rgWho.check(
+                when {
+                    anonTmp?.value == true -> R.id.rbHidden
+                    contactsCond?.value == true -> R.id.rbContacts
+                    contactsCond?.value == false -> R.id.rbUnknown
+                    else -> R.id.rbAll
+                },
+            )
+            binding.spinnerOrder.setSelection(orderIndexFor(rule.priority))
 
-            val anonCond = conditions.firstOrNull { it.type == RuleEngine.TYPE_ANONYMOUS }
-            binding.cbAnonymous.isChecked = anonCond?.value ?: false
 
             // Действие
             binding.spinnerStrategy.setSelection(strategies.indexOf(rule.action.strategy.name).coerceAtLeast(0))
@@ -140,24 +154,18 @@ class RuleEditActivity : AppCompatActivity() {
         binding.btnTest.setOnClickListener { showTestDialog() }
 
         // «Только контакты» и «Только скрытые» взаимоисключающие.
-        binding.cbInContacts.setOnCheckedChangeListener { _, checked -> if (checked) binding.cbAnonymous.isChecked = false }
-        binding.cbAnonymous.setOnCheckedChangeListener { _, checked -> if (checked) binding.cbInContacts.isChecked = false }
     }
 
     /** Собрать правило из формы. null — если есть ошибка (показана пользователю). */
     private fun buildRule(): Rule? {
         val name = binding.etName.text.toString().trim().ifBlank { "Правило" }
-        val priority = binding.etPriority.text.toString().toIntOrNull() ?: 100
+        val priority = ORDER_OPTIONS[binding.spinnerOrder.selectedItemPosition.coerceAtLeast(0)].second
         val pattern = binding.etPattern.text.toString().trim()
-        val inContacts = binding.cbInContacts.isChecked
-        val isAnon = binding.cbAnonymous.isChecked
+        val who = binding.rgWho.checkedRadioButtonId
+        val isAnon = who == R.id.rbHidden
 
         if (pattern.isNotEmpty() && !NumberMatcher.isValidPattern(pattern)) {
             toast("Некорректная маска номера: только +, цифры, * и ? (например +7999* или *)")
-            return null
-        }
-        if (inContacts && isAnon) {
-            toast("Нельзя одновременно «только контакты» и «только скрытые»: у скрытого номера нет контакта")
             return null
         }
 
@@ -175,13 +183,14 @@ class RuleEditActivity : AppCompatActivity() {
             return null
         }
         if (smsReply != null && isAnon) {
-            toast("SMS нельзя отправить на скрытый номер — уберите «Только скрытые номера» или текст SMS")
+            toast("SMS нельзя отправить на скрытый номер — выберите другой вариант в «Для каких звонков» или уберите текст SMS")
             return null
         }
 
         val condList = mutableListOf<ConditionSpec>()
         if (pattern.isNotEmpty()) condList.add(ConditionSpec(type = RuleEngine.TYPE_NUMBER_MATCH, pattern = pattern))
-        if (inContacts) condList.add(ConditionSpec(type = RuleEngine.TYPE_IN_CONTACTS, value = true))
+        if (who == R.id.rbContacts) condList.add(ConditionSpec(type = RuleEngine.TYPE_IN_CONTACTS, value = true))
+        if (who == R.id.rbUnknown) condList.add(ConditionSpec(type = RuleEngine.TYPE_IN_CONTACTS, value = false))
         if (isAnon) condList.add(ConditionSpec(type = RuleEngine.TYPE_ANONYMOUS, value = true))
         val conditions = if (condList.isEmpty()) ConditionGroup() else ConditionGroup(listOf(condList))
 
@@ -260,7 +269,7 @@ class RuleEditActivity : AppCompatActivity() {
                         if (!hasRole) problems += "У приложения нет роли перехвата — звонки до него не доходят. Главный экран → «Выдать роль перехвата»."
                         if (!app.settings.masterEnabled) problems += "Выключен главный переключатель на главном экране."
                         if (!draft.enabled) problems += "Правило выключено (переключатель в карточке правила)."
-                        if (others.isNotEmpty()) problems += "Раньше сработает правило «${others.first().name}» (у него приоритет меньше)."
+                        if (others.isNotEmpty()) problems += "Раньше проверяется правило «${others.first().name}», и оно тоже подходит — сработает оно. Поменяйте «Порядок проверки»."
                         if (draft.conditions.anyOf.flatten().any { it.type == RuleEngine.TYPE_ANONYMOUS } && !report.isDefaultDialer) {
                             problems += "Android обычно НЕ передаёт скрытые номера приложению-фильтру. Правила для скрытых номеров надёжно работают, только если CallShift — основное приложение «Телефон»."
                         }
@@ -291,8 +300,12 @@ class RuleEditActivity : AppCompatActivity() {
             if (ok) continue
             reasons += when (c.type) {
                 RuleEngine.TYPE_NUMBER_MATCH -> "Номер не подходит под маску «${c.pattern}»."
-                RuleEngine.TYPE_IN_CONTACTS -> "Номера нет в контактах (или нет доступа к контактам)."
-                RuleEngine.TYPE_ANONYMOUS -> "Номер не скрытый, а отмечено «Только скрытые номера»."
+                RuleEngine.TYPE_IN_CONTACTS -> if (c.value == false) {
+                    "Номер есть в контактах, а выбрано «Только незнакомые»."
+                } else {
+                    "Номера нет в контактах (или нет доступа к контактам)."
+                }
+                RuleEngine.TYPE_ANONYMOUS -> "Номер не скрытый, а выбрано «Только скрытые номера»."
                 else -> "Не выполнено условие ${c.type}."
             }
         }
@@ -301,5 +314,12 @@ class RuleEditActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_RULE_ID = "extra_rule_id"
+
+        /** «Порядок проверки» → числовой приоритет (меньше = проверяется раньше). */
+        val ORDER_OPTIONS = listOf(
+            "Проверять первым (исключения, например контакты)" to 10,
+            "Обычный" to 100,
+            "Проверять последним (общее правило «все звонки»)" to 900,
+        )
     }
 }
