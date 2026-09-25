@@ -6,7 +6,7 @@ import org.junit.Test
 
 class T9Test {
     @Test fun cyrillicAndLatin() {
-        assertEquals("4226", T9.encode("Иван"))
+        assertEquals("4225", T9.encode("Иван"))
         assertEquals("5646", T9.encode("john"))
     }
 

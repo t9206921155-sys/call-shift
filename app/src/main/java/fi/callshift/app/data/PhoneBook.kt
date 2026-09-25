@@ -3,8 +3,8 @@ package fi.callshift.app.data
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.provider.CallLog
-import android.provider.ContactsContract
+import android.provider.CallLog.Calls as C
+import android.provider.ContactsContract.CommonDataKinds.Phone as P
 import androidx.core.content.ContextCompat
 import fi.callshift.app.domain.T9
 import kotlinx.coroutines.Dispatchers
@@ -34,7 +34,6 @@ class PhoneBook(private val ctx: Context) {
     suspend fun contacts(refresh: Boolean = false): List<Contact> = withContext(Dispatchers.IO) {
         if (!canReadContacts) return@withContext emptyList()
         cache?.takeIf { !refresh }?.let { return@withContext it }
-        val P = ContactsContract.CommonDataKinds.Phone
         val out = mutableListOf<Contact>()
         runCatching {
             ctx.contentResolver.query(
@@ -55,7 +54,6 @@ class PhoneBook(private val ctx: Context) {
 
     suspend fun recents(limit: Int = 300): List<Recent> = withContext(Dispatchers.IO) {
         if (!canReadCallLog) return@withContext emptyList()
-        val C = CallLog.Calls
         val raw = mutableListOf<Recent>()
         runCatching {
             ctx.contentResolver.query(

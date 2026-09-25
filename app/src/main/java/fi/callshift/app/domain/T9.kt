@@ -3,10 +3,10 @@ package fi.callshift.app.domain
 /** Поиск по цифрам клавиатуры (T9): латиница и кириллица, как на кнопочных телефонах. */
 object T9 {
     private val map: Map<Char, Char> = buildMap {
-        fun put(d: Char, letters: String) = letters.forEach { put(it, d) }
-        put('2', "abcабвг"); put('3', "defдеёжз"); put('4', "ghiийкл"); put('5', "jklмноп")
-        put('6', "mnoрсту"); put('7', "pqrsфхцч"); put('8', "tuvшщъы"); put('9', "wxyzьэюя")
-        put('0', " ")
+        fun keys(d: Char, letters: String) = letters.forEach { this[it] = d }
+        keys('2', "abcабвг"); keys('3', "defдеёжз"); keys('4', "ghiийкл"); keys('5', "jklмноп")
+        keys('6', "mnoрсту"); keys('7', "pqrsфхцч"); keys('8', "tuvшщъы"); keys('9', "wxyzьэюя")
+        keys('0', " ")
     }
 
     fun encode(text: String): String = buildString {
