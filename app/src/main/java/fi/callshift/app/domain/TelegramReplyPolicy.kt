@@ -5,6 +5,11 @@ object TelegramReplyPolicy {
     fun canAddress(expected: String, returnedPhone: String, isBot: Boolean, isSelf: Boolean): Boolean =
         ReplyChannel.isPhoneAddress(expected) && !isBot && !isSelf &&
             expected.removePrefix("+") == returnedPhone.removePrefix("+")
+    fun initialStatus(sendingState: String?): String = when (sendingState) {
+        null -> "TG_SENT"
+        "messageSendingStateFailed" -> "FAILED"
+        else -> "TG_PENDING"
+    }
     fun error(code: Int): String = when (code) {
         429 -> "Telegram ограничил частоту запросов. Автоповтор отключён."
         401 -> "Требуется вход в Telegram."

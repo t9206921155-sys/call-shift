@@ -21,6 +21,12 @@ class TelegramReplyPolicyTest {
         val action = Action(replyChannel = TelegramReplyPolicy.CHANNEL, autoReplySms = "Занят")
         assertEquals(action, Json.decodeFromString<Action>(Json.encodeToString(action)))
     }
+    @Test fun acceptedQueueIsNotSent() {
+        assertEquals("TG_PENDING", TelegramReplyPolicy.initialStatus("messageSendingStatePending"))
+        assertEquals("TG_PENDING", TelegramReplyPolicy.initialStatus("unknown_future_state"))
+        assertEquals("FAILED", TelegramReplyPolicy.initialStatus("messageSendingStateFailed"))
+        assertEquals("TG_SENT", TelegramReplyPolicy.initialStatus(null))
+    }
     @Test fun rateLimitIsExplicitAndNoSecretsAreEchoed() {
         assertTrue(TelegramReplyPolicy.error(429).contains("Автоповтор отключён"))
         assertTrue(TelegramReplyPolicy.error(401).contains("вход"))

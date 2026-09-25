@@ -28,6 +28,7 @@ class TelegramAccountClient(private val app: CallShiftApp) {
     private data class Pending(val response: CompletableDeferred<JSONObject>, val event: CallEvent? = null)
     private val requests = ConcurrentHashMap<String, Pending>()
     @Volatile private var clientId = 0
+    @Volatile private var sessionEpoch = 0L
     private var parameterClient = 0
     private val parametersLock = kotlinx.coroutines.sync.Mutex()
     private var receiving = false
@@ -104,6 +105,7 @@ class TelegramAccountClient(private val app: CallShiftApp) {
 
     suspend fun logout() {
         enableAuto(false)
+        sessionEpoch++
         if (clientId != 0) request(obj("logOut"))
         // TDLib removes the authorization key on logout. Keep API configuration
         // and DB encryption key until TDLib has finished closing its database.
@@ -128,11 +130,19 @@ class TelegramAccountClient(private val app: CallShiftApp) {
             val changed = auth.value != state.getString("@type")
             auth.value = state.getString("@type")
             notice.value = ""
+            if (changed) sessionEpoch++
             if (changed) when (auth.value) {
                 "authorizationStateWaitTdlibParameters" -> scope.launch {
                     runCatching { parameters() }.onFailure { notice.value = "Не удалось настроить TDLib. Проверьте API ID/API hash." }
                 }
-                "authorizationStateClosed" -> { clientId = 0; parameterClient = 0; enableAuto(false) }
+                "authorizationStateClosed" -> {
+                    clientId = 0; parameterClient = 0; enableAuto(false)
+                    for (key in vault.names("pending:")) {
+                        val event = vault.read(key)?.let { json.decodeFromString<CallEvent>(it) }
+                        if (event != null) publish(event, "TG_UNKNOWN", "Сессия закрыта до подтверждения отправки. Автоповтор не выполняется.")
+                        vault.remove(key)
+                    }
+                }
                 "authorizationStateReady" -> notice.value = "Аккаунт подключён. Это не гарантирует поиск любого номера."
             }
         }
@@ -143,8 +153,8 @@ class TelegramAccountClient(private val app: CallShiftApp) {
                     val messageId = update.getLong("id")
                     val chatId = update.getLong("chat_id")
                     val sendingState = update.optJSONObject("sending_state")?.optString("@type")
-                    if (sendingState == null) publish(event, "TG_SENT", "Telegram подтвердил отправку. Прочтение и доставка на устройство не подтверждены.")
-                    else if (sendingState == "messageSendingStateFailed") {
+                    if (TelegramReplyPolicy.initialStatus(sendingState) == "TG_SENT") publish(event, "TG_SENT", "Telegram подтвердил отправку. Прочтение и доставка на устройство не подтверждены.")
+                    else if (TelegramReplyPolicy.initialStatus(sendingState) == "FAILED") {
                         publish(event, "FAILED", "Telegram отклонил отправку. Автоповтора нет.")
                     } else {
                         // Bound private metadata; no raw message text or auth secrets.
@@ -182,6 +192,7 @@ class TelegramAccountClient(private val app: CallShiftApp) {
             start()
             publish(event, "TG_LOOKUP", "Определяем получателя по номеру. Контакты не импортируются.")
             withTimeout(25_000) { auth.first { it == "authorizationStateReady" } }
+            val sendingEpoch = sessionEpoch
             val me = request(obj("getMe"))
             val user = request(obj("searchUserByPhoneNumber").put("phone_number", number).put("only_local", false))
             val id = user.getLong("id")
@@ -191,6 +202,9 @@ class TelegramAccountClient(private val app: CallShiftApp) {
             }
             check(autoEnabled()) { "Автоотправка выключена" }
             val chat = request(obj("createPrivateChat").put("user_id", id).put("force", false))
+            check(autoEnabled() && sessionEpoch == sendingEpoch && auth.value == "authorizationStateReady") {
+                "Сессия Telegram изменилась или автоотправка выключена. Отправка отменена."
+            }
             publish(event, "TG_PENDING", "Запрашиваем отправку Telegram. При неизвестном результате повтор не выполняется.")
             submitted = true
             request(obj("sendMessage").put("chat_id", chat.getLong("id"))
