@@ -139,6 +139,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, LogActivity::class.java))
         }
 
+        binding.btnSmsSafety.setOnClickListener { startActivity(Intent(this, SmsSafetyActivity::class.java)) }
         binding.btnDiag.setOnClickListener {
             startActivity(Intent(this, DiagnosticsActivity::class.java))
         }
@@ -172,7 +173,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.fabAddRule.setOnClickListener {
-            startActivity(Intent(this, RuleEditActivity::class.java))
+            startActivity(Intent(this, SmsRuleActivity::class.java))
         }
     }
 
@@ -249,7 +250,7 @@ class MainActivity : AppCompatActivity() {
         val ar = app.settings.autoReply
         val active = ar.isActiveAt(System.currentTimeMillis())
         binding.switchAutoReply.isChecked = active
-        binding.tvAutoReply.text = AutoReplyActivity.summary(ar)
+        binding.tvAutoReply.text = AutoReplyActivity.summary(ar) + if (active) "\nВНИМАНИЕ: подходящий автоответчик имеет приоритет над правилами. Для работы только правил выключите его." else ""
         binding.cardAutoReply.setStrokeColor(if (active) getColor(R.color.brand_accent) else getColor(R.color.card_stroke))
         binding.btnWhitelist.text = "Белый список (${app.settings.whitelist.size})"
     }
@@ -397,7 +398,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         item.root.setOnClickListener {
-            val intent = Intent(this, RuleEditActivity::class.java).apply {
+            val intent = Intent(this, if (fi.callshift.app.domain.SimpleSmsRule.supports(rule)) SmsRuleActivity::class.java else RuleEditActivity::class.java).apply {
                 putExtra(RuleEditActivity.EXTRA_RULE_ID, rule.id)
             }
             startActivity(intent)

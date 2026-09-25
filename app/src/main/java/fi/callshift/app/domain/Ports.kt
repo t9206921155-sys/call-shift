@@ -61,6 +61,7 @@ interface SettingsPort {
 }
 
 /** Настройки режима «Автоответчик». */
+@kotlinx.serialization.Serializable
 data class AutoReplySettings(
     val replyChannel: String = ReplyChannel.SMS,
     val replyChannels: List<String>? = null,

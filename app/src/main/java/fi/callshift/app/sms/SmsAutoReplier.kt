@@ -56,10 +56,18 @@ class SmsAutoReplier(
     private suspend fun replyLocked(ctx: CallContext, decision: Decision, template: String?) {
         if (template.isNullOrBlank()) return
         val channel = decision.matchedAction?.replyChannel ?: "SMS"
-        val key = if (channel == "SMS") ctx.e164.orEmpty() else "$channel:${ctx.e164.orEmpty()}"
+        val settings = fi.callshift.app.CallShiftApp.from(appContext).settings
+        val perSim = channel == "SMS" && settings.smsCooldownPerSim
+        val rawAccount = ctx.phoneAccount?.id
+        val account = fi.callshift.app.CallShiftApp.from(appContext).telecom.canonicalAccountId(rawAccount) ?: rawAccount
+        val key = fi.callshift.app.domain.SmsSafety.cooldownKey(channel, ctx.e164.orEmpty(), account, perSim)
         val now = System.currentTimeMillis()
         val minutes = (decision.matchedAction?.replyCooldownMinutes ?: 30).coerceIn(0, 1440)
-        val last = if (key.isEmpty()) null else prefs.getLong(key, -1L).takeIf { it > 0 }
+        val ownLast = prefs.getLong(key, -1L).takeIf { it > 0 }
+        // Honor the previous common history once when upgrading or changing mode.
+        val legacyKey = fi.callshift.app.domain.SmsSafety.legacyKey(channel, ctx.e164.orEmpty())
+        val last = if (perSim) listOfNotNull(ownLast, prefs.getLong(legacyKey, -1L).takeIf { it > 0 }).maxOrNull() else listOfNotNull(ownLast, prefs.all.entries.filter { it.key.startsWith("sim:") && it.key.endsWith(":" + legacyKey) }
+            .mapNotNull { (it.value as? Long)?.takeIf { value -> value > 0 } }.maxOrNull()).maxOrNull()
 
         when (val r = policy.decide(decision.verdict, template, ctx.e164, last, now, ReplyOptions.cooldownMs(minutes))) {
             is SmsAutoReplyPolicy.Result.Skip -> {

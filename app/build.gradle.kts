@@ -9,16 +9,21 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
-// ---------------------------------------------------------------------------
-// Подпись релиза. keystore.properties НЕ хранится в репозитории (см. .gitignore).
-// Если файла нет — релиз подписывается debug-ключом, чтобы сборка не падала
-// на CI/локально (для sideload этого достаточно, но для поставки keystore обязателен).
-// ---------------------------------------------------------------------------
+// Production signing is explicit. Never silently sign a release with a disposable key.
 val keystorePropsFile = rootProject.file("keystore.properties")
 val keystoreProps = Properties().apply {
     if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
 }
-val hasReleaseKeystore = keystorePropsFile.exists() && keystoreProps.getProperty("storeFile") != null
+val hasReleaseKeystore = keystorePropsFile.exists()
+if (hasReleaseKeystore) {
+    require(listOf("storeFile", "storePassword", "keyAlias", "keyPassword").all {
+        !keystoreProps.getProperty(it).isNullOrBlank()
+    }) { "Incomplete keystore.properties" }
+    require(rootProject.file(keystoreProps.getProperty("storeFile")).isFile) { "Signing keystore not found" }
+}
+if (providers.gradleProperty("requireReleaseSigning").orNull == "true") {
+    require(hasReleaseKeystore) { "Permanent release signing must be configured" }
+}
 
 android {
     namespace = "fi.callshift.app"
@@ -28,8 +33,8 @@ android {
         applicationId = "fi.callshift.app"
         minSdk = 28          // Android 9.0 — минимум по ТЗ (п. 15.1)
         targetSdk = 35
-        versionCode = Integer.parseInt(providers.gradleProperty("versionCode").getOrElse("25"))
-        versionName = providers.gradleProperty("versionName").getOrElse("0.7.1-multichannel-test")
+        versionCode = Integer.parseInt(providers.gradleProperty("versionCode").getOrElse("26"))
+        versionName = providers.gradleProperty("versionName").getOrElse("0.7.2-sms-safety-test")
 
         resourceConfigurations += listOf("en", "ru")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -38,7 +43,7 @@ android {
     signingConfigs {
         if (hasReleaseKeystore) {
             create("release") {
-                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
                 storePassword = keystoreProps.getProperty("storePassword")
                 keyAlias = keystoreProps.getProperty("keyAlias")
                 keyPassword = keystoreProps.getProperty("keyPassword")
@@ -55,11 +60,13 @@ android {
 
     buildTypes {
         debug {
+            buildConfigField("boolean", "STABLE_SIGNING", "false")
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             isMinifyEnabled = false
         }
         release {
+            buildConfigField("boolean", "STABLE_SIGNING", hasReleaseKeystore.toString())
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -68,9 +75,7 @@ android {
             )
             if (hasReleaseKeystore) {
                 signingConfig = signingConfigs.getByName("release")
-            } else {
-                signingConfig = signingConfigs.getByName("debug")
-            }
+            } // Without a key CI produces an explicitly unsigned release APK.
         }
     }
 

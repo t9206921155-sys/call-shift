@@ -151,7 +151,7 @@ class DiagnosticsActivity : AppCompatActivity() {
                 }
                 androidx.appcompat.app.AlertDialog.Builder(this)
                     .setTitle("Тестовая SMS с ${account.value}")
-                    .setMessage("Введите номер своего второго телефона. Будет отправлена настоящая SMS «CallShift test» по тарифу оператора. Правила и лимит автоответов в этом ручном тесте не используются.")
+                    .setMessage("Введите номер своего второго телефона. Будет отправлена настоящая SMS «CallShift test» по тарифу оператора. Правила и пауза автоответов в ручном тесте не используются. Общий лимит расходов SMS действует.")
                     .setView(input)
                     .setPositiveButton("Далее") { _, _ ->
                         val number = app.normalizer.normalize(input.text.toString()).e164
@@ -201,6 +201,9 @@ class DiagnosticsActivity : AppCompatActivity() {
         sb.append(" • Повторные звонки: ${if (app.settings.repeatCallEnabled) "пропускаются как срочные" else "проверяются по правилам"}\n")
         sb.append(" • Отдельный автоответчик: ${if (app.settings.autoReply.isActiveAt(System.currentTimeMillis())) "АКТИВЕН, проверяется раньше правил" else "не активен"}\n")
         sb.append(" • Уведомления: ${if (androidx.core.app.NotificationManagerCompat.from(this).areNotificationsEnabled()) "разрешены" else "запрещены"}\n")
+        sb.append(" • Главный переключатель: ${if (app.settings.masterEnabled) "ВКЛЮЧЁН" else "ВЫКЛЮЧЕН"}\n")
+        sb.append(" • Белый список: ${app.settings.whitelist.size} номеров — исключения пропускаются\n")
+        sb.append(" • Лимит SMS: ${app.settings.smsDailyLimit} частей за последние 24 часа; счётчик — в «SMS: защита и копия»\n")
         sb.append(" • Telegram-аккаунт: отдельное подключение для автоотправки. MAX/WhatsApp — ручные.\n")
         sb.append(" • Проверка SIM не проверяет баланс, сеть и доставку оператором.\n")
         binding.tvReport.text = sb.toString()

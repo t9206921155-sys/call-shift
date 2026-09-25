@@ -21,6 +21,11 @@ class SettingsStore(context: Context) : SettingsPort {
     override val masterEnabled: Boolean
         get() = prefs.getBoolean(KEY_MASTER, true)
 
+    fun pauseForRestore() {
+        check(prefs.edit().putBoolean(KEY_MASTER, false).putBoolean(KEY_AR_ENABLED, false)
+            .putString(KEY_DEFAULT_VERDICT, "PASS").putString(KEY_DEFAULT_STRATEGY, "NONE").remove(KEY_DEFAULT_TARGET).commit())
+    }
+
     fun setMasterEnabled(value: Boolean) = prefs.edit().putBoolean(KEY_MASTER, value).apply()
 
     override val defaultPolicy: DefaultPolicy
@@ -86,6 +91,14 @@ class SettingsStore(context: Context) : SettingsPort {
         get() = prefs.getBoolean(KEY_DTMF_TRANSFER, false)
 
     fun setDtmfTransferEnabled(value: Boolean) = prefs.edit().putBoolean(KEY_DTMF_TRANSFER, value).apply()
+
+    /** Global cap in billable SMS segments, including manual/test replies. */
+    val smsDailyLimit: Int get() = prefs.getInt("sms_daily_limit", fi.callshift.app.domain.SmsSafety.DEFAULT_LIMIT).coerceIn(1, 1000)
+    val smsCooldownPerSim: Boolean get() = prefs.getBoolean("sms_cooldown_per_sim", true)
+    fun setSmsSafety(limit: Int, perSim: Boolean) {
+        require(limit in 1..1000)
+        check(prefs.edit().putInt("sms_daily_limit", limit).putBoolean("sms_cooldown_per_sim", perSim).commit())
+    }
 
     // ---------------- Автоответчик ----------------
 

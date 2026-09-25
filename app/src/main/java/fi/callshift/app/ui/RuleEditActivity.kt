@@ -51,6 +51,17 @@ class RuleEditActivity : AppCompatActivity() {
         binding = ActivityRuleEditBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        val partsLabel = android.widget.TextView(this).apply { setTextColor(getColor(fi.callshift.app.R.color.text_secondary)) }
+        val textLayout = binding.etSmsReply.parent.parent as android.view.View
+        val textContainer = textLayout.parent as android.view.ViewGroup
+        textContainer.addView(partsLabel, textContainer.indexOfChild(textLayout) + 1)
+        SmsParts.attach(binding.etSmsReply, partsLabel)
+        if (app.settings.autoReply.isActiveAt(System.currentTimeMillis())) {
+            androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Автоответчик имеет приоритет")
+                .setMessage("При совпадении условий отдельного автоответчика правило не проверяется.")
+                .setPositiveButton("Выключить автоответчик") { _, _ -> app.settings.setAutoReplyEnabled(false) }
+                .setNegativeButton("Оставить", null).show()
+        }
         ruleId = intent.getLongExtra(EXTRA_RULE_ID, 0L)
         binding.btnConnectTelegram.setOnClickListener {
             startActivity(android.content.Intent(this, fi.callshift.app.telegram.TelegramAccountActivity::class.java))

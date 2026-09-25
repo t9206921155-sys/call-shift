@@ -71,6 +71,7 @@ class AutoReplyActivity : AppCompatActivity() {
             setText(s.text); setTextColor(primary); minLines = 2
             filters = arrayOf(InputFilter.LengthFilter(201))
         })
+        SmsParts.attach(etText, ui.hint(""))
         ui.add(chipRow(listOf("Не могу говорить, перезвоню позже.", "Я за рулём, перезвоню.", "На встрече, напишите SMS.")) { etText.setText(it) })
 
         ui.header("Для каких звонков")

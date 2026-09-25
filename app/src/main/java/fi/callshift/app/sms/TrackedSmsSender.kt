@@ -14,6 +14,15 @@ object TrackedSmsSender {
     suspend fun send(context: Context, sms: SmsManager, number: String, text: String, event: CallEvent) {
         val parts = sms.divideMessage(text)
         val id = java.util.UUID.randomUUID().toString()
+        val accepted = runCatching { SmsBudgetStore.reserve(context, parts.size) }
+        if (accepted.getOrDefault(false) != true) {
+            fi.callshift.app.CallShiftApp.from(context).eventStore.record(event.copy(
+                eventId = id, result = "BLOCKED", errorCode = if (accepted.isFailure) "sms_budget_unavailable" else "sms_daily_limit",
+                errorMessage = if (accepted.isFailure) "Счётчик расходов недоступен. SMS не отправлена."
+                    else "Лимит SMS за последние 24 часа исчерпан или недостаточен для ${parts.size} частей. SMS не отправлена. Лимит меняется в «SMS: защита и копия».",
+            ))
+            return
+        }
         val attempt = SmsAttempt(event.copy(eventId = id), List(parts.size) { null }, List(parts.size) { null })
         // Fail closed before sending if durable tracking cannot be created.
         SmsAttemptStore.create(context, attempt)
