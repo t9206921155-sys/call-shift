@@ -59,6 +59,28 @@ class AndroidTelecomPort(
         }.getOrDefault(emptyMap())
     }
 
+    /**
+     * Какая SIM сейчас звонит — запасной способ, когда система не передала SIM
+     * в CallScreeningService (так бывает на части прошивок). Одна SIM — она и есть;
+     * несколько — ищем подписку в состоянии RINGING (Android 12+).
+     */
+    fun ringingAccountId(): String? = runCatching {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE)
+            != PackageManager.PERMISSION_GRANTED
+        ) return null
+        val accounts = telecom.callCapablePhoneAccounts
+        if (accounts.size == 1) return handleId(accounts[0])
+        if (android.os.Build.VERSION.SDK_INT < 31) return null
+        val tm = context.getSystemService(android.telephony.TelephonyManager::class.java) ?: return null
+        val ringing = accounts.filter { h ->
+            val subId = runCatching { tm.getSubscriptionId(h) }.getOrDefault(-1)
+            subId >= 0 && runCatching {
+                tm.createForSubscriptionId(subId).callStateForSubscription == android.telephony.TelephonyManager.CALL_STATE_RINGING
+            }.getOrDefault(false)
+        }
+        if (ringing.size == 1) handleId(ringing[0]) else null
+    }.getOrNull()
+
     override fun simIndex(accountId: String?): Int? {
         if (accountId == null) return null
         val accounts = runCatching { telecom.callCapablePhoneAccounts }.getOrDefault(emptyList())

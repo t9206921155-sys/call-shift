@@ -72,7 +72,7 @@
             <com.google.android.material.chip.Chip android:id="@+id/fRejected" style="@style/Widget.CallShift.Chip"
                 android:layout_width="wrap_content" android:layout_height="wrap_content" android:checkable="true" android:text="Сброшенные" />
             <com.google.android.material.chip.Chip android:id="@+id/fPassed" style="@style/Widget.CallShift.Chip"
-                android:layout_width="wrap_content" android:layout_height="wrap_content" android:checkable="true" android:text="Пропущенные" />
+                android:layout_width="wrap_content" android:layout_height="wrap_content" android:checkable="true" android:text="Прошедшие" />
             <com.google.android.material.chip.Chip android:id="@+id/fSms" style="@style/Widget.CallShift.Chip"
                 android:layout_width="wrap_content" android:layout_height="wrap_content" android:checkable="true" android:text="SMS" />
             <com.google.android.material.chip.Chip android:id="@+id/fForward" style="@style/Widget.CallShift.Chip"

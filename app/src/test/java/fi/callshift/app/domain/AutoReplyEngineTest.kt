@@ -85,4 +85,29 @@ class AutoReplyEngineTest {
         val active = rejectAll.copy(validFrom = now - 1000, validTo = now + 1000)
         assertEquals(Verdict.DISALLOW_REJECT, engine(Settings(), listOf(active)).evaluate(ctx).verdict)
     }
+
+    @Test fun simRuleWithUnknownSimExplainsSkip() = runTest(d) {
+        val rule = rejectAll.copy(simSelector = SimSelector.HANDLE_PREFIX + "89701")
+        val dec = engine(Settings(), listOf(rule)).evaluate(ctx)
+        assertEquals(Verdict.PASS, dec.verdict)
+        assertEquals(1, dec.skipped.size)
+        org.junit.Assert.assertTrue(dec.skipped[0].contains("не удалось определить SIM"))
+    }
+
+    @Test fun simRuleMatchesBySlotWhenIdsDiffer() = runTest(d) {
+        val rule = rejectAll.copy(simSelector = SimSelector.HANDLE_PREFIX + "89701")
+        val e = RuleEngine(
+            ruleStore = Store(listOf(rule)), contacts = { false }, settings = Settings(),
+            profileProvider = { PermissionProfile.SCREENING },
+            simIndexProvider = { ref -> if (ref?.id == "89701" || ref?.id == "1") 0 else null },
+            dispatcher = d, clock = { now },
+        )
+        val c = ctx.copy(phoneAccount = PhoneAccountRef(id = "1"))
+        assertEquals(Verdict.DISALLOW_REJECT, e.evaluate(c).verdict)
+    }
+
+    @Test fun disabledRuleExplained() = runTest(d) {
+        val dec = engine(Settings(), listOf(rejectAll.copy(enabled = false))).evaluate(ctx)
+        assertEquals("«Все» — выключено", dec.skipped.single())
+    }
 }

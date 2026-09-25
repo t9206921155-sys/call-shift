@@ -96,7 +96,7 @@ class CallShiftScreeningService : CallScreeningService() {
 
     private suspend fun recordScreened(ctx: CallContext, decision: Decision, startedNs: Long) {
         val verdictText = when (decision.verdict) {
-            Verdict.PASS -> "звонок пропущен"
+            Verdict.PASS -> "звонок прошёл как обычно"
             Verdict.DISALLOW_REJECT -> "звонок сброшен"
             Verdict.DISALLOW_AS_MISSED -> "звонок сброшен (в пропущенные)"
             Verdict.SILENCE -> "звонок без звука"
@@ -108,7 +108,9 @@ class CallShiftScreeningService : CallScreeningService() {
             fi.callshift.app.domain.RuleEngine.REASON_WHITELIST -> "номер в белом списке"
             fi.callshift.app.domain.RuleEngine.REASON_REPEAT_CALL -> "повторный звонок — пропущен как срочный"
             else -> decision.reason
-        }
+        } + if (decision.skipped.isNotEmpty()) {
+            "\nПочему не сработали правила:\n" + decision.skipped.joinToString("\n") { "• $it" }
+        } else ""
         val totalMs = (System.nanoTime() - startedNs) / 1_000_000L
         app.eventStore.record(
             fi.callshift.app.forward.CallEvent(
@@ -188,6 +190,10 @@ class CallShiftScreeningService : CallScreeningService() {
                     return PhoneAccountRef(id = id, label = id)
                 }
             }
+        }
+        // Запасной способ: какая SIM сейчас в состоянии «звонит».
+        app.telecom.ringingAccountId()?.let { id ->
+            return PhoneAccountRef(id = id, label = app.telecom.phoneAccounts()[id] ?: id)
         }
         return null
     }

@@ -7,7 +7,7 @@ object EventView {
     enum class Kind(val title: String, val icon: String, val color: Int) {
         REJECTED("Сброшен", "⊘", 0xFFE57373.toInt()),
         SILENCED("Без звука", "🔕", 0xFFFFB74D.toInt()),
-        PASSED("Пропущен", "✓", 0xFF81C784.toInt()),
+        PASSED("Прошёл", "✓", 0xFF81C784.toInt()),
         SMS_SENT("SMS отправлено", "✉", 0xFF64B5F6.toInt()),
         SMS_SKIPPED("SMS не отправлено", "✉", 0xFF90A4AE.toInt()),
         FORWARDED("Перенаправлен", "↪", 0xFF4DB6AC.toInt()),
@@ -46,7 +46,7 @@ object EventView {
     data class Stats(val rejected: Int, val passed: Int, val sms: Int, val forwarded: Int, val errors: Int) {
         fun text(): String = buildList {
             add("сброшено $rejected")
-            add("пропущено $passed")
+            add("прошло $passed")
             add("SMS $sms")
             if (forwarded > 0) add("перенаправлено $forwarded")
             if (errors > 0) add("ошибок $errors")
