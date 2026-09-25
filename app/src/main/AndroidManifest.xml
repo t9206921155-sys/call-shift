@@ -59,6 +59,8 @@
         android:theme="@style/Theme.CallShift"
         tools:targetApi="35">
 
+        <activity android:name=".telegram.TelegramAccountActivity" android:exported="false" />
+
         <receiver android:name=".sms.SmsStatusReceiver" android:exported="false" />
 
         <activity

@@ -16,7 +16,7 @@ class MessengerReplyActivity : AppCompatActivity() {
         val text = intent.getStringExtra("text").orEmpty()
         val channel = intent.getStringExtra("channel").orEmpty()
         if (!ReplyChannel.isPhoneAddress(number) || text.isBlank() ||
-            !ReplyChannel.supports(channel) || channel == ReplyChannel.SMS) {
+            !ReplyChannel.isManual(channel)) {
             finish(); return
         }
         val instruction = if (channel == ReplyChannel.WHATSAPP)

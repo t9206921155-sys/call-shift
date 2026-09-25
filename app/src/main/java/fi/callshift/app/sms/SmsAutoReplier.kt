@@ -64,6 +64,12 @@ class SmsAutoReplier(
                 }
             }
             is SmsAutoReplyPolicy.Result.Send -> {
+                if (channel == fi.callshift.app.domain.TelegramReplyPolicy.CHANNEL) {
+                    // Reserve before contacting Telegram: timeouts must not cause duplicate messages.
+                    check(prefs.edit().putLong(key, now).commit()) { "Не удалось сохранить попытку Telegram" }
+                    fi.callshift.app.CallShiftApp.from(appContext).telegram.reply(ctx, decision, r.text)
+                    return
+                }
                 if (channel != "SMS") {
                     try {
                         fi.callshift.app.messaging.MessengerReply.offer(appContext, r.number, r.text, channel)
@@ -186,7 +192,11 @@ class SmsAutoReplier(
         numberE164 = ctx.e164, numberMasked = normalizer.mask(ctx.e164 ?: ctx.rawHandle),
         sim = ctx.phoneAccount?.label?.takeIf { it.isNotBlank() } ?: ctx.phoneAccount?.id ?: "—",
         ruleId = d.ruleId, ruleName = d.ruleName,
-        strategy = if ((d.matchedAction?.replyChannel ?: "SMS") == "SMS") "SMS_REPLY" else "MESSENGER_DRAFT",
+        strategy = when (d.matchedAction?.replyChannel ?: "SMS") {
+            "SMS" -> "SMS_REPLY"
+            fi.callshift.app.domain.TelegramReplyPolicy.CHANNEL -> "TELEGRAM_REPLY"
+            else -> "MESSENGER_DRAFT"
+        },
         target = ctx.e164, result = result, errorCode = code, errorMessage = msg,
         reason = d.reason, screeningMs = d.engineMs, forwardMs = 0, totalMs = d.engineMs,
     )

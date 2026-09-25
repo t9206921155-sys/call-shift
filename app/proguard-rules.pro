@@ -25,3 +25,6 @@
     public static *** inflate(android.view.LayoutInflater, android.view.ViewGroup, boolean);
     public static *** bind(android.view.View);
 }
+
+# JNI function names are part of the TDLib ABI.
+-keep class io.github.up9cloud.td.JsonClient { *; }

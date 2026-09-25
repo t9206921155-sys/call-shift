@@ -10,6 +10,9 @@ object EventView {
         PASSED("Прошёл", "✓", 0xFF81C784.toInt()),
         REPLY_DRAFT("Ответ ждёт отправки", "✎", 0xFFFFB74D.toInt()),
         REPLY_SKIPPED("Ответ не подготовлен", "✎", 0xFF90A4AE.toInt()),
+        TELEGRAM_PENDING("Telegram: ожидание", "✉", 0xFFFFB74D.toInt()),
+        TELEGRAM_SENT("Telegram: отправлено", "✉", 0xFF64B5F6.toInt()),
+        TELEGRAM_UNKNOWN("Telegram: результат неизвестен", "?", 0xFFFFB74D.toInt()),
         SMS_PENDING("SMS: ждём подтверждения", "✉", 0xFFFFB74D.toInt()),
         SMS_UNKNOWN("SMS: результат неизвестен", "?", 0xFFFFB74D.toInt()),
         SMS_DELIVERED("SMS доставлена", "✓", 0xFF81C784.toInt()),
@@ -25,6 +28,13 @@ object EventView {
             e.result == "PASS" -> Kind.PASSED
             e.errorMessage?.startsWith("звонок без звука") == true -> Kind.SILENCED
             else -> Kind.REJECTED
+        }
+        "TELEGRAM_REPLY" -> when (e.result) {
+            "TG_SENT" -> Kind.TELEGRAM_SENT
+            "TG_LOOKUP", "TG_PENDING" -> Kind.TELEGRAM_PENDING
+            "TG_UNKNOWN" -> Kind.TELEGRAM_UNKNOWN
+            "FAILED", "ERROR" -> Kind.ERROR
+            else -> Kind.REPLY_SKIPPED
         }
         "MESSENGER_DRAFT" -> when (e.result) {
             "PENDING_USER" -> Kind.REPLY_DRAFT

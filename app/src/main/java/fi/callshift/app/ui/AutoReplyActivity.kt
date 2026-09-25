@@ -57,9 +57,13 @@ class AutoReplyActivity : AppCompatActivity() {
 
         swEnabled = ui.add(SwitchMaterial(this).apply { text = "Включён"; setTextColor(primary); textSize = 17f; isChecked = s.enabled })
 
+        ui.add(MaterialButton(this).apply {
+            text = "Подключить Telegram для автоотправки"
+            setOnClickListener { startActivity(Intent(this@AutoReplyActivity, fi.callshift.app.telegram.TelegramAccountActivity::class.java)) }
+        })
         ui.header("Канал ответа звонящему")
         rgChannel = ui.add(radioGroup(fi.callshift.app.domain.ReplyChannel.labels.toList(), s.replyChannel))
-        ui.hint("SMS — автоматически. Мессенджеры — уведомление для ручного ответа: WhatsApp открывает номер звонящего; Telegram, MAX и другие требуют выбора его чата. Разрешите уведомления. Запасная SMS не отправляется.")
+        ui.hint("SMS и подключённый Telegram-аккаунт — автоматически. Остальные каналы помечены РУЧНАЯ отправка и требуют уведомлений. Запасная SMS не отправляется.")
         ui.header("Текст ответа")
         etText = ui.add(EditText(this).apply {
             setText(s.text); setTextColor(primary); minLines = 2
@@ -136,7 +140,7 @@ class AutoReplyActivity : AppCompatActivity() {
             replyPermission.launch(android.Manifest.permission.SEND_SMS)
             return
         }
-        if (swEnabled.isChecked && channel != "SMS" && android.os.Build.VERSION.SDK_INT >= 33 &&
+        if (swEnabled.isChecked && fi.callshift.app.domain.ReplyChannel.isManual(channel) && android.os.Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             replyPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
             return

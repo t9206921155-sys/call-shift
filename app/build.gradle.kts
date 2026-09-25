@@ -1,4 +1,7 @@
 import java.util.Properties
+import java.io.File
+import java.net.URI
+import java.security.MessageDigest
 
 plugins {
     id("com.android.application")
@@ -25,8 +28,8 @@ android {
         applicationId = "fi.callshift.app"
         minSdk = 28          // Android 9.0 — минимум по ТЗ (п. 15.1)
         targetSdk = 35
-        versionCode = Integer.parseInt(providers.gradleProperty("versionCode").getOrElse("23"))
-        versionName = providers.gradleProperty("versionName").getOrElse("0.6.6-test")
+        versionCode = Integer.parseInt(providers.gradleProperty("versionCode").getOrElse("24"))
+        versionName = providers.gradleProperty("versionName").getOrElse("0.7.0-telegram-test")
 
         resourceConfigurations += listOf("en", "ru")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -126,3 +129,30 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
 }
+
+// Pinned upstream native artifact; never store binaries or credentials in Git.
+val prepareTdlib by tasks.registering {
+    val destination = layout.buildDirectory.dir("generated/tdlib")
+    outputs.dir(destination)
+    doLast {
+        val archive = layout.buildDirectory.file("downloads/tdlib-1.8.65.tar.gz").get().asFile
+        archive.parentFile.mkdirs()
+        val expected = "eb777d3e7baedeb02871c691b2090daa1bc51baf9215a81bc55bf54edb76df2b"
+        fun digest(file: File): String = MessageDigest.getInstance("SHA-256")
+            .digest(file.readBytes()).joinToString("") { "%02x".format(it) }
+        if (!archive.exists() || digest(archive) != expected) {
+            val connection = URI("https://github.com/up9cloud/android-libtdjson/releases/download/v1.8.65/jniLibs.tar.gz").toURL().openConnection()
+            connection.connectTimeout = 30_000
+            connection.readTimeout = 180_000
+            connection.getInputStream().use { input -> archive.outputStream().use { input.copyTo(it) } }
+        }
+        check(digest(archive) == expected) { "TDLib checksum mismatch" }
+        copy {
+            from(tarTree(resources.gzip(archive)))
+            into(destination)
+        }
+        check(destination.get().file("jniLibs/arm64-v8a/libtdjson.so").asFile.exists()) { "Unexpected TDLib archive layout" }
+    }
+}
+android.sourceSets.getByName("main").jniLibs.srcDir(layout.buildDirectory.dir("generated/tdlib/jniLibs"))
+tasks.named("preBuild").configure { dependsOn(prepareTdlib) }

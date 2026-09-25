@@ -64,6 +64,7 @@ object RuleLabels {
         runCatching { strategies[StrategySpec.valueOf(name)]?.title }.getOrNull()
             ?: when (name) {
                 "PASS" -> "Без переадресации"
+                "TELEGRAM_REPLY" -> "Автоответ Telegram (мой аккаунт)"
                 "SMS_REPLY" -> "SMS-автоответ"
                 "MESSENGER_DRAFT" -> "Ответ через мессенджер (вручную)"
                 "SCREENED" -> "Звонок перехвачен"

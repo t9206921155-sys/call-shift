@@ -60,6 +60,9 @@ class RuleEditActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         ruleId = intent.getLongExtra(EXTRA_RULE_ID, 0L)
+        binding.btnConnectTelegram.setOnClickListener {
+            startActivity(android.content.Intent(this, fi.callshift.app.telegram.TelegramAccountActivity::class.java))
+        }
         setupSpinners()
         setupListeners()
         scheduleEditor = ScheduleEditor(this, binding).also { it.setup() }
@@ -273,7 +276,7 @@ class RuleEditActivity : AppCompatActivity() {
                 smsPermLauncher.launch(android.Manifest.permission.SEND_SMS)
                 return@launch
             }
-            if (toSave.action.autoReplySms != null && toSave.action.replyChannel != "SMS" &&
+            if (toSave.action.autoReplySms != null && fi.callshift.app.domain.ReplyChannel.isManual(toSave.action.replyChannel) &&
                 android.os.Build.VERSION.SDK_INT >= 33 &&
                 checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 notificationPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
@@ -341,10 +344,12 @@ class RuleEditActivity : AppCompatActivity() {
                         if (!fi.callshift.app.domain.ScheduleMatcher.matches(draft.schedule, now)) problems += "Сейчас не по расписанию правила."
                         if (app.settings.autoReply.isActiveAt(now)) problems += "Включён отдельный автоответчик: если его условия подходят, он сработает раньше этого правила."
                         if (app.settings.repeatCallEnabled) problems += "Исключение повторного звонка включено: повтор может пройти без сброса."
-                        if (draft.action.autoReplySms != null && draft.action.replyChannel != "SMS") problems += "Мессенджер не отправляет автоматически: требуется ручная отправка из уведомления."
+                        if (draft.action.autoReplySms != null && fi.callshift.app.domain.ReplyChannel.isManual(draft.action.replyChannel)) problems += "Мессенджер не отправляет автоматически: требуется ручная отправка из уведомления."
                         if (draft.action.autoReplySms != null && draft.action.replyChannel == "SMS" && draft.simSelector.startsWith("HANDLE:")) {
                             if (!app.smsReplier.canUseAccount(draft.simSelector.removePrefix("HANDLE:"))) problems += "Выбранная SIM не определена для отправки SMS."
                         }
+                        if (draft.action.replyChannel == fi.callshift.app.domain.TelegramReplyPolicy.CHANNEL &&
+                            (!app.telegram.configured() || !app.telegram.autoEnabled())) problems += "Telegram не подключён или автоотправка не разрешена."
                         if (ruleId == 0L || existingRule == null) problems += "Правило ещё не сохранено — нажмите «Сохранить правило»."
                         if (problems.isNotEmpty()) {
                             append("\n⚠️ При реальном звонке помешает:\n")

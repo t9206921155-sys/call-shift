@@ -15,7 +15,7 @@ object MessengerReply {
     const val CHANNEL = "messenger_reply_drafts"
 
     fun offer(context: Context, number: String, text: String, channel: String) {
-        require(ReplyChannel.supports(channel) && channel != ReplyChannel.SMS)
+        require(ReplyChannel.isManual(channel))
         require(ReplyChannel.isPhoneAddress(number)) { "Номер звонящего не определён" }
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(

@@ -201,7 +201,7 @@ class DiagnosticsActivity : AppCompatActivity() {
         sb.append(" • Повторные звонки: ${if (app.settings.repeatCallEnabled) "пропускаются как срочные" else "проверяются по правилам"}\n")
         sb.append(" • Отдельный автоответчик: ${if (app.settings.autoReply.isActiveAt(System.currentTimeMillis())) "АКТИВЕН, проверяется раньше правил" else "не активен"}\n")
         sb.append(" • Уведомления: ${if (androidx.core.app.NotificationManagerCompat.from(this).areNotificationsEnabled()) "разрешены" else "запрещены"}\n")
-        sb.append(" • MAX/Telegram/WhatsApp в этой версии — ручная отправка, не автоматическая.\n")
+        sb.append(" • Telegram-аккаунт: отдельное подключение для автоотправки. MAX/WhatsApp — ручные.\n")
         sb.append(" • Проверка SIM не проверяет баланс, сеть и доставку оператором.\n")
         binding.tvReport.text = sb.toString()
 

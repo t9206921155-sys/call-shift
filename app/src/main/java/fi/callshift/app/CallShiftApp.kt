@@ -32,6 +32,8 @@ import kotlinx.coroutines.SupervisorJob
  */
 class CallShiftApp : Application() {
 
+    val telegram by lazy { fi.callshift.app.telegram.TelegramAccountClient(this) }
+
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     lateinit var normalizer: PhoneNumberNormalizer
