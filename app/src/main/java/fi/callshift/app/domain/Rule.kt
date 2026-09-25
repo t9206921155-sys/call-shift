@@ -86,6 +86,8 @@ data class Action(
      */
     val autoReplySms: String? = null,
     val replyChannel: String = ReplyChannel.SMS,
+    val replyChannels: List<String>? = null,
+    val replyCooldownMinutes: Int = 30,
 )
 
 /**

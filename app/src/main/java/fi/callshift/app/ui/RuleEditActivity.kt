@@ -30,22 +30,12 @@ class RuleEditActivity : AppCompatActivity() {
     private var existingRule: Rule? = null
     private lateinit var scheduleEditor: ScheduleEditor
 
-    private val smsPermLauncher = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        Toast.makeText(
-            this,
-            if (granted) "Правило сохранено, SMS разрешены" else "Правило сохранено, но без разрешения SMS автоответ не уйдёт",
-            Toast.LENGTH_LONG,
-        ).show()
-        finish()
-    }
-
-    private val notificationPermLauncher = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        Toast.makeText(this, if (granted) "Правило сохранено, уведомления разрешены"
-            else "Правило сохранено, но уведомление для ответа недоступно", Toast.LENGTH_LONG).show()
+    private lateinit var replyEditor: ReplyOptionsEditor
+    private val replyPermLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions(),
+    ) { grants ->
+        Toast.makeText(this, if (grants.values.all { it }) "Правило сохранено, разрешения выданы"
+            else "Правило сохранено. Каналы без нужных разрешений работать не будут.", Toast.LENGTH_LONG).show()
         finish()
     }
 
@@ -56,6 +46,7 @@ class RuleEditActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        replySavedState = savedInstanceState
         binding = ActivityRuleEditBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -64,12 +55,18 @@ class RuleEditActivity : AppCompatActivity() {
             startActivity(android.content.Intent(this, fi.callshift.app.telegram.TelegramAccountActivity::class.java))
         }
         setupSpinners()
+        if (ruleId == 0L) replyEditor.restore(replySavedState)
         setupListeners()
         scheduleEditor = ScheduleEditor(this, binding).also { it.setup() }
 
         if (ruleId != 0L) {
             loadRule(ruleId)
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        if (::replyEditor.isInitialized) replyEditor.save(outState)
+        super.onSaveInstanceState(outState)
     }
 
     private fun orderIndexFor(priority: Int): Int =
@@ -108,8 +105,7 @@ class RuleEditActivity : AppCompatActivity() {
     }
 
     private fun setupSpinners() {
-        binding.spinnerReplyChannel.adapter = darkSpinnerAdapter(this,
-            fi.callshift.app.domain.ReplyChannel.labels.values.toList())
+        replyEditor = ReplyOptionsEditor(this, binding.replyOptionsContainer)
         setupSimSpinner(fi.callshift.app.domain.SimSelector.ANY)
         binding.spinnerOrder.adapter = darkSpinnerAdapter(this, ORDER_OPTIONS.map { it.first },
         )
@@ -175,8 +171,9 @@ class RuleEditActivity : AppCompatActivity() {
             binding.etTarget.setText(rule.action.target ?: "")
             binding.cbDtmfTransfer.isChecked = rule.action.dtmfTransferOriginal
             binding.etSmsReply.setText(rule.action.autoReplySms ?: "")
-            binding.spinnerReplyChannel.setSelection(fi.callshift.app.domain.ReplyChannel.labels.keys
-                .indexOf(rule.action.replyChannel).coerceAtLeast(0))
+            replyEditor.set(rule.action.replyChannel, rule.action.replyChannels, rule.action.replyCooldownMinutes)
+            replyEditor.restore(replySavedState)
+            replySavedState = null
 
             binding.btnDelete.visibility = View.VISIBLE
         }
@@ -225,6 +222,10 @@ class RuleEditActivity : AppCompatActivity() {
             return null
         }
         val smsReply = binding.etSmsReply.text.toString().trim().ifBlank { null }
+        if (smsReply != null && replyEditor.channels().isEmpty()) {
+            toast("Выберите хотя бы один канал ответа или уберите текст ответа")
+            return null
+        }
         if (smsReply != null && verdict != VerdictSpec.DISALLOW_REJECT && verdict != VerdictSpec.DISALLOW_AS_MISSED) {
             toast("Ответ после отбоя работает только если звонок сбрасывается («Сбросить» или «Сбросить и записать в пропущенные»)")
             return null
@@ -258,8 +259,9 @@ class RuleEditActivity : AppCompatActivity() {
                 target = target,
                 dtmfTransferOriginal = binding.cbDtmfTransfer.isChecked,
                 autoReplySms = smsReply,
-                replyChannel = fi.callshift.app.domain.ReplyChannel.labels.keys.toList()
-                    .getOrElse(binding.spinnerReplyChannel.selectedItemPosition) { "SMS" },
+                replyChannel = replyEditor.channels().firstOrNull() ?: "SMS",
+                replyChannels = replyEditor.channels(),
+                replyCooldownMinutes = replyEditor.cooldownMinutes(),
             ),
             simSelector = simOptions.getOrNull(binding.spinnerSim.selectedItemPosition)?.first
                 ?: fi.callshift.app.domain.SimSelector.ANY,
@@ -272,14 +274,10 @@ class RuleEditActivity : AppCompatActivity() {
         val toSave = buildRule() ?: return
         lifecycleScope.launch {
             app.ruleStore.save(toSave)
-            if (toSave.action.autoReplySms != null && toSave.action.replyChannel == "SMS" && !app.smsReplier.hasPermission()) {
-                smsPermLauncher.launch(android.Manifest.permission.SEND_SMS)
-                return@launch
-            }
-            if (toSave.action.autoReplySms != null && fi.callshift.app.domain.ReplyChannel.isManual(toSave.action.replyChannel) &&
-                android.os.Build.VERSION.SDK_INT >= 33 &&
-                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                notificationPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            val channels = fi.callshift.app.domain.ReplyOptions.channels(toSave.action.replyChannel, toSave.action.replyChannels)
+            val missing = if (toSave.action.autoReplySms != null) ReplyPermissions.missing(this@RuleEditActivity, channels) else emptyArray()
+            if (missing.isNotEmpty()) {
+                replyPermLauncher.launch(missing)
                 return@launch
             }
             Toast.makeText(this@RuleEditActivity, "Правило сохранено", Toast.LENGTH_SHORT).show()
@@ -293,6 +291,7 @@ class RuleEditActivity : AppCompatActivity() {
      */
     private fun showTestDialog() {
         val draft = buildRule() ?: return
+        val channels = fi.callshift.app.domain.ReplyOptions.channels(draft.action.replyChannel, draft.action.replyChannels)
         val input = EditText(this).apply {
             hint = "+79001234567 (пусто = скрытый номер)"
             inputType = android.text.InputType.TYPE_CLASS_PHONE
@@ -320,7 +319,7 @@ class RuleEditActivity : AppCompatActivity() {
                             append("Со звонком: ").append(RuleLabels.verdictTitle(draft.action.verdict)).append("\n")
                             append("Куда: ").append(RuleLabels.strategyTitle(draft.action.strategy.name)).append("\n")
                             draft.action.autoReplySms?.let {
-                                append(fi.callshift.app.domain.ReplyChannel.labels[draft.action.replyChannel]).append(": ").append(if (ctx.e164 != null) "«$it»" else "не уйдёт — номер скрыт").append("\n")
+                                append(fi.callshift.app.domain.ReplyOptions.labels(draft.action.replyChannel, draft.action.replyChannels)).append(": ").append(if (ctx.e164 != null) "«$it»" else "не уйдёт — номер скрыт").append("\n")
                             }
                         } else {
                             append("❌ Условия правила НЕ подходят для этого номера.\n")
@@ -338,17 +337,17 @@ class RuleEditActivity : AppCompatActivity() {
                             val simName = simOptions.firstOrNull { it.first == draft.simSelector }?.second ?: draft.simSelector
                             append("\nSIM: правило только для «$simName». После звонка в «Журнале» видно, на какую SIM он пришёл; если там «—», телефон не сообщает SIM: правило для конкретной карты не применяется, другая карта не подставляется.\n")
                         }
-                        if (draft.action.autoReplySms != null && draft.action.replyChannel == "SMS" && !app.smsReplier.hasPermission()) problems += "Нет разрешения на отправку SMS."
+                        if (draft.action.autoReplySms != null && "SMS" in channels && !app.smsReplier.hasPermission()) problems += "Нет разрешения на отправку SMS."
                         val now = System.currentTimeMillis()
                         if (!draft.isActiveAt(now)) problems += "Правило выключено или вне срока действия."
                         if (!fi.callshift.app.domain.ScheduleMatcher.matches(draft.schedule, now)) problems += "Сейчас не по расписанию правила."
                         if (app.settings.autoReply.isActiveAt(now)) problems += "Включён отдельный автоответчик: если его условия подходят, он сработает раньше этого правила."
                         if (app.settings.repeatCallEnabled) problems += "Исключение повторного звонка включено: повтор может пройти без сброса."
-                        if (draft.action.autoReplySms != null && fi.callshift.app.domain.ReplyChannel.isManual(draft.action.replyChannel)) problems += "Мессенджер не отправляет автоматически: требуется ручная отправка из уведомления."
-                        if (draft.action.autoReplySms != null && draft.action.replyChannel == "SMS" && draft.simSelector.startsWith("HANDLE:")) {
+                        if (draft.action.autoReplySms != null && channels.any(fi.callshift.app.domain.ReplyChannel::isManual)) problems += "Мессенджер не отправляет автоматически: требуется ручная отправка из уведомления."
+                        if (draft.action.autoReplySms != null && "SMS" in channels && draft.simSelector.startsWith("HANDLE:")) {
                             if (!app.smsReplier.canUseAccount(draft.simSelector.removePrefix("HANDLE:"))) problems += "Выбранная SIM не определена для отправки SMS."
                         }
-                        if (draft.action.replyChannel == fi.callshift.app.domain.TelegramReplyPolicy.CHANNEL &&
+                        if (fi.callshift.app.domain.TelegramReplyPolicy.CHANNEL in channels &&
                             (!app.telegram.configured() || !app.telegram.autoEnabled())) problems += "Telegram не подключён или автоотправка не разрешена."
                         if (ruleId == 0L || existingRule == null) problems += "Правило ещё не сохранено — нажмите «Сохранить правило»."
                         if (problems.isNotEmpty()) {

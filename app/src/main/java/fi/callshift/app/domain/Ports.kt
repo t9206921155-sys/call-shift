@@ -63,6 +63,8 @@ interface SettingsPort {
 /** Настройки режима «Автоответчик». */
 data class AutoReplySettings(
     val replyChannel: String = ReplyChannel.SMS,
+    val replyChannels: List<String>? = null,
+    val replyCooldownMinutes: Int = 30,
     val enabled: Boolean = false,
     val text: String = "",
     /** ALL — все звонки, UNKNOWN — только номера не из контактов. */

@@ -30,15 +30,15 @@ class AutoReplyActivity : AppCompatActivity() {
     private lateinit var rgScope: RadioGroup
     private lateinit var rgUntil: RadioGroup
     private lateinit var rgSim: RadioGroup
-    private lateinit var rgChannel: RadioGroup
+    private lateinit var replyEditor: ReplyOptionsEditor
     private lateinit var swRepeat: SwitchMaterial
     private lateinit var btnWhitelist: MaterialButton
     private var simOptions: List<Pair<String, String>> = emptyList()
 
     private val replyPermission = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions(),
     ) { granted ->
-        Toast.makeText(this, if (granted) "Разрешение выдано. Настройки сохранены."
+        Toast.makeText(this, if (granted.values.all { it }) "Разрешения выданы. Настройки сохранены."
             else "Настройки сохранены, но без разрешения ответ не будет отправлен/показан.",
             Toast.LENGTH_LONG).show()
         finish()
@@ -62,7 +62,9 @@ class AutoReplyActivity : AppCompatActivity() {
             setOnClickListener { startActivity(Intent(this@AutoReplyActivity, fi.callshift.app.telegram.TelegramAccountActivity::class.java)) }
         })
         ui.header("Канал ответа звонящему")
-        rgChannel = ui.add(radioGroup(fi.callshift.app.domain.ReplyChannel.labels.toList(), s.replyChannel))
+        replyEditor = ReplyOptionsEditor(this, ui.root)
+        replyEditor.set(s.replyChannel, s.replyChannels, s.replyCooldownMinutes)
+        replyEditor.restore(savedInstanceState)
         ui.hint("SMS и подключённый Telegram-аккаунт — автоматически. Остальные каналы помечены РУЧНАЯ отправка и требуют уведомлений. Запасная SMS не отправляется.")
         ui.header("Текст ответа")
         etText = ui.add(EditText(this).apply {
@@ -107,6 +109,11 @@ class AutoReplyActivity : AppCompatActivity() {
         setContentView(ui.scroll)
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        if (::replyEditor.isInitialized) replyEditor.save(outState)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onResume() {
         super.onResume()
         btnWhitelist.text = "Белый список (${app.settings.whitelist.size})"
@@ -115,6 +122,8 @@ class AutoReplyActivity : AppCompatActivity() {
     private fun save() {
         val text = etText.text.toString().trim()
         if (text.isEmpty()) { Toast.makeText(this, "Введите текст ответа", Toast.LENGTH_SHORT).show(); return }
+        val channels = replyEditor.channels()
+        if (channels.isEmpty()) { Toast.makeText(this, "Выберите хотя бы один канал ответа", Toast.LENGTH_LONG).show(); return }
         val old = app.settings.autoReply
         val now = System.currentTimeMillis()
         val until = when (tagOf(rgUntil)) {
@@ -129,20 +138,17 @@ class AutoReplyActivity : AppCompatActivity() {
         }
         app.settings.setAutoReply(AutoReplySettings(
             enabled = swEnabled.isChecked, text = text,
-            replyChannel = tagOf(rgChannel) ?: "SMS",
+            replyChannel = channels.first(),
+            replyChannels = channels,
+            replyCooldownMinutes = replyEditor.cooldownMinutes(),
             scope = tagOf(rgScope) ?: AutoReplySettings.SCOPE_ALL,
             untilMs = until, simSelector = tagOf(rgSim) ?: SimSelector.ANY,
         ))
         AutoReplyTileService.requestUpdate(this)
         Toast.makeText(this, if (swEnabled.isChecked) "Автоответчик включён" else "Сохранено", Toast.LENGTH_SHORT).show()
-        val channel = tagOf(rgChannel) ?: "SMS"
-        if (swEnabled.isChecked && channel == "SMS" && !app.smsReplier.hasPermission()) {
-            replyPermission.launch(android.Manifest.permission.SEND_SMS)
-            return
-        }
-        if (swEnabled.isChecked && fi.callshift.app.domain.ReplyChannel.isManual(channel) && android.os.Build.VERSION.SDK_INT >= 33 &&
-            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            replyPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        val missing = if (swEnabled.isChecked) ReplyPermissions.missing(this, channels) else emptyArray()
+        if (missing.isNotEmpty()) {
+            replyPermission.launch(missing)
             return
         }
         finish()
@@ -192,7 +198,8 @@ class AutoReplyActivity : AppCompatActivity() {
             !s.isActiveAt(now) -> "Время действия истекло"
             else -> buildString {
                 append(if (s.scope == AutoReplySettings.SCOPE_UNKNOWN) "Незнакомые номера" else "Все звонки")
-                append(" → ").append(fi.callshift.app.domain.ReplyChannel.labels[s.replyChannel] ?: "Неизвестный канал").append(" «").append(s.text.take(40)).append(if (s.text.length > 40) "…»" else "»")
+                append(" → ").append(fi.callshift.app.domain.ReplyOptions.labels(s.replyChannel, s.replyChannels)).append(" «").append(s.text.take(40)).append(if (s.text.length > 40) "…»" else "»")
+                append("\n").append(fi.callshift.app.domain.ReplyOptions.intervalLabel(s.replyCooldownMinutes))
                 s.untilMs?.let { append("\nДо ").append(fmt(it)) }
             }
         }

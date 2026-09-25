@@ -356,7 +356,10 @@ class MainActivity : AppCompatActivity() {
             append("Для: ").append(who)
             conds.firstOrNull { it.type == fi.callshift.app.domain.RuleEngine.TYPE_NUMBER_MATCH }?.pattern
                 ?.takeIf { it != "*" }?.let { append(" · номер ").append(it) }
-            if (rule.action.autoReplySms != null) append(" · ").append(fi.callshift.app.domain.ReplyChannel.labels[rule.action.replyChannel] ?: "Неизвестный канал")
+            if (rule.action.autoReplySms != null) {
+                append(" · ").append(fi.callshift.app.domain.ReplyOptions.labels(rule.action.replyChannel, rule.action.replyChannels))
+                append(" · ").append(fi.callshift.app.domain.ReplyOptions.intervalLabel(rule.action.replyCooldownMinutes))
+            }
             ScheduleEditor.shortText(rule)?.let { append(" · ").append(it) }
             if (rule.simSelector != "ANY") {
                 val id = rule.simSelector.removePrefix(fi.callshift.app.domain.SimSelector.HANDLE_PREFIX)

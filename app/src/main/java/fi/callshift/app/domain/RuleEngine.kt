@@ -99,6 +99,8 @@ class RuleEngine(
             strategy = StrategySpec.NONE,
             autoReplySms = ar.text.ifBlank { null },
             replyChannel = ar.replyChannel,
+            replyChannels = ar.replyChannels,
+            replyCooldownMinutes = ar.replyCooldownMinutes,
         )
         return Decision(
             verdict = Verdict.DISALLOW_REJECT,

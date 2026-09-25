@@ -47,6 +47,13 @@ class AutoReplyEngineTest {
         dispatcher = d, clock = { now },
     )
 
+    @Test fun autoReplyPropagatesChannelsAndInterval() = runTest(d) {
+        val s = AutoReplySettings(enabled = true, text = "Занят", replyChannels = listOf("SMS", "TELEGRAM_ACCOUNT"), replyCooldownMinutes = 60)
+        val decision = engine(Settings(s)).evaluate(ctx)
+        assertEquals(s.replyChannels, decision.matchedAction?.replyChannels)
+        assertEquals(60, decision.matchedAction?.replyCooldownMinutes)
+    }
+
     @Test fun autoReplyRejectsWithSms() = runTest(d) {
         val dec = engine(Settings(AutoReplySettings(enabled = true, text = "В отпуске"))).evaluate(ctx)
         assertEquals(Verdict.DISALLOW_REJECT, dec.verdict)

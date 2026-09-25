@@ -13,6 +13,7 @@ import fi.callshift.app.domain.SmsAutoReplyPolicy
 import fi.callshift.app.forward.CallEvent
 import fi.callshift.app.forward.EventRecorder
 import kotlinx.coroutines.launch
+import fi.callshift.app.domain.ReplyOptions
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -36,9 +37,19 @@ class SmsAutoReplier(
         appContext.checkSelfPermission(Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED
 
     suspend fun maybeReply(ctx: CallContext, decision: Decision, template: String?) {
-        val key = "${decision.matchedAction?.replyChannel ?: "SMS"}:${ctx.e164.orEmpty()}"
-        replyLocks[(key.hashCode() and Int.MAX_VALUE) % replyLocks.size].withLock {
-            replyLocked(ctx, decision, template)
+        if (template.isNullOrBlank()) return
+        val action = decision.matchedAction ?: fi.callshift.app.domain.Action(autoReplySms = template)
+        fun perChannel(channel: String) = decision.copy(matchedAction = action.copy(replyChannel = channel, replyChannels = listOf(channel)))
+        fi.callshift.app.domain.ReplyFanout.run(
+            channels = ReplyOptions.channels(action.replyChannel, action.replyChannels),
+            onFailure = { channel, error ->
+                record(ctx, perChannel(channel), "FAILED", "reply_error", "$channel: ошибка подготовки ответа (${error.javaClass.simpleName})")
+            },
+        ) { channel ->
+            val key = "$channel:${ctx.e164.orEmpty()}"
+            replyLocks[(key.hashCode() and Int.MAX_VALUE) % replyLocks.size].withLock {
+                replyLocked(ctx, perChannel(channel), template)
+            }
         }
     }
 
@@ -47,14 +58,18 @@ class SmsAutoReplier(
         val channel = decision.matchedAction?.replyChannel ?: "SMS"
         val key = if (channel == "SMS") ctx.e164.orEmpty() else "$channel:${ctx.e164.orEmpty()}"
         val now = System.currentTimeMillis()
+        val minutes = (decision.matchedAction?.replyCooldownMinutes ?: 30).coerceIn(0, 1440)
         val last = if (key.isEmpty()) null else prefs.getLong(key, -1L).takeIf { it > 0 }
 
-        when (val r = policy.decide(decision.verdict, template, ctx.e164, last, now)) {
+        when (val r = policy.decide(decision.verdict, template, ctx.e164, last, now, ReplyOptions.cooldownMs(minutes))) {
             is SmsAutoReplyPolicy.Result.Skip -> {
                 // Пустой текст/не отбой — молча; остальное фиксируем в журнале.
                 if (r.reason != "no_text" && r.reason != "verdict_not_reject") {
                     record(ctx, decision, "BLOCKED", "reply_${r.reason}",
-                        if (channel == "SMS") skipMessage(r.reason)
+                        if (r.reason == "cooldown") {
+                            val remaining = ((last!! + ReplyOptions.cooldownMs(minutes) - now + 59_999) / 60_000).coerceAtLeast(1)
+                            "$channel: повторный ответ ограничен — ${ReplyOptions.intervalLabel(minutes)}. Осталось около $remaining мин. После этого ответ возможен только при НОВОМ подходящем звонке."
+                        } else if (channel == "SMS") skipMessage(r.reason)
                         else "Ответ $channel не подготовлен: " + when (r.reason) {
                             "cooldown" -> "этому номеру уже предлагался ответ за последние 30 минут"
                             "unknown_number" -> "номер скрыт"

@@ -451,11 +451,11 @@
             android:layout_height="wrap_content"
             android:text="Подключить Telegram для автоотправки" />
 
-        <Spinner
-            android:id="@+id/spinnerReplyChannel"
+        <LinearLayout
+            android:id="@+id/replyOptionsContainer"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:contentDescription="Канал ответа звонящему" />
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
 
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilSmsReply"
@@ -478,7 +478,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
-            android:text="SMS — автоматически по тарифу оператора. Telegram (мой аккаунт) — автоматически после подключения, если номер доступен для поиска. Ручные мессенджеры: уведомление для ручной отправки, не чаще раза за 30 мин на номер. WhatsApp открывает номер звонящего; Telegram, MAX и другие требуют выбора его чата. Нужны разрешённые уведомления. Автоматической замены на SMS нет."
+            android:text="SMS — автоматически по тарифу оператора. Telegram (мой аккаунт) — автоматически после подключения, если номер доступен для поиска. Ручные мессенджеры: уведомление для ручной отправки, с ограничением повторов, выбранным выше. WhatsApp открывает номер звонящего; Telegram, MAX и другие требуют выбора его чата. Нужны разрешённые уведомления. Автоматической замены на SMS нет."
             android:textColor="@color/text_secondary"
             android:textSize="12sp" />
 

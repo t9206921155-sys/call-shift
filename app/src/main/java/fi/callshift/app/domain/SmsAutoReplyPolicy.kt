@@ -25,6 +25,7 @@ class SmsAutoReplyPolicy(
         e164: String?,
         lastSentAtMs: Long?,
         nowMs: Long,
+        cooldownOverrideMs: Long = cooldownMs,
     ): Result {
         if (verdict != Verdict.DISALLOW_REJECT && verdict != Verdict.DISALLOW_AS_MISSED) {
             return Result.Skip("verdict_not_reject")
@@ -36,7 +37,7 @@ class SmsAutoReplyPolicy(
         val digits = number.count { it.isDigit() }
         if (digits < MIN_DIGITS) return Result.Skip("short_number")
         if (!ReplyChannel.isPhoneAddress(number)) return Result.Skip("invalid_number")
-        if (lastSentAtMs != null && nowMs - lastSentAtMs in 0 until cooldownMs) {
+        if (lastSentAtMs != null && nowMs - lastSentAtMs in 0 until cooldownOverrideMs.coerceAtLeast(0)) {
             return Result.Skip("cooldown")
         }
         return Result.Send(number, text.take(maxLength))
