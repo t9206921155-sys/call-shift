@@ -64,6 +64,52 @@ class RuleEngine(
     }
 
     private suspend fun evaluateUnsafe(ctx: CallContext): Decision {
+        val decision = autoReplyDecision(ctx) ?: rulesDecision(ctx)
+        if (!decision.shouldDisallow) return decision
+        return exemption(ctx)?.let { Decision.pass(it) } ?: decision
+    }
+
+    /**
+     * Исключения из сброса: номер в белом списке или повторный звонок в течение окна
+     * («значит срочно»). Возвращает причину или null.
+     */
+    private fun exemption(ctx: CallContext): String? {
+        val number = ctx.e164 ?: return null
+        if (settings.whitelist.any { NumberMatcher.matches(it, number) }) return REASON_WHITELIST
+        val window = settings.repeatCallWindowMs
+        if (window > 0) {
+            val last = settings.lastRejectedAt(number)
+            if (last != null && clock() - last in 0..window) return REASON_REPEAT_CALL
+        }
+        return null
+    }
+
+    /** Режим «Автоответчик»: сбросить и отправить SMS (до правил). */
+    private suspend fun autoReplyDecision(ctx: CallContext): Decision? {
+        val ar = settings.autoReply
+        if (!ar.isActiveAt(clock())) return null
+        val simIndex = simIndexProvider(ctx.phoneAccount)
+        if (!SimSelector.matches(ar.simSelector, ctx.phoneAccount, simIndex)) return null
+        if (ar.scope == AutoReplySettings.SCOPE_UNKNOWN) {
+            // Контакты недоступны (null) → не сбрасываем (fail-open).
+            if (contacts.contains(ctx.e164) != false) return null
+        }
+        val action = Action(
+            verdict = VerdictSpec.DISALLOW_REJECT,
+            strategy = StrategySpec.NONE,
+            autoReplySms = ar.text.ifBlank { null },
+        )
+        return Decision(
+            verdict = Verdict.DISALLOW_REJECT,
+            strategy = StrategyId.PASS,
+            ruleName = AUTO_REPLY_NAME,
+            reason = REASON_AUTO_REPLY,
+            phoneAccount = ctx.phoneAccount,
+            matchedAction = action,
+        )
+    }
+
+    private suspend fun rulesDecision(ctx: CallContext): Decision {
         val now = clock()
         val rules = ruleStore.rules()
         val simIndex = simIndexProvider(ctx.phoneAccount)
@@ -147,6 +193,11 @@ class RuleEngine(
         )
 
     companion object {
+        const val AUTO_REPLY_NAME = "Автоответчик"
+        const val REASON_AUTO_REPLY = "auto_reply"
+        const val REASON_WHITELIST = "whitelist"
+        const val REASON_REPEAT_CALL = "repeat_call"
+
         /** ТЗ п. 10.2 / FR-2.1: бюджет 3000 мс при системном таймауте ~5000 мс. */
         const val DEFAULT_BUDGET_MS = 3000L
 

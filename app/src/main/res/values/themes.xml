@@ -122,4 +122,22 @@
         <item name="android:focusable">true</item>
         <item name="android:lineSpacingMultiplier">0.85</item>
     </style>
+
+    <!-- Чип-переключатель (дни недели, варианты) на тёмном фоне -->
+    <style name="Widget.CallShift.Chip" parent="Widget.Material3.Chip.Filter">
+        <item name="chipBackgroundColor">@color/chip_bg</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="chipStrokeWidth">0dp</item>
+        <item name="checkedIconVisible">false</item>
+        <item name="chipMinTouchTargetSize">40dp</item>
+    </style>
+
+    <style name="Widget.CallShift.SmallTonal" parent="Widget.Material3.Button.TonalButton">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="backgroundTint">@color/surface_card</item>
+        <item name="android:textSize">14sp</item>
+    </style>
 </resources>

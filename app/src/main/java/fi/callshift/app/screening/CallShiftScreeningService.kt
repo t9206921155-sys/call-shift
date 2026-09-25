@@ -60,6 +60,7 @@ class CallShiftScreeningService : CallScreeningService() {
             }
 
             respond(callDetails, decision)
+            if (decision.shouldDisallow) ctx.e164?.let { runCatching { app.settings.markRejected(it) } }
 
             // Пост-обработка вне screening-пути (дозвон/MMI/уведомление).
             val action = decision.matchedAction ?: Action(
@@ -104,6 +105,8 @@ class CallShiftScreeningService : CallScreeningService() {
             "default_policy" -> "ни одно правило не подошло"
             "master_switch_off" -> "главный переключатель выключен"
             "no_screening_role" -> "нет роли перехвата"
+            fi.callshift.app.domain.RuleEngine.REASON_WHITELIST -> "номер в белом списке"
+            fi.callshift.app.domain.RuleEngine.REASON_REPEAT_CALL -> "повторный звонок — пропущен как срочный"
             else -> decision.reason
         }
         val totalMs = (System.nanoTime() - startedNs) / 1_000_000L

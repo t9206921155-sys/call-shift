@@ -28,6 +28,7 @@ class RuleEditActivity : AppCompatActivity() {
     private val app: CallShiftApp by lazy { CallShiftApp.from(this) }
     private var ruleId: Long = 0L
     private var existingRule: Rule? = null
+    private lateinit var scheduleEditor: ScheduleEditor
 
     private val smsPermLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
@@ -53,6 +54,7 @@ class RuleEditActivity : AppCompatActivity() {
         ruleId = intent.getLongExtra(EXTRA_RULE_ID, 0L)
         setupSpinners()
         setupListeners()
+        scheduleEditor = ScheduleEditor(this, binding).also { it.setup() }
 
         if (ruleId != 0L) {
             loadRule(ruleId)
@@ -139,6 +141,7 @@ class RuleEditActivity : AppCompatActivity() {
             )
             binding.spinnerOrder.setSelection(orderIndexFor(rule.priority))
             setupSimSpinner(rule.simSelector)
+            scheduleEditor.load(rule.schedule, rule.validFrom, rule.validTo)
 
 
             // Действие
@@ -211,8 +214,13 @@ class RuleEditActivity : AppCompatActivity() {
         if (isAnon) condList.add(ConditionSpec(type = RuleEngine.TYPE_ANONYMOUS, value = true))
         val conditions = if (condList.isEmpty()) ConditionGroup() else ConditionGroup(listOf(condList))
 
+        scheduleEditor.error()?.let { toast(it); return null }
         return Rule(
             id = ruleId,
+            schedule = scheduleEditor.schedule(),
+            validFrom = scheduleEditor.validFrom(),
+            validTo = scheduleEditor.validTo(),
+            createdAt = existingRule?.createdAt ?: 0,
             name = name,
             priority = priority,
             enabled = existingRule?.enabled ?: true,

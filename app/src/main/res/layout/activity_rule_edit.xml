@@ -164,6 +164,191 @@
             android:textColor="@color/text_muted"
             android:textSize="13sp" />
 
+        <!-- ===== Когда действует ===== -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="Когда действует"
+            android:textColor="@color/brand_accent"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvScheduleSummary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:text="Всегда"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp" />
+
+        <com.google.android.material.chip.ChipGroup
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp">
+            <com.google.android.material.chip.Chip
+                android:id="@+id/presetAlways"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Всегда" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/presetWork"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Будни 9–18" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/presetNight"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Ночью 23–7" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/presetWeekend"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Выходные" />
+        </com.google.android.material.chip.ChipGroup>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Дни недели (ничего не выбрано = каждый день):"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/chipsDays"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            app:chipSpacingHorizontal="4dp">
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipDay1"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="true"
+                android:text="Пн" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipDay2"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="true"
+                android:text="Вт" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipDay3"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="true"
+                android:text="Ср" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipDay4"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="true"
+                android:text="Чт" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipDay5"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="true"
+                android:text="Пт" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipDay6"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="true"
+                android:text="Сб" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipDay7"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="true"
+                android:text="Вс" />
+        </com.google.android.material.chip.ChipGroup>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="Время (пусто = весь день):"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnTimeFrom"
+                style="@style/Widget.CallShift.SmallTonal"
+                android:layout_marginEnd="6dp"
+                android:text="с —:—" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnTimeTo"
+                style="@style/Widget.CallShift.SmallTonal"
+                android:layout_marginEnd="6dp"
+                android:text="до —:—" />
+
+            <ImageButton
+                android:id="@+id/btnTimeClear"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Сбросить время"
+                android:src="@drawable/ic_close"
+                app:tint="@color/text_secondary" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="Срок действия (например, отпуск; пусто = без срока):"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="20dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDateFrom"
+                style="@style/Widget.CallShift.SmallTonal"
+                android:layout_marginEnd="6dp"
+                android:text="с даты" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDateTo"
+                style="@style/Widget.CallShift.SmallTonal"
+                android:layout_marginEnd="6dp"
+                android:text="по дату" />
+
+            <ImageButton
+                android:id="@+id/btnDateClear"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Сбросить срок"
+                android:src="@drawable/ic_close"
+                app:tint="@color/text_secondary" />
+        </LinearLayout>
+
         <!-- Действие -->
         <TextView
             android:layout_width="match_parent"

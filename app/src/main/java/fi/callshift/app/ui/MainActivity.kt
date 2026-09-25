@@ -87,6 +87,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
+        binding.switchAutoReply.setOnCheckedChangeListener { btn, on ->
+            if (!btn.isPressed) return@setOnCheckedChangeListener
+            val cur = app.settings.autoReply
+            app.settings.setAutoReply(if (on) cur.copy(enabled = true, untilMs = cur.untilMs?.takeIf { it > System.currentTimeMillis() }) else cur.copy(enabled = false))
+            AutoReplyTileService.requestUpdate(this)
+            updateAutoReply()
+        }
+        binding.btnAutoReplySetup.setOnClickListener { startActivity(Intent(this, AutoReplyActivity::class.java)) }
+        binding.btnWhitelist.setOnClickListener { startActivity(Intent(this, WhitelistActivity::class.java)) }
         binding.switchMaster.isChecked = app.settings.masterEnabled
         binding.switchMaster.setOnCheckedChangeListener { _, isChecked ->
             app.settings.setMasterEnabled(isChecked)
@@ -216,7 +225,17 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun updateAutoReply() {
+        val ar = app.settings.autoReply
+        val active = ar.isActiveAt(System.currentTimeMillis())
+        binding.switchAutoReply.isChecked = active
+        binding.tvAutoReply.text = AutoReplyActivity.summary(ar)
+        binding.cardAutoReply.setStrokeColor(if (active) getColor(R.color.brand_accent) else 0xFF3D5A4C.toInt())
+        binding.btnWhitelist.text = "Белый список (${app.settings.whitelist.size})"
+    }
+
     private fun updateStatus() {
+        updateAutoReply()
         val report = app.detector.detect()
         binding.switchMaster.isChecked = app.settings.masterEnabled
 
@@ -296,7 +315,7 @@ class MainActivity : AppCompatActivity() {
             conds.firstOrNull { it.type == fi.callshift.app.domain.RuleEngine.TYPE_NUMBER_MATCH }?.pattern
                 ?.takeIf { it != "*" }?.let { append(" · номер ").append(it) }
             if (rule.action.autoReplySms != null) append(" · SMS")
-            if (rule.schedule != null) append(" · расписание")
+            ScheduleEditor.shortText(rule)?.let { append(" · ").append(it) }
             if (rule.simSelector != "ANY") {
                 val id = rule.simSelector.removePrefix(fi.callshift.app.domain.SimSelector.HANDLE_PREFIX)
                 val accounts = app.telecom.phoneAccounts()

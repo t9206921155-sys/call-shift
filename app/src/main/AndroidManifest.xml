@@ -132,6 +132,16 @@
             android:label="@string/title_rule_edit" />
 
         <activity
+            android:name=".ui.AutoReplyActivity"
+            android:exported="false"
+            android:label="Автоответчик" />
+
+        <activity
+            android:name=".ui.WhitelistActivity"
+            android:exported="false"
+            android:label="Белый список" />
+
+        <activity
             android:name=".ui.CarrierForwardActivity"
             android:exported="false"
             android:label="@string/title_carrier_forward" />
@@ -174,6 +184,17 @@
             android:exported="true"
             android:icon="@drawable/ic_tile_forward"
             android:label="@string/tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".ui.AutoReplyTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_autoreply"
+            android:label="Автоответчик"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
