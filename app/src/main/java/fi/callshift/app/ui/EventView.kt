@@ -12,6 +12,8 @@ object EventView {
         REPLY_SKIPPED("Ответ не подготовлен", "✎", 0xFF90A4AE.toInt()),
         SMS_PENDING("SMS: ждём подтверждения", "✉", 0xFFFFB74D.toInt()),
         SMS_UNKNOWN("SMS: результат неизвестен", "?", 0xFFFFB74D.toInt()),
+        SMS_DELIVERED("SMS доставлена", "✓", 0xFF81C784.toInt()),
+        SMS_UNCONFIRMED("Доставка не подтверждена", "?", 0xFFFFB74D.toInt()),
         SMS_SENT("SMS отправлено", "✉", 0xFF64B5F6.toInt()),
         SMS_SKIPPED("SMS не отправлено", "✉", 0xFF90A4AE.toInt()),
         FORWARDED("Перенаправлен", "↪", 0xFF4DB6AC.toInt()),
@@ -30,6 +32,9 @@ object EventView {
             else -> Kind.REPLY_SKIPPED
         }
         "SMS_REPLY" -> when (e.result) {
+            "DELIVERED" -> Kind.SMS_DELIVERED
+            "DELIVERY_UNCONFIRMED" -> Kind.SMS_UNCONFIRMED
+            "DELIVERY_FAILED" -> Kind.ERROR
             "SENT" -> Kind.SMS_SENT
             "SUBMITTED" -> Kind.SMS_PENDING
             "OK", "UNKNOWN" -> Kind.SMS_UNKNOWN
@@ -69,7 +74,7 @@ object EventView {
         return Stats(
             rejected = k.count { it == Kind.REJECTED || it == Kind.SILENCED },
             passed = k.count { it == Kind.PASSED },
-            sms = k.count { it == Kind.SMS_SENT },
+            sms = k.count { it == Kind.SMS_SENT || it == Kind.SMS_DELIVERED || it == Kind.SMS_UNCONFIRMED },
             forwarded = k.count { it == Kind.FORWARDED },
             errors = k.count { it == Kind.ERROR },
         )

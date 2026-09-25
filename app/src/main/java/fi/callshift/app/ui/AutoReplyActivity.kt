@@ -172,7 +172,7 @@ class AutoReplyActivity : AppCompatActivity() {
     private fun buildSimOptions(selected: String): List<Pair<String, String>> {
         val accounts = runCatching { app.telecom.phoneAccounts() }.getOrDefault(emptyMap())
         val opts = mutableListOf(SimSelector.ANY to "Любая SIM")
-        if (accounts.size > 1) accounts.entries.forEachIndexed { i, (id, label) ->
+        if (accounts.isNotEmpty()) accounts.entries.forEachIndexed { i, (id, label) ->
             opts += (SimSelector.HANDLE_PREFIX + id) to "SIM ${i + 1}: ${label.ifBlank { id }}"
         }
         if (opts.none { it.first == selected }) opts += selected to "Сохранённая SIM (сейчас не найдена)"
@@ -184,7 +184,7 @@ class AutoReplyActivity : AppCompatActivity() {
 
         /** Короткое описание для карточки на главном экране. */
         fun summary(s: AutoReplySettings, now: Long = System.currentTimeMillis()): String = when {
-            !s.enabled -> "Выключен. Включите, когда заняты — звонки сбросятся, звонящим уйдёт SMS."
+            !s.enabled -> "Выключен. SMS — автоматический ответ, мессенджеры — ручная отправка."
             !s.isActiveAt(now) -> "Время действия истекло"
             else -> buildString {
                 append(if (s.scope == AutoReplySettings.SCOPE_UNKNOWN) "Незнакомые номера" else "Все звонки")

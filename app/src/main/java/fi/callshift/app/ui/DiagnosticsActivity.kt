@@ -84,6 +84,7 @@ class DiagnosticsActivity : AppCompatActivity() {
 
         binding.btnActionPerms.setOnClickListener {
             val perms = mutableListOf(
+                Manifest.permission.SEND_SMS,
                 Manifest.permission.READ_PHONE_STATE,
                 Manifest.permission.READ_PHONE_NUMBERS,
                 Manifest.permission.CALL_PHONE,
@@ -150,10 +151,23 @@ class DiagnosticsActivity : AppCompatActivity() {
         sb.append("\nОптимизация батареи (Doze): ")
         sb.append(if (report.isIgnoringBatteryOptimizations) "Исключено (OK)" else "Включена (OEM может выгружать сервис)")
 
+        sb.append("\n\nОтветы звонящим:\n")
+        sb.append(" • SMS: ${if (app.smsReplier.hasPermission()) "разрешена" else "НЕТ разрешения SEND_SMS"}\n")
+        val accounts = app.telecom.phoneAccounts()
+        if (accounts.isEmpty()) sb.append(" • SIM не определены — проверьте разрешение «Телефон»\n")
+        accounts.forEach { (id, label) ->
+            sb.append(" • ${label.ifBlank { "SIM" }}: ${if (app.smsReplier.canUseAccount(id)) "SIM для SMS определена" else "SIM для SMS НЕ определена — отправка запрещена"}\n")
+        }
+        sb.append(" • Повторные звонки: ${if (app.settings.repeatCallEnabled) "пропускаются как срочные" else "проверяются по правилам"}\n")
+        sb.append(" • Отдельный автоответчик: ${if (app.settings.autoReply.isActiveAt(System.currentTimeMillis())) "АКТИВЕН, проверяется раньше правил" else "не активен"}\n")
+        sb.append(" • Уведомления: ${if (androidx.core.app.NotificationManagerCompat.from(this).areNotificationsEnabled()) "разрешены" else "запрещены"}\n")
+        sb.append(" • MAX/Telegram/WhatsApp в этой версии — ручная отправка, не автоматическая.\n")
+        sb.append(" • Проверка SIM не проверяет баланс, сеть и доставку оператором.\n")
         binding.tvReport.text = sb.toString()
 
         val adb = buildString {
             append("# Разрешения и роли для CallShift через ADB:\n")
+            append("adb shell pm grant $pkg android.permission.SEND_SMS\n")
             append("adb shell pm grant $pkg android.permission.READ_PHONE_STATE\n")
             append("adb shell pm grant $pkg android.permission.CALL_PHONE\n")
             append("adb shell pm grant $pkg android.permission.ANSWER_PHONE_CALLS\n")

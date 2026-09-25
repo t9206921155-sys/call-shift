@@ -333,15 +333,24 @@ class RuleEditActivity : AppCompatActivity() {
                         }
                         if (draft.simSelector != fi.callshift.app.domain.SimSelector.ANY) {
                             val simName = simOptions.firstOrNull { it.first == draft.simSelector }?.second ?: draft.simSelector
-                            append("\nSIM: правило только для «$simName». После звонка в «Журнале» видно, на какую SIM он пришёл; если там «—», телефон не сообщает SIM — выберите «Любая SIM».\n")
+                            append("\nSIM: правило только для «$simName». После звонка в «Журнале» видно, на какую SIM он пришёл; если там «—», телефон не сообщает SIM: правило для конкретной карты не применяется, другая карта не подставляется.\n")
                         }
                         if (draft.action.autoReplySms != null && draft.action.replyChannel == "SMS" && !app.smsReplier.hasPermission()) problems += "Нет разрешения на отправку SMS."
+                        val now = System.currentTimeMillis()
+                        if (!draft.isActiveAt(now)) problems += "Правило выключено или вне срока действия."
+                        if (!fi.callshift.app.domain.ScheduleMatcher.matches(draft.schedule, now)) problems += "Сейчас не по расписанию правила."
+                        if (app.settings.autoReply.isActiveAt(now)) problems += "Включён отдельный автоответчик: если его условия подходят, он сработает раньше этого правила."
+                        if (app.settings.repeatCallEnabled) problems += "Исключение повторного звонка включено: повтор может пройти без сброса."
+                        if (draft.action.autoReplySms != null && draft.action.replyChannel != "SMS") problems += "Мессенджер не отправляет автоматически: требуется ручная отправка из уведомления."
+                        if (draft.action.autoReplySms != null && draft.action.replyChannel == "SMS" && draft.simSelector.startsWith("HANDLE:")) {
+                            if (!app.smsReplier.canUseAccount(draft.simSelector.removePrefix("HANDLE:"))) problems += "Выбранная SIM не определена для отправки SMS."
+                        }
                         if (ruleId == 0L || existingRule == null) problems += "Правило ещё не сохранено — нажмите «Сохранить правило»."
                         if (problems.isNotEmpty()) {
                             append("\n⚠️ При реальном звонке помешает:\n")
                             problems.forEach { append("• ").append(it).append("\n") }
                         } else if (matches) {
-                            append("\nВсё готово — при звонке с этого номера правило сработает.")
+                            append("\nЛокальные проверки пройдены. Это не проверка реальной SIM входящего звонка, сети или доставки SMS.")
                         }
                     }
                     AlertDialog.Builder(this@RuleEditActivity)

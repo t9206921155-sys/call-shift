@@ -59,6 +59,8 @@
         android:theme="@style/Theme.CallShift"
         tools:targetApi="35">
 
+        <receiver android:name=".sms.SmsStatusReceiver" android:exported="false" />
+
         <activity
             android:name=".messaging.MessengerReplyActivity"
             android:exported="false" />

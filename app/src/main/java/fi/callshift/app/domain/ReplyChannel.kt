@@ -6,10 +6,10 @@ object ReplyChannel {
     const val WHATSAPP = "WHATSAPP"
     val labels = linkedMapOf(
         SMS to "SMS — автоматически",
-        WHATSAPP to "WhatsApp — открыть чат и подтвердить",
-        "TELEGRAM" to "Telegram — выбрать чат и подтвердить",
-        "MAX" to "MAX — выбрать чат и подтвердить",
-        "OTHER" to "Другой мессенджер — выбрать чат и подтвердить",
+        WHATSAPP to "WhatsApp — РУЧНАЯ отправка",
+        "TELEGRAM" to "Telegram — РУЧНАЯ отправка",
+        "MAX" to "MAX — РУЧНАЯ отправка",
+        "OTHER" to "Другой мессенджер — РУЧНАЯ отправка",
     )
     fun supports(value: String) = value in labels
     fun isPhoneAddress(number: String) = number.startsWith("+") &&

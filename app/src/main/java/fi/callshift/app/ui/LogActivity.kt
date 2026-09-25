@@ -9,6 +9,8 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.flow.collect
 import fi.callshift.app.CallShiftApp
 import fi.callshift.app.R
 import fi.callshift.app.databinding.ActivityLogBinding
@@ -38,7 +40,11 @@ class LogActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun afterTextChanged(s: android.text.Editable?) = render()
         })
-        loadEvents()
+        lifecycleScope.launch {
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                app.eventStore.changes.collect { loadEvents() }
+            }
+        }
     }
 
     private fun setupButtons() {

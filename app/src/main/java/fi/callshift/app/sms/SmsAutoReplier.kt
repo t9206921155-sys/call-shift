@@ -12,6 +12,7 @@ import fi.callshift.app.domain.PhoneNumberNormalizer
 import fi.callshift.app.domain.SmsAutoReplyPolicy
 import fi.callshift.app.forward.CallEvent
 import fi.callshift.app.forward.EventRecorder
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -89,12 +90,9 @@ class SmsAutoReplier(
                 // Reserve before asynchronous sending. Unknown/partial outcomes must
                 // not cause an automatic duplicate or another paid multipart SMS.
                 prefs.edit().putLong(key, now).apply()
-                record(ctx, decision, "SUBMITTED", null,
-                    "SMS поставлена на отправку через SIM вызова; ожидаем подтверждение Android.")
                 try {
-                    val result = TrackedSmsSender.send(appContext, smsManager(subId), r.number, r.text)
-                    record(ctx, decision, result.status,
-                        if (result.status == "SENT") null else "sms_${result.status.lowercase()}", result.message)
+                    TrackedSmsSender.send(appContext, smsManager(subId), r.number, r.text,
+                        event(ctx, decision, "SUBMITTED", null, "Ожидаем подтверждение отправки"))
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
@@ -110,13 +108,27 @@ class SmsAutoReplier(
      * Без анти-спама (пользователь нажал сам). Возвращает текст ошибки или null при успехе.
      */
     fun sendQuickReply(number: String?, text: String, accountId: String?): String? {
-        if (number.isNullOrBlank()) return "Номер скрыт — SMS отправить некуда"
+        val normalized = normalizer.normalize(number).e164
+        if (normalized == null || !fi.callshift.app.domain.ReplyChannel.isPhoneAddress(normalized)) return "Номер скрыт или некорректен"
+        if (text.isBlank()) return "Пустой текст"
         if (!hasPermission()) return "Нет разрешения на отправку SMS"
-        if (!fi.callshift.app.domain.ReplyChannel.isPhoneAddress(number) || text.isBlank()) return "Некорректный номер или пустой текст"
         val subId = resolveSubscriptionId(accountId) ?: return "SIM звонка не определена — отправка через другую карту запрещена"
-        return runCatching { send(number, text, subId) }
-            .exceptionOrNull()?.let { "Не удалось отправить SMS: ${it.message ?: it.javaClass.simpleName}" }
+        val app = fi.callshift.app.CallShiftApp.from(appContext)
+        app.appScope.launch {
+            val ctx = CallContext(e164 = normalized, phoneAccount = accountId?.let { fi.callshift.app.domain.PhoneAccountRef(it, "") })
+            val decision = Decision(fi.callshift.app.domain.Verdict.DISALLOW_REJECT, reason = "manual_sms_reply")
+            try {
+                TrackedSmsSender.send(appContext, smsManager(subId), normalized, text,
+                    event(ctx, decision, "SUBMITTED", null, "Ручной SMS-ответ"))
+            } catch (error: Exception) {
+                record(ctx, decision, "FAILED", "sms_error", error.javaClass.simpleName)
+            }
+        }
+        return null
     }
+
+    /** Local preflight; does not send anything or verify operator delivery. */
+    fun canUseAccount(accountId: String?): Boolean = resolveSubscriptionId(accountId) != null
 
     /**
      * PhoneAccountHandle.id → subscriptionId. На разных прошивках id аккаунта —
@@ -162,13 +174,6 @@ class SmsAutoReplier(
         else SmsManager.getSmsManagerForSubscriptionId(subId)
     }
 
-    private fun send(number: String, text: String, subId: Int) {
-        val sms = smsManager(subId)
-        val parts = sms.divideMessage(text)
-        if (parts.size > 1) sms.sendMultipartTextMessage(number, null, parts, null, null)
-        else sms.sendTextMessage(number, null, text, null, null)
-    }
-
     private fun skipMessage(reason: String) = when (reason) {
         "cooldown" -> "SMS не отправлено: для этого номера уже была попытка за последние 30 мин"
         "unknown_number" -> "SMS не отправлено: номер скрыт"
@@ -176,29 +181,19 @@ class SmsAutoReplier(
         else -> "SMS не отправлено: $reason"
     }
 
+    private fun event(ctx: CallContext, d: Decision, result: String, code: String?, msg: String) = CallEvent(
+        ts = System.currentTimeMillis(), direction = ctx.direction.name,
+        numberE164 = ctx.e164, numberMasked = normalizer.mask(ctx.e164 ?: ctx.rawHandle),
+        sim = ctx.phoneAccount?.label?.takeIf { it.isNotBlank() } ?: ctx.phoneAccount?.id ?: "—",
+        ruleId = d.ruleId, ruleName = d.ruleName,
+        strategy = if ((d.matchedAction?.replyChannel ?: "SMS") == "SMS") "SMS_REPLY" else "MESSENGER_DRAFT",
+        target = ctx.e164, result = result, errorCode = code, errorMessage = msg,
+        reason = d.reason, screeningMs = d.engineMs, forwardMs = 0, totalMs = d.engineMs,
+    )
+
     private suspend fun record(ctx: CallContext, d: Decision, result: String, code: String?, msg: String) {
-        runCatching {
-            recorder.record(
-                CallEvent(
-                    ts = System.currentTimeMillis(),
-                    direction = ctx.direction.name,
-                    numberE164 = ctx.e164,
-                    numberMasked = normalizer.mask(ctx.e164 ?: ctx.rawHandle),
-                    sim = ctx.phoneAccount?.label ?: ctx.phoneAccount?.id ?: "—",
-                    ruleId = d.ruleId,
-                    ruleName = d.ruleName,
-                    strategy = if ((d.matchedAction?.replyChannel ?: "SMS") == "SMS") "SMS_REPLY" else "MESSENGER_DRAFT",
-                    target = ctx.e164,
-                    result = result,
-                    errorCode = code,
-                    errorMessage = msg,
-                    reason = d.reason,
-                    screeningMs = d.engineMs,
-                    forwardMs = 0,
-                    totalMs = d.engineMs,
-                ),
-            )
-        }
+        runCatching { recorder.record(event(ctx, d, result, code, msg)) }
+            .onFailure { Log.e(TAG, "Reply journal write failed", it) }
     }
 
     companion object {
