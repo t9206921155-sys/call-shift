@@ -46,6 +46,7 @@
             android:textSize="14sp" />
 
         <Spinner
+            android:popupBackground="@color/surface_card"
             android:id="@+id/spinnerOrder"
             android:layout_width="match_parent"
             android:layout_height="48dp"
@@ -86,12 +87,7 @@
                 android:textColor="@color/text_primary" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Для каких звонков:"
-            android:textColor="@color/text_secondary"
-            android:textSize="14sp" />
+
 
         <TextView
             android:layout_width="match_parent"
@@ -101,6 +97,7 @@
             android:textSize="14sp" />
 
         <Spinner
+            android:popupBackground="@color/surface_card"
             android:id="@+id/spinnerSim"
             android:layout_width="match_parent"
             android:layout_height="48dp"
@@ -114,6 +111,13 @@
             android:text="Правило сработает только для звонков на выбранную SIM. SMS-автоответ уйдёт с неё же."
             android:textColor="@color/text_muted"
             android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Для каких звонков:"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
 
         <RadioGroup
             android:id="@+id/rgWho"
@@ -178,6 +182,7 @@
             android:textSize="14sp" />
 
         <Spinner
+            android:popupBackground="@color/surface_card"
             android:id="@+id/spinnerStrategy"
             android:layout_width="match_parent"
             android:layout_height="48dp"
@@ -201,6 +206,7 @@
             android:textSize="14sp" />
 
         <Spinner
+            android:popupBackground="@color/surface_card"
             android:id="@+id/spinnerVerdict"
             android:layout_width="match_parent"
             android:layout_height="48dp"

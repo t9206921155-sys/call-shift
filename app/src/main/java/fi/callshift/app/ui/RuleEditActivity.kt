@@ -78,25 +78,20 @@ class RuleEditActivity : AppCompatActivity() {
         }
         if (opts.none { it.first == selected }) opts += selected to "Сохранённая SIM (сейчас не найдена)"
         simOptions = opts
-        binding.spinnerSim.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, opts.map { it.second })
+        binding.spinnerSim.adapter = darkSpinnerAdapter(this, opts.map { it.second })
         binding.spinnerSim.setSelection(opts.indexOfFirst { it.first == selected }.coerceAtLeast(0))
     }
 
     private fun setupSpinners() {
         setupSimSpinner(fi.callshift.app.domain.SimSelector.ANY)
-        binding.spinnerOrder.adapter = ArrayAdapter(
-            this, android.R.layout.simple_spinner_dropdown_item, ORDER_OPTIONS.map { it.first },
+        binding.spinnerOrder.adapter = darkSpinnerAdapter(this, ORDER_OPTIONS.map { it.first },
         )
         binding.spinnerOrder.setSelection(1)
-        val stratAdapter = ArrayAdapter(
-            this, android.R.layout.simple_spinner_dropdown_item,
-            strategyKeys.map { RuleLabels.strategies.getValue(it).title },
+        val stratAdapter = darkSpinnerAdapter(this, strategyKeys.map { RuleLabels.strategies.getValue(it).title },
         )
         binding.spinnerStrategy.adapter = stratAdapter
 
-        val verdAdapter = ArrayAdapter(
-            this, android.R.layout.simple_spinner_dropdown_item,
-            verdictKeys.map { RuleLabels.verdicts.getValue(it).title },
+        val verdAdapter = darkSpinnerAdapter(this, verdictKeys.map { RuleLabels.verdicts.getValue(it).title },
         )
         binding.spinnerVerdict.adapter = verdAdapter
 
