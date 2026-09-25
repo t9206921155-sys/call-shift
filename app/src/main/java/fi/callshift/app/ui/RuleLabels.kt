@@ -65,6 +65,7 @@ object RuleLabels {
             ?: when (name) {
                 "PASS" -> "Без переадресации"
                 "SMS_REPLY" -> "SMS-автоответ"
+                "MESSENGER_DRAFT" -> "Ответ через мессенджер (вручную)"
                 "SCREENED" -> "Звонок перехвачен"
                 else -> name
             }

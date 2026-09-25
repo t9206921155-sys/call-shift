@@ -54,6 +54,14 @@ class AutoReplyEngineTest {
         assertEquals(RuleEngine.REASON_AUTO_REPLY, dec.reason)
     }
 
+    @Test fun autoReplyPreservesMessengerChannel() = runTest(d) {
+        val dec = engine(Settings(AutoReplySettings(
+            enabled = true, text = "Занят", replyChannel = "WHATSAPP",
+        ))).evaluate(ctx)
+        assertEquals(Verdict.DISALLOW_REJECT, dec.verdict)
+        assertEquals("WHATSAPP", dec.matchedAction?.replyChannel)
+    }
+
     @Test fun autoReplyExpired() = runTest(d) {
         val dec = engine(Settings(AutoReplySettings(enabled = true, text = "x", untilMs = now - 1))).evaluate(ctx)
         assertEquals(Verdict.PASS, dec.verdict)

@@ -59,6 +59,10 @@
         android:theme="@style/Theme.CallShift"
         tools:targetApi="35">
 
+        <activity
+            android:name=".messaging.MessengerReplyActivity"
+            android:exported="false" />
+
         <!-- ======================= ТОЧКА ВХОДА ======================= -->
         <activity
             android:name=".ui.MainActivity"
@@ -172,6 +176,9 @@
             android:name=".telecom.CallShiftInCallService"
             android:exported="true"
             android:permission="android.permission.BIND_INCALL_SERVICE">
+            <meta-data
+                android:name="android.telecom.IN_CALL_SERVICE_UI"
+                android:value="true" />
             <meta-data
                 android:name="android.telecom.INCLUDE_SELF_MANAGED_CALLS"
                 android:value="false" />

@@ -445,12 +445,18 @@
             android:textColor="@color/text_secondary" />
 
         <!-- SMS-автоответ звонящему после отбоя -->
+        <Spinner
+            android:id="@+id/spinnerReplyChannel"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:contentDescription="Канал ответа звонящему" />
+
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilSmsReply"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="4dp"
-            android:hint="SMS-автоответ после отбоя (необязательно)">
+            android:hint="Текст ответа после отбоя (необязательно)">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etSmsReply"
@@ -466,7 +472,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
-            android:text="Только если звонок сбрасывается. Не чаще 1 SMS на номер за 30 мин; скрытым и коротким номерам не отправляется. Оплачивается по тарифу оператора."
+            android:text="SMS отправляется автоматически по тарифу оператора. Мессенджер: уведомление для ручной отправки, не чаще раза за 30 мин на номер. WhatsApp открывает номер звонящего; Telegram, MAX и другие требуют выбора его чата. Нужны разрешённые уведомления. Автоматической замены на SMS нет."
             android:textColor="@color/text_secondary"
             android:textSize="12sp" />
 

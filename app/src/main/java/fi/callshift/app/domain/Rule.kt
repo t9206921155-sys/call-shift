@@ -85,6 +85,7 @@ data class Action(
      * Анти-спам: не чаще одного SMS на номер за [SmsAutoReplyPolicy.COOLDOWN_MS].
      */
     val autoReplySms: String? = null,
+    val replyChannel: String = ReplyChannel.SMS,
 )
 
 /**

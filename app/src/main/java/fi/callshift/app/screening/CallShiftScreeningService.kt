@@ -46,7 +46,7 @@ class CallShiftScreeningService : CallScreeningService() {
     override fun onScreenCall(callDetails: Call.Details) {
         val started = System.nanoTime()
         try {
-            val ctx = buildContext(callDetails)
+            val ctx = CallContextFactory(app).buildContext(callDetails)
 
             // Экстренные номера — абсолютный приоритет (FR-2.6, E-04).
             if (ctx.isEmergency) {
@@ -97,8 +97,8 @@ class CallShiftScreeningService : CallScreeningService() {
     private suspend fun recordScreened(ctx: CallContext, decision: Decision, startedNs: Long) {
         val verdictText = when (decision.verdict) {
             Verdict.PASS -> "звонок прошёл как обычно"
-            Verdict.DISALLOW_REJECT -> "звонок сброшен"
-            Verdict.DISALLOW_AS_MISSED -> "звонок сброшен (в пропущенные)"
+            Verdict.DISALLOW_REJECT -> "запрошен сброс звонка"
+            Verdict.DISALLOW_AS_MISSED -> "запрошен сброс звонка (в пропущенные)"
             Verdict.SILENCE -> "звонок без звука"
         }
         val why = decision.ruleName?.let { "правило «$it»" } ?: when (decision.reason) {
@@ -132,98 +132,6 @@ class CallShiftScreeningService : CallScreeningService() {
                 totalMs = totalMs,
             ),
         )
-    }
-
-    /** Формируем доменный контекст из системного Call.Details. */
-    private fun buildContext(details: Call.Details): CallContext {
-        val raw = runCatching { details.handle?.schemeSpecificPart }.getOrNull()
-        val normalized = app.normalizer.normalize(raw)
-        val isEmergency = normalized.isEmergency ||
-            app.normalizer.looksLikeLocalEmergency(raw.orEmpty()) ||
-            hasHiddenProperty(details, "PROPERTY_EMERGENCY_CALLBACK")
-
-        return CallContext(
-            rawHandle = raw,
-            e164 = normalized.e164,
-            national = normalized.national,
-            // CallScreeningService вызывается только для входящих вызовов.
-            direction = Direction.INCOMING,
-            phoneAccount = resolvePhoneAccount(details),
-            isEmergency = isEmergency,
-            isSelfManaged = runCatching {
-                details.hasProperty(Call.Details.PROPERTY_SELF_MANAGED)
-            }.getOrDefault(false),
-            signals = currentSignals(),
-        )
-    }
-
-    /**
-     * Best-effort определение SIM (Приложение E, P-2/P-3):
-     *  1) reflection к скрытому getPhoneAccountHandle();
-     *  2) ключи phoneAccount в extras;
-     *  3) null → «неизвестно» → правило трактуется как «любая SIM».
-     */
-    private fun resolvePhoneAccount(details: Call.Details): PhoneAccountRef? {
-        // 0) Публичный API: Call.Details.getAccountHandle().
-        runCatching {
-            val id = details.accountHandle?.id
-            if (!id.isNullOrBlank()) {
-                return PhoneAccountRef(id = id, label = app.telecom.phoneAccounts()[id] ?: id)
-            }
-        }
-        runCatching {
-            val method = details.javaClass.getMethod("getPhoneAccountHandle")
-            val handle = method.invoke(details)
-            if (handle != null) {
-                val id = (handle as? android.telecom.PhoneAccountHandle)?.id
-                if (!id.isNullOrBlank()) {
-                    return PhoneAccountRef(id = id, label = app.telecom.phoneAccounts()[id] ?: id)
-                }
-            }
-        }
-        runCatching {
-            val extras = details.extras ?: return@runCatching
-            for (key in extras.keySet()) {
-                if (key.contains("phone_account", ignoreCase = true)) {
-                    val value = extras.get(key)?.toString() ?: continue
-                    val id = value.substringAfterLast('[').substringBefore(']').ifBlank { value }
-                    return PhoneAccountRef(id = id, label = id)
-                }
-            }
-        }
-        // Запасной способ: какая SIM сейчас в состоянии «звонит».
-        app.telecom.ringingAccountId()?.let { id ->
-            return PhoneAccountRef(id = id, label = app.telecom.phoneAccounts()[id] ?: id)
-        }
-        return null
-    }
-
-    private fun hasHiddenProperty(details: Call.Details, constantName: String): Boolean {
-        val value = runCatching {
-            Call.Details::class.java.getField(constantName).getInt(null)
-        }.getOrNull() ?: return false
-        return runCatching { details.hasProperty(value) }.getOrDefault(false)
-    }
-
-    /** Дешёвые сигналы окружения для условий правил (ТЗ п. 9.4). */
-    private fun currentSignals(): Map<Signal, String> {
-        val signals = mutableMapOf<Signal, String>()
-        runCatching {
-            val bm = getSystemService(BATTERY_SERVICE) as android.os.BatteryManager
-            val level = bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
-            if (level > 0) signals[Signal.BATTERY] = level.toString()
-        }
-        runCatching {
-            val cm = getSystemService(CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
-            val caps = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
-            signals[Signal.NETWORK] = when {
-                caps == null -> "NONE"
-                caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> "WIFI"
-                caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) -> "MOBILE"
-                else -> "OTHER"
-            }
-        }
-        return signals
     }
 
     /** Маппинг Decision → CallResponse с учётом профиля полномочий (ТЗ п. 3.5). */
@@ -266,8 +174,8 @@ class CallShiftScreeningService : CallScreeningService() {
         }
         // setSkipCallLog игнорируется системой для сторонних приложений — не используем.
 
-        runCatching { respondToCall(details, builder.build()) }
-            .onFailure { Log.e(TAG, "respondToCall failed", it) }
+        // Do not report success or send an SMS when submitting the response throws.
+        respondToCall(details, builder.build())
     }
 
     private fun respondPass(details: Call.Details, reason: String) {

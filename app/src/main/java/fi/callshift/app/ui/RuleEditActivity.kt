@@ -78,10 +78,16 @@ class RuleEditActivity : AppCompatActivity() {
             opts += fi.callshift.app.domain.SimSelector.SIM1 to "SIM 1"
             opts += fi.callshift.app.domain.SimSelector.SIM2 to "SIM 2"
         }
-        if (opts.none { it.first == selected }) opts += selected to "Сохранённая SIM (сейчас не найдена)"
+        val prefix = fi.callshift.app.domain.SimSelector.HANDLE_PREFIX
+        val resolvedSelection = if (selected.startsWith(prefix)) {
+            app.telecom.canonicalAccountId(selected.removePrefix(prefix))?.let { prefix + it } ?: selected
+        } else selected
+        if (opts.none { it.first == resolvedSelection }) {
+            opts += resolvedSelection to "Сохранённая SIM не определена — выберите нужную карту"
+        }
         simOptions = opts
         binding.spinnerSim.adapter = darkSpinnerAdapter(this, opts.map { it.second })
-        binding.spinnerSim.setSelection(opts.indexOfFirst { it.first == selected }.coerceAtLeast(0))
+        binding.spinnerSim.setSelection(opts.indexOfFirst { it.first == resolvedSelection }.coerceAtLeast(0))
         binding.spinnerSim.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p: android.widget.AdapterView<*>?, v: View?, pos: Int, id: Long) {
                 binding.tvSimWarn.visibility = if (pos > 0) View.VISIBLE else View.GONE
@@ -91,6 +97,8 @@ class RuleEditActivity : AppCompatActivity() {
     }
 
     private fun setupSpinners() {
+        binding.spinnerReplyChannel.adapter = darkSpinnerAdapter(this,
+            fi.callshift.app.domain.ReplyChannel.labels.values.toList())
         setupSimSpinner(fi.callshift.app.domain.SimSelector.ANY)
         binding.spinnerOrder.adapter = darkSpinnerAdapter(this, ORDER_OPTIONS.map { it.first },
         )
@@ -156,6 +164,8 @@ class RuleEditActivity : AppCompatActivity() {
             binding.etTarget.setText(rule.action.target ?: "")
             binding.cbDtmfTransfer.isChecked = rule.action.dtmfTransferOriginal
             binding.etSmsReply.setText(rule.action.autoReplySms ?: "")
+            binding.spinnerReplyChannel.setSelection(fi.callshift.app.domain.ReplyChannel.labels.keys
+                .indexOf(rule.action.replyChannel).coerceAtLeast(0))
 
             binding.btnDelete.visibility = View.VISIBLE
         }
@@ -205,11 +215,11 @@ class RuleEditActivity : AppCompatActivity() {
         }
         val smsReply = binding.etSmsReply.text.toString().trim().ifBlank { null }
         if (smsReply != null && verdict != VerdictSpec.DISALLOW_REJECT && verdict != VerdictSpec.DISALLOW_AS_MISSED) {
-            toast("SMS-автоответ работает только если звонок сбрасывается («Сбросить» или «Сбросить и записать в пропущенные»)")
+            toast("Ответ после отбоя работает только если звонок сбрасывается («Сбросить» или «Сбросить и записать в пропущенные»)")
             return null
         }
         if (smsReply != null && isAnon) {
-            toast("SMS нельзя отправить на скрытый номер — выберите другой вариант в «Для каких звонков» или уберите текст SMS")
+            toast("Нельзя подготовить ответ звонящему со скрытым номером — выберите другой вариант в «Для каких звонков» или уберите текст ответа")
             return null
         }
 
@@ -237,6 +247,8 @@ class RuleEditActivity : AppCompatActivity() {
                 target = target,
                 dtmfTransferOriginal = binding.cbDtmfTransfer.isChecked,
                 autoReplySms = smsReply,
+                replyChannel = fi.callshift.app.domain.ReplyChannel.labels.keys.toList()
+                    .getOrElse(binding.spinnerReplyChannel.selectedItemPosition) { "SMS" },
             ),
             simSelector = simOptions.getOrNull(binding.spinnerSim.selectedItemPosition)?.first
                 ?: fi.callshift.app.domain.SimSelector.ANY,
@@ -249,7 +261,7 @@ class RuleEditActivity : AppCompatActivity() {
         val toSave = buildRule() ?: return
         lifecycleScope.launch {
             app.ruleStore.save(toSave)
-            if (toSave.action.autoReplySms != null && !app.smsReplier.hasPermission()) {
+            if (toSave.action.autoReplySms != null && toSave.action.replyChannel == "SMS" && !app.smsReplier.hasPermission()) {
                 smsPermLauncher.launch(android.Manifest.permission.SEND_SMS)
                 return@launch
             }
@@ -291,7 +303,7 @@ class RuleEditActivity : AppCompatActivity() {
                             append("Со звонком: ").append(RuleLabels.verdictTitle(draft.action.verdict)).append("\n")
                             append("Куда: ").append(RuleLabels.strategyTitle(draft.action.strategy.name)).append("\n")
                             draft.action.autoReplySms?.let {
-                                append("SMS: ").append(if (ctx.e164 != null) "«$it»" else "не уйдёт — номер скрыт").append("\n")
+                                append(fi.callshift.app.domain.ReplyChannel.labels[draft.action.replyChannel]).append(": ").append(if (ctx.e164 != null) "«$it»" else "не уйдёт — номер скрыт").append("\n")
                             }
                         } else {
                             append("❌ Условия правила НЕ подходят для этого номера.\n")
@@ -309,7 +321,7 @@ class RuleEditActivity : AppCompatActivity() {
                             val simName = simOptions.firstOrNull { it.first == draft.simSelector }?.second ?: draft.simSelector
                             append("\nSIM: правило только для «$simName». После звонка в «Журнале» видно, на какую SIM он пришёл; если там «—», телефон не сообщает SIM — выберите «Любая SIM».\n")
                         }
-                        if (draft.action.autoReplySms != null && !app.smsReplier.hasPermission()) problems += "Нет разрешения на отправку SMS."
+                        if (draft.action.autoReplySms != null && draft.action.replyChannel == "SMS" && !app.smsReplier.hasPermission()) problems += "Нет разрешения на отправку SMS."
                         if (ruleId == 0L || existingRule == null) problems += "Правило ещё не сохранено — нажмите «Сохранить правило»."
                         if (problems.isNotEmpty()) {
                             append("\n⚠️ При реальном звонке помешает:\n")

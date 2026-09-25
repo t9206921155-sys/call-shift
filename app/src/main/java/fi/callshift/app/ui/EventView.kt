@@ -8,6 +8,8 @@ object EventView {
         REJECTED("Сброшен", "⊘", 0xFFE57373.toInt()),
         SILENCED("Без звука", "🔕", 0xFFFFB74D.toInt()),
         PASSED("Прошёл", "✓", 0xFF81C784.toInt()),
+        REPLY_DRAFT("Ответ ждёт отправки", "✎", 0xFFFFB74D.toInt()),
+        REPLY_SKIPPED("Ответ не подготовлен", "✎", 0xFF90A4AE.toInt()),
         SMS_SENT("SMS отправлено", "✉", 0xFF64B5F6.toInt()),
         SMS_SKIPPED("SMS не отправлено", "✉", 0xFF90A4AE.toInt()),
         FORWARDED("Перенаправлен", "↪", 0xFF4DB6AC.toInt()),
@@ -19,6 +21,11 @@ object EventView {
             e.result == "PASS" -> Kind.PASSED
             e.errorMessage?.startsWith("звонок без звука") == true -> Kind.SILENCED
             else -> Kind.REJECTED
+        }
+        "MESSENGER_DRAFT" -> when (e.result) {
+            "PENDING_USER" -> Kind.REPLY_DRAFT
+            "FAILED", "ERROR" -> Kind.ERROR
+            else -> Kind.REPLY_SKIPPED
         }
         "SMS_REPLY" -> when (e.result) {
             "OK", "SENT" -> Kind.SMS_SENT

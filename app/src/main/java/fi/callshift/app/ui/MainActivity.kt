@@ -280,7 +280,7 @@ class MainActivity : AppCompatActivity() {
                 append("Статус: ")
                 append(if (app.settings.masterEnabled) "АКТИВЕН" else "ОТКЛЮЧЁН")
                 append(" · ").append(profileStr)
-                if (simCount > 0) append(" · SIM: ").append(simCount)
+                if (simCount > 0) append("\n").append(getString(R.string.status_sim_count, simCount))
             }
             binding.tvStatus.setTextColor(getColor(R.color.text_secondary))
             binding.btnGrantRole.visibility = View.GONE
@@ -352,7 +352,7 @@ class MainActivity : AppCompatActivity() {
             append("Для: ").append(who)
             conds.firstOrNull { it.type == fi.callshift.app.domain.RuleEngine.TYPE_NUMBER_MATCH }?.pattern
                 ?.takeIf { it != "*" }?.let { append(" · номер ").append(it) }
-            if (rule.action.autoReplySms != null) append(" · SMS")
+            if (rule.action.autoReplySms != null) append(" · ").append(fi.callshift.app.domain.ReplyChannel.labels[rule.action.replyChannel] ?: "Неизвестный канал")
             ScheduleEditor.shortText(rule)?.let { append(" · ").append(it) }
             if (rule.simSelector != "ANY") {
                 val id = rule.simSelector.removePrefix(fi.callshift.app.domain.SimSelector.HANDLE_PREFIX)

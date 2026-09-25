@@ -91,6 +91,7 @@ class SettingsStore(context: Context) : SettingsPort {
 
     override val autoReply: AutoReplySettings
         get() = AutoReplySettings(
+            replyChannel = prefs.getString("ar_reply_channel", "SMS") ?: "SMS",
             enabled = prefs.getBoolean(KEY_AR_ENABLED, false),
             text = prefs.getString(KEY_AR_TEXT, null) ?: DEFAULT_AUTO_REPLY_TEXT,
             scope = prefs.getString(KEY_AR_SCOPE, AutoReplySettings.SCOPE_ALL) ?: AutoReplySettings.SCOPE_ALL,
@@ -99,6 +100,7 @@ class SettingsStore(context: Context) : SettingsPort {
         )
 
     fun setAutoReply(value: AutoReplySettings) = prefs.edit()
+        .putString("ar_reply_channel", value.replyChannel)
         .putBoolean(KEY_AR_ENABLED, value.enabled)
         .putString(KEY_AR_TEXT, value.text)
         .putString(KEY_AR_SCOPE, value.scope)

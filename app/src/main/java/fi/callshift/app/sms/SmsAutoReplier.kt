@@ -32,7 +32,8 @@ class SmsAutoReplier(
 
     suspend fun maybeReply(ctx: CallContext, decision: Decision, template: String?) {
         if (template.isNullOrBlank()) return
-        val key = ctx.e164.orEmpty()
+        val channel = decision.matchedAction?.replyChannel ?: "SMS"
+        val key = if (channel == "SMS") ctx.e164.orEmpty() else "$channel:${ctx.e164.orEmpty()}"
         val now = System.currentTimeMillis()
         val last = if (key.isEmpty()) null else prefs.getLong(key, -1L).takeIf { it > 0 }
 
@@ -40,10 +41,29 @@ class SmsAutoReplier(
             is SmsAutoReplyPolicy.Result.Skip -> {
                 // Пустой текст/не отбой — молча; остальное фиксируем в журнале.
                 if (r.reason != "no_text" && r.reason != "verdict_not_reject") {
-                    record(ctx, decision, "BLOCKED", "sms_${r.reason}", skipMessage(r.reason))
+                    record(ctx, decision, "BLOCKED", "reply_${r.reason}",
+                        if (channel == "SMS") skipMessage(r.reason)
+                        else "Ответ $channel не подготовлен: " + when (r.reason) {
+                            "cooldown" -> "этому номеру уже предлагался ответ за последние 30 минут"
+                            "unknown_number" -> "номер скрыт"
+                            "short_number" -> "короткий/сервисный номер"
+                            else -> r.reason
+                        })
                 }
             }
             is SmsAutoReplyPolicy.Result.Send -> {
+                if (channel != "SMS") {
+                    try {
+                        fi.callshift.app.messaging.MessengerReply.offer(appContext, r.number, r.text, channel)
+                        prefs.edit().putLong(key, now).apply()
+                        record(ctx, decision, "PENDING_USER", null,
+                            "$channel: подготовлен ответ, требуется выбор/проверка получателя и ручная отправка. Сообщение не отправлено.")
+                    } catch (error: Exception) {
+                        record(ctx, decision, "FAILED", "messenger_draft_failed",
+                            "$channel: ${error.message ?: "Не удалось подготовить ответ"}. SMS не отправлялась.")
+                    }
+                    return
+                }
                 if (!hasPermission()) {
                     record(ctx, decision, "FAILED", "sms_no_permission",
                         "Нет разрешения SEND_SMS — выдайте его на главном экране")
@@ -151,7 +171,7 @@ class SmsAutoReplier(
                     sim = ctx.phoneAccount?.label ?: ctx.phoneAccount?.id ?: "—",
                     ruleId = d.ruleId,
                     ruleName = d.ruleName,
-                    strategy = "SMS_REPLY",
+                    strategy = if ((d.matchedAction?.replyChannel ?: "SMS") == "SMS") "SMS_REPLY" else "MESSENGER_DRAFT",
                     target = ctx.e164,
                     result = result,
                     errorCode = code,

@@ -89,7 +89,7 @@ class RuleEngine(
         val ar = settings.autoReply
         if (!ar.isActiveAt(clock())) return null
         val simIndex = simIndexProvider(ctx.phoneAccount)
-        if (!SimSelector.matches(ar.simSelector, ctx.phoneAccount, simIndex)) return null
+        if (!simMatches(ar.simSelector, ctx, simIndex)) return null
         if (ar.scope == AutoReplySettings.SCOPE_UNKNOWN) {
             // Контакты недоступны (null) → не сбрасываем (fail-open).
             if (contacts.contains(ctx.e164) != false) return null
@@ -98,6 +98,7 @@ class RuleEngine(
             verdict = VerdictSpec.DISALLOW_REJECT,
             strategy = StrategySpec.NONE,
             autoReplySms = ar.text.ifBlank { null },
+            replyChannel = ar.replyChannel,
         )
         return Decision(
             verdict = Verdict.DISALLOW_REJECT,

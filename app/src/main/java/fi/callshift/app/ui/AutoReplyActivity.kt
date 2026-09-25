@@ -30,6 +30,7 @@ class AutoReplyActivity : AppCompatActivity() {
     private lateinit var rgScope: RadioGroup
     private lateinit var rgUntil: RadioGroup
     private lateinit var rgSim: RadioGroup
+    private lateinit var rgChannel: RadioGroup
     private lateinit var swRepeat: SwitchMaterial
     private lateinit var btnWhitelist: MaterialButton
     private var simOptions: List<Pair<String, String>> = emptyList()
@@ -42,12 +43,15 @@ class AutoReplyActivity : AppCompatActivity() {
         val primary = ContextCompat.getColor(this, R.color.text_primary)
 
         ui.title("Автоответчик")
-        ui.hint("Быстрый режим «я занят»: все подходящие звонки сбрасываются, звонящему уходит SMS с текстом ниже. " +
+        ui.hint("Быстрый режим «я занят»: все подходящие звонки сбрасываются, ответ готовится через выбранный канал. " +
             "Работает поверх правил — пока включён, правила не проверяются.")
 
         swEnabled = ui.add(SwitchMaterial(this).apply { text = "Включён"; setTextColor(primary); textSize = 17f; isChecked = s.enabled })
 
-        ui.header("Текст SMS")
+        ui.header("Канал ответа звонящему")
+        rgChannel = ui.add(radioGroup(fi.callshift.app.domain.ReplyChannel.labels.toList(), s.replyChannel))
+        ui.hint("SMS — автоматически. Мессенджеры — уведомление для ручного ответа: WhatsApp открывает номер звонящего; Telegram, MAX и другие требуют выбора его чата. Разрешите уведомления. Запасная SMS не отправляется.")
+        ui.header("Текст ответа")
         etText = ui.add(EditText(this).apply {
             setText(s.text); setTextColor(primary); minLines = 2
             filters = arrayOf(InputFilter.LengthFilter(201))
@@ -67,8 +71,12 @@ class AutoReplyActivity : AppCompatActivity() {
         rgUntil = ui.add(radioGroup(untilOpts, "keep"))
 
         ui.header("На какой SIM")
-        simOptions = buildSimOptions(s.simSelector)
-        rgSim = ui.add(radioGroup(simOptions, s.simSelector))
+        val selectedSim = if (s.simSelector.startsWith(SimSelector.HANDLE_PREFIX)) {
+            app.telecom.canonicalAccountId(s.simSelector.removePrefix(SimSelector.HANDLE_PREFIX))
+                ?.let { SimSelector.HANDLE_PREFIX + it } ?: s.simSelector
+        } else s.simSelector
+        simOptions = buildSimOptions(selectedSim)
+        rgSim = ui.add(radioGroup(simOptions, selectedSim))
 
         ui.add(MaterialButton(this).apply { text = "Сохранить"; setOnClickListener { save() } }, top = 12)
 
@@ -93,7 +101,7 @@ class AutoReplyActivity : AppCompatActivity() {
 
     private fun save() {
         val text = etText.text.toString().trim()
-        if (text.isEmpty()) { Toast.makeText(this, "Введите текст SMS", Toast.LENGTH_SHORT).show(); return }
+        if (text.isEmpty()) { Toast.makeText(this, "Введите текст ответа", Toast.LENGTH_SHORT).show(); return }
         val old = app.settings.autoReply
         val now = System.currentTimeMillis()
         val until = when (tagOf(rgUntil)) {
@@ -108,6 +116,7 @@ class AutoReplyActivity : AppCompatActivity() {
         }
         app.settings.setAutoReply(AutoReplySettings(
             enabled = swEnabled.isChecked, text = text,
+            replyChannel = tagOf(rgChannel) ?: "SMS",
             scope = tagOf(rgScope) ?: AutoReplySettings.SCOPE_ALL,
             untilMs = until, simSelector = tagOf(rgSim) ?: SimSelector.ANY,
         ))
@@ -160,7 +169,7 @@ class AutoReplyActivity : AppCompatActivity() {
             !s.isActiveAt(now) -> "Время действия истекло"
             else -> buildString {
                 append(if (s.scope == AutoReplySettings.SCOPE_UNKNOWN) "Незнакомые номера" else "Все звонки")
-                append(" → SMS «").append(s.text.take(40)).append(if (s.text.length > 40) "…»" else "»")
+                append(" → ").append(fi.callshift.app.domain.ReplyChannel.labels[s.replyChannel] ?: "Неизвестный канал").append(" «").append(s.text.take(40)).append(if (s.text.length > 40) "…»" else "»")
                 s.untilMs?.let { append("\nДо ").append(fmt(it)) }
             }
         }
