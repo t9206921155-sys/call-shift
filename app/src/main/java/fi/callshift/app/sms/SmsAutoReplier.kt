@@ -68,6 +68,17 @@ class SmsAutoReplier(
     }
 
     /**
+     * Быстрый SMS-ответ с экрана входящего вызова («Отклонить и отправить SMS»).
+     * Без анти-спама (пользователь нажал сам). Возвращает текст ошибки или null при успехе.
+     */
+    fun sendQuickReply(number: String?, text: String, accountId: String?): String? {
+        if (number.isNullOrBlank()) return "Номер скрыт — SMS отправить некуда"
+        if (!hasPermission()) return "Нет разрешения на отправку SMS"
+        return runCatching { send(number, text, resolveSubscriptionId(accountId)) }
+            .exceptionOrNull()?.let { "Не удалось отправить SMS: ${it.message ?: it.javaClass.simpleName}" }
+    }
+
+    /**
      * PhoneAccountHandle.id → subscriptionId. На разных прошивках id аккаунта —
      * это subId, ICCID или «ICCID + F». Пробуем по порядку; null → SIM по умолчанию.
      */

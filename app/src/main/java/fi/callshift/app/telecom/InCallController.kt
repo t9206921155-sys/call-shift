@@ -45,6 +45,8 @@ class InCallController private constructor() {
         val connectTimeMs: Long,
         val simLabel: String?,
         val isConference: Boolean,
+        /** id PhoneAccountHandle (SIM), на которую/с которой идёт вызов. */
+        val simId: String? = null,
     )
 
     fun interface Listener {
@@ -212,6 +214,7 @@ class InCallController private constructor() {
             connectTimeMs = runCatching { details?.connectTimeMillis }.getOrNull() ?: 0L,
             simLabel = sim,
             isConference = hasConf ?: false,
+            simId = runCatching { details?.accountHandle?.id }.getOrNull(),
         )
     }
 

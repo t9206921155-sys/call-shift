@@ -70,4 +70,55 @@
         <item name="android:insetLeft">0dp</item>
         <item name="android:insetRight">0dp</item>
     </style>
+
+    <!-- ===== Экран звонка ===== -->
+    <!-- Круглая кнопка управления (микрофон/динамик/…) 64dp -->
+    <style name="Widget.CallShift.RoundControl">
+        <item name="android:layout_width">64dp</item>
+        <item name="android:layout_height">64dp</item>
+        <item name="android:background">@drawable/bg_circle</item>
+        <item name="android:backgroundTint">#26FFFFFF</item>
+        <item name="android:scaleType">center</item>
+        <item name="android:padding">18dp</item>
+        <item name="tint">#FFFFFF</item>
+    </style>
+
+    <!-- Большая круглая кнопка вызова/сброса 76dp -->
+    <style name="Widget.CallShift.RoundCall">
+        <item name="android:layout_width">76dp</item>
+        <item name="android:layout_height">76dp</item>
+        <item name="android:background">@drawable/bg_circle</item>
+        <item name="android:scaleType">center</item>
+        <item name="android:padding">20dp</item>
+        <item name="android:elevation">6dp</item>
+        <item name="tint">#FFFFFF</item>
+    </style>
+
+    <!-- Подпись под круглой кнопкой -->
+    <style name="Text.CallShift.ControlLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">6dp</item>
+        <item name="android:textColor">#D8E7DE</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <!-- Круглая клавиша цифровой клавиатуры (цифра + буквы задаются в коде) -->
+    <style name="Widget.CallShift.RoundKey">
+        <item name="android:layout_width">72dp</item>
+        <item name="android:layout_height">72dp</item>
+        <item name="android:layout_marginStart">12dp</item>
+        <item name="android:layout_marginEnd">12dp</item>
+        <item name="android:layout_marginTop">5dp</item>
+        <item name="android:layout_marginBottom">5dp</item>
+        <item name="android:background">@drawable/bg_circle</item>
+        <item name="android:backgroundTint">#1FFFFFFF</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textSize">28sp</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:lineSpacingMultiplier">0.85</item>
+    </style>
 </resources>
