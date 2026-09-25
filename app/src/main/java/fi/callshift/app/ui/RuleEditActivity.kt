@@ -41,6 +41,14 @@ class RuleEditActivity : AppCompatActivity() {
         finish()
     }
 
+    private val notificationPermLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        Toast.makeText(this, if (granted) "Правило сохранено, уведомления разрешены"
+            else "Правило сохранено, но уведомление для ответа недоступно", Toast.LENGTH_LONG).show()
+        finish()
+    }
+
     private val strategyKeys = RuleLabels.strategies.keys.toList()
     private val verdictKeys = RuleLabels.verdicts.keys.toList()
     private val strategies = strategyKeys.map { it.name }
@@ -263,6 +271,12 @@ class RuleEditActivity : AppCompatActivity() {
             app.ruleStore.save(toSave)
             if (toSave.action.autoReplySms != null && toSave.action.replyChannel == "SMS" && !app.smsReplier.hasPermission()) {
                 smsPermLauncher.launch(android.Manifest.permission.SEND_SMS)
+                return@launch
+            }
+            if (toSave.action.autoReplySms != null && toSave.action.replyChannel != "SMS" &&
+                android.os.Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                notificationPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                 return@launch
             }
             Toast.makeText(this@RuleEditActivity, "Правило сохранено", Toast.LENGTH_SHORT).show()

@@ -35,6 +35,7 @@ class SmsAutoReplyPolicy(
         if (number.isEmpty()) return Result.Skip("unknown_number")
         val digits = number.count { it.isDigit() }
         if (digits < MIN_DIGITS) return Result.Skip("short_number")
+        if (!ReplyChannel.isPhoneAddress(number)) return Result.Skip("invalid_number")
         if (lastSentAtMs != null && nowMs - lastSentAtMs in 0 until cooldownMs) {
             return Result.Skip("cooldown")
         }

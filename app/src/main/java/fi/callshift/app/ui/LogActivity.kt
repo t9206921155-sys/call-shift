@@ -80,7 +80,7 @@ class LogActivity : AppCompatActivity() {
         val byChip = when (binding.chipsFilter.checkedChipId) {
             R.id.fRejected -> k == EventView.Kind.REJECTED || k == EventView.Kind.SILENCED
             R.id.fPassed -> k == EventView.Kind.PASSED
-            R.id.fSms -> k == EventView.Kind.SMS_SENT || k == EventView.Kind.SMS_SKIPPED
+            R.id.fSms -> e.strategy == "SMS_REPLY"
             R.id.fForward -> k == EventView.Kind.FORWARDED
             R.id.fErrors -> k == EventView.Kind.ERROR
             else -> true

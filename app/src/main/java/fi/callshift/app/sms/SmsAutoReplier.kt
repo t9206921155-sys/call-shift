@@ -12,6 +12,8 @@ import fi.callshift.app.domain.PhoneNumberNormalizer
 import fi.callshift.app.domain.SmsAutoReplyPolicy
 import fi.callshift.app.forward.CallEvent
 import fi.callshift.app.forward.EventRecorder
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Отправка SMS-автоответа звонящему после отбоя вызова.
@@ -27,10 +29,19 @@ class SmsAutoReplier(
     private val appContext = context.applicationContext
     private val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    private val replyLocks = List(32) { Mutex() }
+
     fun hasPermission(): Boolean =
         appContext.checkSelfPermission(Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED
 
     suspend fun maybeReply(ctx: CallContext, decision: Decision, template: String?) {
+        val key = "${decision.matchedAction?.replyChannel ?: "SMS"}:${ctx.e164.orEmpty()}"
+        replyLocks[(key.hashCode() and Int.MAX_VALUE) % replyLocks.size].withLock {
+            replyLocked(ctx, decision, template)
+        }
+    }
+
+    private suspend fun replyLocked(ctx: CallContext, decision: Decision, template: String?) {
         if (template.isNullOrBlank()) return
         val channel = decision.matchedAction?.replyChannel ?: "SMS"
         val key = if (channel == "SMS") ctx.e164.orEmpty() else "$channel:${ctx.e164.orEmpty()}"
@@ -70,18 +81,25 @@ class SmsAutoReplier(
                     return
                 }
                 val subId = resolveSubscriptionId(ctx.phoneAccount?.id)
-                val result = runCatching { send(r.number, r.text, subId) }
-                result.onSuccess {
-                    prefs.edit().putLong(key, now).apply()
-                    val via = if (subId != null) {
-                        "с SIM ${ctx.phoneAccount?.label?.ifBlank { null } ?: "#$subId"}"
-                    } else {
-                        "с SIM по умолчанию для SMS (SIM вызова не определена)"
-                    }
-                    record(ctx, decision, "OK", null, "SMS-автоответ отправлен $via: «${r.text}»")
-                }.onFailure { t ->
-                    Log.e(TAG, "SMS send failed", t)
-                    record(ctx, decision, "FAILED", "sms_error", t.toString())
+                if (subId == null) {
+                    record(ctx, decision, "FAILED", "sms_sim_unknown",
+                        "SIM входящего вызова не определена для SMS. Отправка через другую SIM запрещена.")
+                    return
+                }
+                // Reserve before asynchronous sending. Unknown/partial outcomes must
+                // not cause an automatic duplicate or another paid multipart SMS.
+                prefs.edit().putLong(key, now).apply()
+                record(ctx, decision, "SUBMITTED", null,
+                    "SMS поставлена на отправку через SIM вызова; ожидаем подтверждение Android.")
+                try {
+                    val result = TrackedSmsSender.send(appContext, smsManager(subId), r.number, r.text)
+                    record(ctx, decision, result.status,
+                        if (result.status == "SENT") null else "sms_${result.status.lowercase()}", result.message)
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    Log.e(TAG, "SMS send failed", error)
+                    record(ctx, decision, "FAILED", "sms_error", "Ошибка отправки SMS: ${error.javaClass.simpleName}")
                 }
             }
         }
@@ -94,13 +112,15 @@ class SmsAutoReplier(
     fun sendQuickReply(number: String?, text: String, accountId: String?): String? {
         if (number.isNullOrBlank()) return "Номер скрыт — SMS отправить некуда"
         if (!hasPermission()) return "Нет разрешения на отправку SMS"
-        return runCatching { send(number, text, resolveSubscriptionId(accountId)) }
+        if (!fi.callshift.app.domain.ReplyChannel.isPhoneAddress(number) || text.isBlank()) return "Некорректный номер или пустой текст"
+        val subId = resolveSubscriptionId(accountId) ?: return "SIM звонка не определена — отправка через другую карту запрещена"
+        return runCatching { send(number, text, subId) }
             .exceptionOrNull()?.let { "Не удалось отправить SMS: ${it.message ?: it.javaClass.simpleName}" }
     }
 
     /**
      * PhoneAccountHandle.id → subscriptionId. На разных прошивках id аккаунта —
-     * это subId, ICCID или «ICCID + F». Пробуем по порядку; null → SIM по умолчанию.
+     * это subId, ICCID или «ICCID + F». При null отправку запрещаем.
      */
     private fun resolveSubscriptionId(accountId: String?): Int? {
         if (accountId.isNullOrBlank()) return null
@@ -113,7 +133,8 @@ class SmsAutoReplier(
             runCatching {
                 val telecom = appContext.getSystemService(android.telecom.TelecomManager::class.java)
                 val tm = appContext.getSystemService(android.telephony.TelephonyManager::class.java)
-                val handle = telecom.callCapablePhoneAccounts.firstOrNull { handleId(it) == accountId }
+                val resolved = fi.callshift.app.CallShiftApp.from(appContext).telecom.canonicalAccountId(accountId)
+                val handle = telecom.callCapablePhoneAccounts.firstOrNull { it.id == resolved }
                 if (handle != null) {
                     val sub = tm.getSubscriptionId(handle)
                     if (sub != android.telephony.SubscriptionManager.INVALID_SUBSCRIPTION_ID) return sub
@@ -134,27 +155,22 @@ class SmsAutoReplier(
         }.getOrNull()
     }
 
-    private fun handleId(handle: android.telecom.PhoneAccountHandle): String =
-        runCatching { handle.id }.getOrNull()?.takeIf { it.isNotBlank() }
-            ?: handle.toString().substringAfterLast('[', "").substringBefore(']', "")
-
-    private fun send(number: String, text: String, subId: Int?) {
+    private fun smsManager(subId: Int): SmsManager {
         @Suppress("DEPRECATION")
-        val sms: SmsManager = when {
-            subId != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
-                appContext.getSystemService(SmsManager::class.java).createForSubscriptionId(subId)
-            subId != null -> SmsManager.getSmsManagerForSubscriptionId(subId)
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
-                appContext.getSystemService(SmsManager::class.java) ?: SmsManager.getDefault()
-            else -> SmsManager.getDefault()
-        }
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+            appContext.getSystemService(SmsManager::class.java).createForSubscriptionId(subId)
+        else SmsManager.getSmsManagerForSubscriptionId(subId)
+    }
+
+    private fun send(number: String, text: String, subId: Int) {
+        val sms = smsManager(subId)
         val parts = sms.divideMessage(text)
         if (parts.size > 1) sms.sendMultipartTextMessage(number, null, parts, null, null)
         else sms.sendTextMessage(number, null, text, null, null)
     }
 
     private fun skipMessage(reason: String) = when (reason) {
-        "cooldown" -> "SMS не отправлено: этому номеру уже отвечали за последние 30 мин"
+        "cooldown" -> "SMS не отправлено: для этого номера уже была попытка за последние 30 мин"
         "unknown_number" -> "SMS не отправлено: номер скрыт"
         "short_number" -> "SMS не отправлено: короткий/сервисный номер"
         else -> "SMS не отправлено: $reason"

@@ -69,6 +69,8 @@ class CallShiftScreeningService : CallScreeningService() {
                 // Reply must not wait for a forwarding/network strategy.
                 runCatching { app.smsReplier.maybeReply(ctx, decision, action.autoReplySms) }
                     .onFailure { Log.e(TAG, "auto-reply failed", it) }
+            }
+            app.appScope.launch {
                 runCatching { app.dispatcher.submit(ctx, decision, action) }
                     .onFailure { Log.e(TAG, "dispatch failed", it) }
                 // Без переадресации диспетчер ничего не пишет — фиксируем сам факт перехвата,

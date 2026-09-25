@@ -375,7 +375,7 @@ class InCallActivity : AppCompatActivity(), InCallController.Listener {
         val error = app.smsReplier.sendQuickReply(p.number, text, p.simId)
         Toast.makeText(
             applicationContext,
-            error ?: "SMS отправлено: «$text»",
+            error ?: "SMS передана Android. Отправка и доставка не подтверждены.",
             Toast.LENGTH_LONG,
         ).show()
     }

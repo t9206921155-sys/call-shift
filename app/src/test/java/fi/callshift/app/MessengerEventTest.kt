@@ -22,6 +22,13 @@ class MessengerEventTest {
         assertEquals(0, stats.errors)
     }
 
+    @Test fun smsIsCountedOnlyAfterConfirmation() {
+        for (status in listOf("SUBMITTED", "UNKNOWN", "OK", "FAILED")) {
+            assertEquals(0, EventView.stats(listOf(draft.copy(strategy = "SMS_REPLY", result = status))).sms)
+        }
+        assertEquals(1, EventView.stats(listOf(draft.copy(strategy = "SMS_REPLY", result = "SENT"))).sms)
+    }
+
     @Test fun blockedNotificationIsAnErrorNotDelivery() {
         assertEquals(EventView.Kind.ERROR, EventView.kind(draft.copy(result = "FAILED")))
     }

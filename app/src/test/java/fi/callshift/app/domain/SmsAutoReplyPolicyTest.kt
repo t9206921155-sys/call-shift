@@ -28,6 +28,16 @@ class SmsAutoReplyPolicyTest {
         assertTrue(p.decide(Verdict.DISALLOW_REJECT, "x", "+358401234567", after, now) is SmsAutoReplyPolicy.Result.Send)
     }
 
+    @Test fun rejectsUrisAndMalformedAddresses() {
+        for (number in listOf("sip:123456789@example.com", "+7916;1234567", "79161234567", "+12345678901234567")) {
+            assertSkip("invalid_number", p.decide(Verdict.DISALLOW_REJECT, "x", number, null, now))
+        }
+    }
+
+    @Test fun cooldownDoesNotChangeRejectVerdict() {
+        assertSkip("cooldown", p.decide(Verdict.DISALLOW_REJECT, "x", "+79161234567", now, now))
+    }
+
     @Test fun truncates() {
         val r = p.decide(Verdict.DISALLOW_REJECT, "a".repeat(500), "+358401234567", null, now) as SmsAutoReplyPolicy.Result.Send
         assertEquals(SmsAutoReplyPolicy.MAX_LENGTH, r.text.length)

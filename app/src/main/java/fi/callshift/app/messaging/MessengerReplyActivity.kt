@@ -39,6 +39,8 @@ class MessengerReplyActivity : AppCompatActivity() {
                     startActivity(target)
                 } catch (_: android.content.ActivityNotFoundException) {
                     Toast.makeText(this, "Нет приложения для отправки. Сообщение не отправлено.", Toast.LENGTH_LONG).show()
+                } catch (_: SecurityException) {
+                    Toast.makeText(this, "Android запретил открытие приложения. Сообщение не отправлено.", Toast.LENGTH_LONG).show()
                 }
                 finish()
             }
