@@ -159,11 +159,18 @@ class CallShiftScreeningService : CallScreeningService() {
      *  3) null → «неизвестно» → правило трактуется как «любая SIM».
      */
     private fun resolvePhoneAccount(details: Call.Details): PhoneAccountRef? {
+        // 0) Публичный API: Call.Details.getAccountHandle().
+        runCatching {
+            val id = details.accountHandle?.id
+            if (!id.isNullOrBlank()) {
+                return PhoneAccountRef(id = id, label = app.telecom.phoneAccounts()[id] ?: id)
+            }
+        }
         runCatching {
             val method = details.javaClass.getMethod("getPhoneAccountHandle")
             val handle = method.invoke(details)
             if (handle != null) {
-                val id = handle.javaClass.getField("id").get(handle)?.toString()
+                val id = (handle as? android.telecom.PhoneAccountHandle)?.id
                 if (!id.isNullOrBlank()) {
                     return PhoneAccountRef(id = id, label = app.telecom.phoneAccounts()[id] ?: id)
                 }

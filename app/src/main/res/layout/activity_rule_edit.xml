@@ -93,6 +93,28 @@
             android:textColor="@color/text_secondary"
             android:textSize="14sp" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="На какую SIM-карту:"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <Spinner
+            android:id="@+id/spinnerSim"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginBottom="4dp"
+            android:background="@color/surface_card" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:text="Правило сработает только для звонков на выбранную SIM. SMS-автоответ уйдёт с неё же."
+            android:textColor="@color/text_muted"
+            android:textSize="13sp" />
+
         <RadioGroup
             android:id="@+id/rgWho"
             android:layout_width="match_parent"

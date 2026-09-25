@@ -62,7 +62,28 @@ class RuleEditActivity : AppCompatActivity() {
     private fun orderIndexFor(priority: Int): Int =
         ORDER_OPTIONS.indices.minBy { kotlin.math.abs(ORDER_OPTIONS[it].second - priority) }
 
+    /** Пары (значение simSelector, подпись). */
+    private var simOptions: List<Pair<String, String>> = emptyList()
+
+    private fun setupSimSpinner(selected: String) {
+        val accounts = app.telecom.phoneAccounts() // id → название (нужно разрешение «Телефон»)
+        val opts = mutableListOf(fi.callshift.app.domain.SimSelector.ANY to "Любая SIM")
+        if (accounts.isNotEmpty()) {
+            accounts.entries.forEachIndexed { i, (id, label) ->
+                opts += (fi.callshift.app.domain.SimSelector.HANDLE_PREFIX + id) to "SIM ${i + 1}: ${label.ifBlank { id }}"
+            }
+        } else {
+            opts += fi.callshift.app.domain.SimSelector.SIM1 to "SIM 1"
+            opts += fi.callshift.app.domain.SimSelector.SIM2 to "SIM 2"
+        }
+        if (opts.none { it.first == selected }) opts += selected to "Сохранённая SIM (сейчас не найдена)"
+        simOptions = opts
+        binding.spinnerSim.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, opts.map { it.second })
+        binding.spinnerSim.setSelection(opts.indexOfFirst { it.first == selected }.coerceAtLeast(0))
+    }
+
     private fun setupSpinners() {
+        setupSimSpinner(fi.callshift.app.domain.SimSelector.ANY)
         binding.spinnerOrder.adapter = ArrayAdapter(
             this, android.R.layout.simple_spinner_dropdown_item, ORDER_OPTIONS.map { it.first },
         )
@@ -122,6 +143,7 @@ class RuleEditActivity : AppCompatActivity() {
                 },
             )
             binding.spinnerOrder.setSelection(orderIndexFor(rule.priority))
+            setupSimSpinner(rule.simSelector)
 
 
             // Действие
@@ -207,7 +229,8 @@ class RuleEditActivity : AppCompatActivity() {
                 dtmfTransferOriginal = binding.cbDtmfTransfer.isChecked,
                 autoReplySms = smsReply,
             ),
-            simSelector = existingRule?.simSelector ?: "ANY",
+            simSelector = simOptions.getOrNull(binding.spinnerSim.selectedItemPosition)?.first
+                ?: fi.callshift.app.domain.SimSelector.ANY,
         )
     }
 
@@ -272,6 +295,10 @@ class RuleEditActivity : AppCompatActivity() {
                         if (others.isNotEmpty()) problems += "Раньше проверяется правило «${others.first().name}», и оно тоже подходит — сработает оно. Поменяйте «Порядок проверки»."
                         if (draft.conditions.anyOf.flatten().any { it.type == RuleEngine.TYPE_ANONYMOUS } && !report.isDefaultDialer) {
                             problems += "Android обычно НЕ передаёт скрытые номера приложению-фильтру. Правила для скрытых номеров надёжно работают, только если CallShift — основное приложение «Телефон»."
+                        }
+                        if (draft.simSelector != fi.callshift.app.domain.SimSelector.ANY) {
+                            val simName = simOptions.firstOrNull { it.first == draft.simSelector }?.second ?: draft.simSelector
+                            append("\nSIM: правило только для «$simName». После звонка в «Журнале» видно, на какую SIM он пришёл; если там «—», телефон не сообщает SIM — выберите «Любая SIM».\n")
                         }
                         if (draft.action.autoReplySms != null && !app.smsReplier.hasPermission()) problems += "Нет разрешения на отправку SMS."
                         if (ruleId == 0L || existingRule == null) problems += "Правило ещё не сохранено — нажмите «Сохранить правило»."

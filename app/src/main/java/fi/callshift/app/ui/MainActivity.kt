@@ -297,7 +297,18 @@ class MainActivity : AppCompatActivity() {
                 ?.takeIf { it != "*" }?.let { append(" · номер ").append(it) }
             if (rule.action.autoReplySms != null) append(" · SMS")
             if (rule.schedule != null) append(" · расписание")
-            if (rule.simSelector != "ANY") append(" · ").append(rule.simSelector)
+            if (rule.simSelector != "ANY") {
+                val id = rule.simSelector.removePrefix(fi.callshift.app.domain.SimSelector.HANDLE_PREFIX)
+                val accounts = app.telecom.phoneAccounts()
+                val idx = accounts.keys.indexOf(id)
+                val simName = when {
+                    idx >= 0 -> "SIM ${idx + 1} (${accounts[id]})"
+                    rule.simSelector == "SIM1" -> "SIM 1"
+                    rule.simSelector == "SIM2" -> "SIM 2"
+                    else -> "SIM ?"
+                }
+                append(" · ").append(simName)
+            }
         }
 
         item.tvAction.text = buildString {
