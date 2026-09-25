@@ -180,14 +180,18 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- ===== Кнопки управления разговором ===== -->
+    <!-- ===== Кнопки управления разговором: сетка 3×2 (+ «Завершить» ниже) ===== -->
     <LinearLayout
         android:id="@+id/controlsRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="28dp"
-        android:orientation="horizontal">
-
+        android:layout_marginBottom="20dp"
+        android:orientation="vertical">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="18dp"
+            android:orientation="horizontal">
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -206,7 +210,6 @@
                     style="@style/Text.CallShift.ControlLabel"
                     android:text="Без звука" />
             </LinearLayout>
-
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -225,7 +228,6 @@
                     style="@style/Text.CallShift.ControlLabel"
                     android:text="Клавиатура" />
             </LinearLayout>
-
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -244,7 +246,12 @@
                     style="@style/Text.CallShift.ControlLabel"
                     android:text="Динамик" />
             </LinearLayout>
-
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="0dp"
+            android:orientation="horizontal">
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -263,6 +270,43 @@
                     style="@style/Text.CallShift.ControlLabel"
                     android:text="Удержать" />
             </LinearLayout>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
+
+                <ImageButton
+                    android:id="@+id/btnAddCall"
+                    style="@style/Widget.CallShift.RoundControl"
+                    android:contentDescription="Добавить вызов"
+                    android:src="@drawable/ic_add" />
+
+                <TextView
+                    android:id="@+id/lblAddCall"
+                    style="@style/Text.CallShift.ControlLabel"
+                    android:text="Добавить вызов" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
+
+                <ImageButton
+                    android:id="@+id/btnAudio"
+                    style="@style/Widget.CallShift.RoundControl"
+                    android:contentDescription="Аудио"
+                    android:src="@drawable/ic_bluetooth" />
+
+                <TextView
+                    android:id="@+id/lblAudio"
+                    style="@style/Text.CallShift.ControlLabel"
+                    android:text="Аудио" />
+            </LinearLayout>
+        </LinearLayout>
     </LinearLayout>
 
     <!-- ===== Быстрые SMS-ответы (входящий) ===== -->

@@ -37,6 +37,16 @@
             app:backgroundTint="#26FFFFFF"
             app:icon="@drawable/ic_rules"
             app:iconTint="#FFFFFF" />
+
+        <ImageButton
+            android:id="@+id/btnMore"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Ещё"
+            android:src="@drawable/ic_more_vert"
+            app:tint="#FFFFFF" />
     </LinearLayout>
 
     <!-- Вкладки -->

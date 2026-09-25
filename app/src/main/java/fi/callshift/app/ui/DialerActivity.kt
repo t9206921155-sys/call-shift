@@ -50,6 +50,15 @@ class DialerActivity : AppCompatActivity() {
     private lateinit var t9Adapter: DialEntryAdapter
     private lateinit var listAdapter: DialEntryAdapter
 
+    private val pickImage = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri == null) return@registerForActivityResult
+        lifecycleScope.launch {
+            val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { CallBackground.setCustom(this@DialerActivity, uri) }
+            CallBackground.apply(this@DialerActivity, binding.root)
+            Toast.makeText(this@DialerActivity, if (ok) "Обои установлены" else "Не удалось открыть картинку", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private val askPerms = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         refreshList(reload = true)
     }
@@ -62,6 +71,12 @@ class DialerActivity : AppCompatActivity() {
         setupPad()
         setupSimToggle()
         setupLists()
+        CallBackground.apply(this, binding.root)
+        binding.btnMore.setOnClickListener { showMoreMenu() }
+        binding.k1.setOnLongClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            callVoicemail(); true
+        }
         handleIntent(intent)
     }
 
@@ -172,6 +187,85 @@ class DialerActivity : AppCompatActivity() {
                 Toast.makeText(this@DialerActivity, r.message, Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    // ---------------- Меню «Ещё» и обои ----------------
+
+    private fun showMoreMenu() {
+        val num = digits.toString()
+        val items = mutableListOf<Pair<String, () -> Unit>>()
+        items += "🎨 Обои и фон" to { showWallpaperDialog() }
+        if (num.isNotBlank()) {
+            items += "👤 Добавить в контакты" to {
+                runCatching {
+                    startActivity(Intent(Intent.ACTION_INSERT_OR_EDIT).setType(android.provider.ContactsContract.Contacts.CONTENT_ITEM_TYPE)
+                        .putExtra(android.provider.ContactsContract.Intents.Insert.PHONE, num))
+                }
+                Unit
+            }
+            items += "✉ SMS на этот номер" to {
+                runCatching { startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$num"))) }
+                Unit
+            }
+            items += "⭐ В белый список" to {
+                app.settings.setWhitelist(app.settings.whitelist + (app.normalizer.normalize(num).e164 ?: num))
+                Toast.makeText(this, "Добавлено в белый список", Toast.LENGTH_SHORT).show()
+            }
+        }
+        items += "📼 Голосовая почта (долгое нажатие «1»)" to { callVoicemail() }
+        items += "⚙ Настройки вызовов SIM" to {
+            runCatching { startActivity(Intent(android.telecom.TelecomManager.ACTION_SHOW_CALL_SETTINGS)) }
+                .onFailure { Toast.makeText(this, "Недоступно на этом телефоне", Toast.LENGTH_SHORT).show() }
+            Unit
+        }
+        items += "💬 Автоответчик" to { startActivity(Intent(this, AutoReplyActivity::class.java)) }
+        AlertDialog.Builder(this)
+            .setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }
+            .show()
+    }
+
+    private fun callVoicemail() {
+        val simId = simByButton[binding.simToggle.checkedButtonId] ?: prefs.getString(KEY_LAST_SIM, null)
+        val vm = runCatching {
+            @Suppress("MissingPermission")
+            getSystemService(android.telephony.TelephonyManager::class.java)?.voiceMailNumber
+        }.getOrNull()
+        if (vm.isNullOrBlank()) {
+            Toast.makeText(this, "Номер голосовой почты не задан оператором", Toast.LENGTH_LONG).show()
+            return
+        }
+        lifecycleScope.launch {
+            val r = app.telecom.dial(vm, simId)
+            if (r is ForwardResult.Failed) Toast.makeText(this@DialerActivity, r.message, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun showWallpaperDialog() {
+        val cur = CallBackground.current(this)
+        val labels = CallBackground.presets.map { (if (it.key == cur) "● " else "") + it.title }.toMutableList()
+        labels += (if (cur == "custom") "● " else "") + "🖼 Своя картинка из галереи…"
+        if (cur == "custom") labels += "Затемнение картинки: ${CallBackground.dim(this)}%…"
+        AlertDialog.Builder(this)
+            .setTitle("Обои для набора и звонка")
+            .setItems(labels.toTypedArray()) { _, i ->
+                when {
+                    i < CallBackground.presets.size -> {
+                        CallBackground.setPreset(this, CallBackground.presets[i].key)
+                        CallBackground.apply(this, binding.root)
+                    }
+                    i == CallBackground.presets.size -> pickImage.launch(
+                        androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                    )
+                    else -> {
+                        val opts = intArrayOf(0, 20, 35, 50, 65)
+                        AlertDialog.Builder(this).setTitle("Затемнение")
+                            .setItems(opts.map { if (it == 0) "Без затемнения" else "$it%" }.toTypedArray()) { _, j ->
+                                CallBackground.setDim(this, opts[j]); CallBackground.apply(this, binding.root)
+                            }.show()
+                    }
+                }
+            }
+            .show()
     }
 
     // ---------------- Вкладки, T9, списки ----------------

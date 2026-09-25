@@ -159,6 +159,17 @@ class InCallController private constructor() {
         }
     }
 
+    /** Доступные маршруты звука (битовая маска CallAudioState.ROUTE_*) и текущий. */
+    @Suppress("DEPRECATION")
+    fun audioRoutes(): Pair<Int, Int> {
+        val st = runCatching { service?.callAudioState }.getOrNull()
+        return (st?.supportedRouteMask ?: 0) to (st?.route ?: 0)
+    }
+
+    fun setAudioRoute(route: Int) {
+        runCatching { service?.setAudioRoute(route) }
+    }
+
     fun setMute(muted: Boolean) {
         runCatching {
             service?.setMuted(muted)

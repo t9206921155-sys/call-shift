@@ -178,12 +178,12 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnDialer"
-                    style="@style/Widget.Material3.Button.TonalButton"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="52dp"
                     android:layout_weight="1"
                     android:text="Телефон"
-                    android:textSize="12sp" />
+                    android:textSize="13sp" 
+                    style="@style/Widget.CallShift.MainAction"/>
 
                 <Space
                     android:layout_width="4dp"
@@ -191,12 +191,12 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnCarrier"
-                    style="@style/Widget.Material3.Button.TonalButton"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="52dp"
                     android:layout_weight="1"
-                    android:text="Сетевая CF"
-                    android:textSize="12sp" />
+                    android:text="Сеть"
+                    android:textSize="13sp" 
+                    style="@style/Widget.CallShift.MainAction"/>
 
                 <Space
                     android:layout_width="4dp"
@@ -204,12 +204,12 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnLogs"
-                    style="@style/Widget.Material3.Button.TonalButton"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="52dp"
                     android:layout_weight="1"
                     android:text="Журнал"
-                    android:textSize="12sp" />
+                    android:textSize="13sp" 
+                    style="@style/Widget.CallShift.MainAction"/>
 
                 <Space
                     android:layout_width="4dp"
@@ -217,12 +217,12 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnDiag"
-                    style="@style/Widget.Material3.Button.TonalButton"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="52dp"
                     android:layout_weight="1"
                     android:text="Статус"
-                    android:textSize="12sp" />
+                    android:textSize="13sp" 
+                    style="@style/Widget.CallShift.MainAction"/>
             </LinearLayout>
 
             <LinearLayout

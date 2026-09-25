@@ -60,6 +60,7 @@ class InCallActivity : AppCompatActivity(), InCallController.Listener {
         super.onCreate(savedInstanceState)
         binding = ActivityInCallBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        CallBackground.apply(this, binding.root)
 
         setupLockScreenFlags()
         setupButtons()
@@ -124,8 +125,33 @@ class InCallActivity : AppCompatActivity(), InCallController.Listener {
             binding.lblKeypad.text = if (keypadVisible) "Скрыть" else "Клавиатура"
             Keypad.setToggle(binding.btnKeypad, keypadVisible)
         }
-        listOf(binding.btnMute, binding.btnSpeaker, binding.btnHold, binding.btnKeypad, binding.btnSms)
+        binding.btnAddCall.setOnClickListener {
+            // Текущий звонок система поставит на удержание при наборе второго.
+            startActivity(Intent(this, DialerActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+        binding.btnAudio.setOnClickListener { showAudioRoutes() }
+        listOf(binding.btnMute, binding.btnSpeaker, binding.btnHold, binding.btnKeypad, binding.btnSms, binding.btnAddCall, binding.btnAudio)
             .forEach { Keypad.setToggle(it, false) }
+    }
+
+    private fun showAudioRoutes() {
+        val (mask, current) = controller.audioRoutes()
+        val all = listOf(
+            android.telecom.CallAudioState.ROUTE_EARPIECE to "📱 Телефон",
+            android.telecom.CallAudioState.ROUTE_SPEAKER to "🔊 Динамик",
+            android.telecom.CallAudioState.ROUTE_BLUETOOTH to "🎧 Bluetooth",
+            android.telecom.CallAudioState.ROUTE_WIRED_HEADSET to "🎧 Проводная гарнитура",
+        ).filter { mask == 0 || mask and it.first != 0 }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Куда выводить звук")
+            .setSingleChoiceItems(all.map { it.second }.toTypedArray(), all.indexOfFirst { it.first == current }) { d, i ->
+                controller.setAudioRoute(all[i].first)
+                speakerOn = all[i].first == android.telecom.CallAudioState.ROUTE_SPEAKER
+                Keypad.setToggle(binding.btnSpeaker, speakerOn)
+                Keypad.setToggle(binding.btnAudio, all[i].first == android.telecom.CallAudioState.ROUTE_BLUETOOTH)
+                d.dismiss()
+            }
+            .show()
     }
 
     private fun setupDtmfPad() {
@@ -259,6 +285,8 @@ class InCallActivity : AppCompatActivity(), InCallController.Listener {
         setEnabled(binding.btnSpeaker, !ringing)
         setEnabled(binding.btnMute, info.isActive)
         setEnabled(binding.btnKeypad, info.isActive)
+        setEnabled(binding.btnAddCall, info.isActive || info.isOnHold)
+        setEnabled(binding.btnAudio, !ringing)
         Keypad.setToggle(binding.btnHold, info.isOnHold)
         binding.lblHold.text = if (info.isOnHold) "Вернуть" else "Удержать"
     }
