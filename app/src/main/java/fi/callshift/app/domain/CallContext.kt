@@ -67,6 +67,8 @@ data class Decision(
      * Нужны диспетчеру для исполнения стратегии после ответа системе (ТЗ п. 6.6).
      */
     val matchedAction: Action? = null,
+    /** Почему правила НЕ сработали: «Имя правила — причина» (для журнала). */
+    val skipped: List<String> = emptyList(),
 ) {
     companion object {
         fun pass(reason: String, ms: Long = 0) =

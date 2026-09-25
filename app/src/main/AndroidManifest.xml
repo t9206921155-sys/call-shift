@@ -15,6 +15,9 @@
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
     <uses-permission android:name="android.permission.WRITE_CALL_LOG" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Автоответ SMS после отбоя вызова -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -87,6 +90,7 @@
         -->
         <activity
             android:name=".ui.DialerActivity"
+            android:theme="@style/Theme.CallShift.InCall"
             android:exported="true"
             android:label="@string/app_name"
             android:launchMode="singleTask">
@@ -128,6 +132,16 @@
             android:name=".ui.RuleEditActivity"
             android:exported="false"
             android:label="@string/title_rule_edit" />
+
+        <activity
+            android:name=".ui.AutoReplyActivity"
+            android:exported="false"
+            android:label="Автоответчик" />
+
+        <activity
+            android:name=".ui.WhitelistActivity"
+            android:exported="false"
+            android:label="Белый список" />
 
         <activity
             android:name=".ui.CarrierForwardActivity"
@@ -178,7 +192,32 @@
             </intent-filter>
         </service>
 
+        <service
+            android:name=".ui.AutoReplyTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_autoreply"
+            android:label="Автоответчик"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <!-- ============== ВОССТАНОВЛЕНИЕ ПОСЛЕ ПЕРЕЗАГРУЗКИ (FR-8.6) ============== -->
+        <!-- Уведомление о пропущенных (когда CallShift — звонилка по умолчанию) -->
+        <receiver
+            android:name=".ui.MissedCallReceiver"
+            android:exported="true"
+            android:permission="android.permission.READ_PHONE_STATE">
+            <intent-filter>
+                <action android:name="android.telecom.action.SHOW_MISSED_CALLS_NOTIFICATION" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".ui.CallReminderReceiver"
+            android:exported="false" />
+
         <receiver
             android:name=".ui.BootReceiver"
             android:directBootAware="true"

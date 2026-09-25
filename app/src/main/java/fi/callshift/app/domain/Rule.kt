@@ -46,7 +46,9 @@ object SimSelector {
     fun matches(selector: String, ctxAccount: PhoneAccountRef?, index: Int?): Boolean =
         when {
             selector == ANY -> true
-            ctxAccount == null -> true // не смогли определить SIM → не блокируем вызов (fail-open)
+            // Не смогли определить SIM → правило для конкретной SIM НЕ применяем
+            // (звонок проходит как обычно — это и есть fail-open для вызова).
+            ctxAccount == null -> false
             selector == HANDLE_PREFIX + ctxAccount.id -> true
             selector == SIM1 -> index == 0
             selector == SIM2 -> index == 1
@@ -78,6 +80,11 @@ data class Action(
     val dtmfTransferOriginal: Boolean = false,
     /** Префикс DTMF-последовательности, если АТС его ожидает (например "*9"). */
     val dtmfPrefix: String = "",
+    /**
+     * Автоответ SMS звонящему после отбоя (вердикт DISALLOW_*). null/пусто — не отправлять.
+     * Анти-спам: не чаще одного SMS на номер за [SmsAutoReplyPolicy.COOLDOWN_MS].
+     */
+    val autoReplySms: String? = null,
 )
 
 /**

@@ -38,23 +38,28 @@
                 android:textColor="@color/text_primary" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <com.google.android.material.textfield.TextInputLayout
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Порядок проверки:"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <Spinner
+            android:popupBackground="@color/surface_card"
+            android:id="@+id/spinnerOrder"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginBottom="4dp"
+            android:background="@color/surface_card" />
+
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
-            android:hint="Приоритет (0..999, меньше = важнее)"
-            android:textColorHint="@color/text_muted"
-            app:boxBackgroundColor="@color/surface_card"
-            app:boxStrokeColor="@color/brand_accent">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etPriority"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="number"
-                android:text="100"
-                android:textColor="@color/text_primary" />
-        </com.google.android.material.textfield.TextInputLayout>
+            android:text="Нужно, только если правил несколько: если звонок подходит под два правила, сработает то, что проверяется раньше. Пример: «Контакты — пропустить» — первым, «Все — сбросить» — последним."
+            android:textColor="@color/text_muted"
+            android:textSize="13sp" />
 
         <!-- Условия -->
         <TextView
@@ -70,7 +75,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
-            android:hint="Маска номера (+35840*, *4567, пусто = любой)"
+            android:hint="Номер или его начало, например +7999* (пусто = любой)"
             android:textColorHint="@color/text_muted"
             app:boxBackgroundColor="@color/surface_card"
             app:boxStrokeColor="@color/brand_accent">
@@ -82,20 +87,277 @@
                 android:textColor="@color/text_primary" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <CheckBox
-            android:id="@+id/cbInContacts"
+
+
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Только если номер есть в контактах"
-            android:textColor="@color/text_secondary" />
+            android:text="На какую SIM-карту:"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
 
-        <CheckBox
-            android:id="@+id/cbAnonymous"
+        <Spinner
+            android:popupBackground="@color/surface_card"
+            android:id="@+id/spinnerSim"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginBottom="4dp"
+            android:background="@color/surface_card" />
+
+        <TextView
+            android:id="@+id/tvSimWarn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="⚠ Правило сработает только для звонков на эту SIM. Для всех звонков выберите «Любая SIM»."
+            android:textColor="@color/status_warn"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:text="Правило сработает только для звонков на выбранную SIM. SMS-автоответ уйдёт с неё же."
+            android:textColor="@color/text_muted"
+            android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Для каких звонков:"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <RadioGroup
+            android:id="@+id/rgWho"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:checkedButton="@+id/rbAll"
+            android:orientation="vertical">
+
+            <RadioButton
+                android:id="@+id/rbAll"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Все звонки"
+                android:textColor="@color/text_secondary" />
+
+            <RadioButton
+                android:id="@+id/rbContacts"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Только из контактов"
+                android:textColor="@color/text_secondary" />
+
+            <RadioButton
+                android:id="@+id/rbUnknown"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Только незнакомые (нет в контактах)"
+                android:textColor="@color/text_secondary" />
+
+            <RadioButton
+                android:id="@+id/rbHidden"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Только скрытые номера (если CallShift — основной «Телефон»)"
+                android:textColor="@color/text_secondary" />
+        </RadioGroup>
+
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
-            android:text="Только анонимные / скрытые номера"
-            android:textColor="@color/text_secondary" />
+            android:text="Можно дополнительно ограничить номером в поле выше, например +7999* — только номера, начинающиеся на +7999."
+            android:textColor="@color/text_muted"
+            android:textSize="13sp" />
+
+        <!-- ===== Когда действует ===== -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="Когда действует"
+            android:textColor="@color/brand_accent"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvScheduleSummary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:text="Всегда"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp" />
+
+        <com.google.android.material.chip.ChipGroup
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp">
+            <com.google.android.material.chip.Chip
+                android:id="@+id/presetAlways"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Всегда" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/presetWork"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Будни 9–18" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/presetNight"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Ночью 23–7" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/presetWeekend"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Выходные" />
+        </com.google.android.material.chip.ChipGroup>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Дни недели (ничего не выбрано = каждый день):"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/chipsDays"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            app:chipSpacingHorizontal="4dp">
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipDay1"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="true"
+                android:text="Пн" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipDay2"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="true"
+                android:text="Вт" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipDay3"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="true"
+                android:text="Ср" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipDay4"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="true"
+                android:text="Чт" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipDay5"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="true"
+                android:text="Пт" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipDay6"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="true"
+                android:text="Сб" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipDay7"
+                style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="true"
+                android:text="Вс" />
+        </com.google.android.material.chip.ChipGroup>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="Время (пусто = весь день):"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnTimeFrom"
+                style="@style/Widget.CallShift.SmallTonal"
+                android:layout_marginEnd="6dp"
+                android:text="с —:—" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnTimeTo"
+                style="@style/Widget.CallShift.SmallTonal"
+                android:layout_marginEnd="6dp"
+                android:text="до —:—" />
+
+            <ImageButton
+                android:id="@+id/btnTimeClear"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Сбросить время"
+                android:src="@drawable/ic_close"
+                app:tint="@color/text_secondary" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="Срок действия (например, отпуск; пусто = без срока):"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="20dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDateFrom"
+                style="@style/Widget.CallShift.SmallTonal"
+                android:layout_marginEnd="6dp"
+                android:text="с даты" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDateTo"
+                style="@style/Widget.CallShift.SmallTonal"
+                android:layout_marginEnd="6dp"
+                android:text="по дату" />
+
+            <ImageButton
+                android:id="@+id/btnDateClear"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Сбросить срок"
+                android:src="@drawable/ic_close"
+                app:tint="@color/text_secondary" />
+        </LinearLayout>
 
         <!-- Действие -->
         <TextView
@@ -110,11 +372,12 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Стратегия:"
+            android:text="Куда направить звонок:"
             android:textColor="@color/text_secondary"
             android:textSize="14sp" />
 
         <Spinner
+            android:popupBackground="@color/surface_card"
             android:id="@+id/spinnerStrategy"
             android:layout_width="match_parent"
             android:layout_height="48dp"
@@ -122,25 +385,44 @@
             android:background="@color/surface_card" />
 
         <TextView
+            android:id="@+id/tvStrategyHint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Вердикт перехвата:"
+            android:layout_marginBottom="12dp"
+            android:textColor="@color/text_muted"
+            android:textSize="13sp" />
+
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Что сделать со звонком на этом телефоне:"
             android:textColor="@color/text_secondary"
             android:textSize="14sp" />
 
         <Spinner
+            android:popupBackground="@color/surface_card"
             android:id="@+id/spinnerVerdict"
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:layout_marginBottom="8dp"
             android:background="@color/surface_card" />
 
+        <TextView
+            android:id="@+id/tvVerdictHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:textColor="@color/text_muted"
+            android:textSize="13sp" />
+
+
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilTarget"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
-            android:hint="Целевой номер (E.164, например +358401234567)"
+            android:hint="Номер, куда переадресовывать (например +79001234567)"
             android:textColorHint="@color/text_muted"
             app:boxBackgroundColor="@color/surface_card"
             app:boxStrokeColor="@color/brand_accent">
@@ -162,11 +444,39 @@
             android:text="DTMF-передача исходного номера цели (профиль B)"
             android:textColor="@color/text_secondary" />
 
+        <!-- SMS-автоответ звонящему после отбоя -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilSmsReply"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:hint="SMS-автоответ после отбоя (необязательно)">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etSmsReply"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textMultiLine|textCapSentences"
+                android:maxLength="201"
+                android:minLines="2"
+                android:textColor="@color/text_primary" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:text="Только если звонок сбрасывается. Не чаще 1 SMS на номер за 30 мин; скрытым и коротким номерам не отправляется. Оплачивается по тарифу оператора."
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+
         <!-- Кнопки управления -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSave"
             style="@style/Widget.CallShift.CallBig"
             android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_weight="0"
             android:layout_marginBottom="8dp"
             android:backgroundTint="@color/status_ok"
             android:text="Сохранить правило" />
@@ -175,6 +485,7 @@
             android:id="@+id/btnTest"
             style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="match_parent"
+            android:layout_height="56dp"
             android:layout_marginBottom="8dp"
             android:text="Протестировать номер" />
 
@@ -182,6 +493,7 @@
             android:id="@+id/btnDelete"
             style="@style/Widget.Material3.Button.TextButton"
             android:layout_width="match_parent"
+            android:layout_height="56dp"
             android:layout_marginBottom="24dp"
             android:text="Удалить правило"
             android:textColor="@color/status_error"

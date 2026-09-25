@@ -1,13 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Набор номера: крупный номер, круглые клавиши с буквами, выбор SIM, зелёная кнопка вызова. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/brand_primary"
+    android:background="@drawable/bg_call_gradient"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:paddingStart="16dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="20dp">
 
-    <!-- Заголовок / панель навигации -->
+    <!-- Заголовок -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -19,45 +23,142 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="@string/title_dialer"
-            android:textColor="@color/text_primary"
-            android:textSize="20sp"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
             android:textStyle="bold" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnRules"
-            style="@style/Widget.Material3.Button.TextButton"
+            style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Правила"
-            android:textColor="@color/brand_accent" />
+            android:textColor="#FFFFFF"
+            app:backgroundTint="#26FFFFFF"
+            app:icon="@drawable/ic_rules"
+            app:iconTint="#FFFFFF" />
+
+        <ImageButton
+            android:id="@+id/btnMore"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Ещё"
+            android:src="@drawable/ic_more_vert"
+            app:tint="#FFFFFF" />
     </LinearLayout>
 
-    <Space
+    <!-- Вкладки -->
+    <com.google.android.material.button.MaterialButtonToggleGroup
+        android:id="@+id/tabs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        app:checkedButton="@+id/tabPad"
+        app:selectionRequired="true"
+        app:singleSelection="true">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/tabPad"
+            style="@style/Widget.CallShift.DialTab"
+            android:text="Набор" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/tabRecents"
+            style="@style/Widget.CallShift.DialTab"
+            android:text="Недавние" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/tabContacts"
+            style="@style/Widget.CallShift.DialTab"
+            android:text="Контакты" />
+    </com.google.android.material.button.MaterialButtonToggleGroup>
+
+    <!-- Список: недавние / контакты -->
+    <LinearLayout
+        android:id="@+id/panelList"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:visibility="gone">
 
-    <!-- Поле ввода номера -->
+        <EditText
+            android:id="@+id/etSearch"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_search"
+            android:drawableStart="@android:drawable/ic_menu_search"
+            android:drawablePadding="8dp"
+            android:hint="Поиск по имени или номеру"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#8EA89C" />
+
+        <TextView
+            android:id="@+id/tvListEmpty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:padding="24dp"
+            android:textColor="#BFD6C9"
+            android:textSize="15sp"
+            android:visibility="gone" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/listItems"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:paddingTop="6dp" />
+    </LinearLayout>
+
+    <!-- Панель набора -->
+    <LinearLayout
+        android:id="@+id/panelPad"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+    <!-- Подсказки T9 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/listT9"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:paddingTop="6dp" />
+
+    <!-- Номер -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp">
+        android:orientation="horizontal">
+
+        <Space
+            android:layout_width="48dp"
+            android:layout_height="1dp" />
 
         <TextView
             android:id="@+id/tvNumber"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:ellipsize="start"
             android:gravity="center"
             android:hint="Введите номер"
             android:minHeight="56dp"
-            android:textColor="@color/text_primary"
-            android:textColorHint="@color/text_muted"
-            android:textSize="30sp"
-            android:textStyle="bold" />
+            android:singleLine="true"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#6F8A7D"
+            android:textSize="34sp" />
 
         <ImageButton
             android:id="@+id/btnBackspace"
@@ -65,213 +166,82 @@
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Удалить"
-            android:src="@android:drawable/ic_input_delete"
-            app:tint="@color/text_secondary"
-            android:visibility="invisible" />
+            android:src="@drawable/ic_backspace"
+            android:visibility="invisible"
+            app:tint="#BFD6C9" />
     </LinearLayout>
 
-    <Space
-        android:layout_width="match_parent"
-        android:layout_height="16dp" />
-
-    <!-- Цифровая клавиатура (4 строки LinearLayout для надёжного рендеринга на всех экранах) -->
-    <LinearLayout
+    <!-- Имя контакта, если номер найден -->
+    <TextView
+        android:id="@+id/tvContactHint"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:gravity="center"
+        android:minHeight="22dp"
+        android:textColor="#7FE0AE"
+        android:textSize="15sp" />
 
-        <!-- Ряд 1: 1, 2, 3 -->
+    <!-- Выбор SIM -->
+    <com.google.android.material.button.MaterialButtonToggleGroup
+        android:id="@+id/simToggle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="6dp"
+        android:visibility="gone"
+        app:selectionRequired="true"
+        app:singleSelection="true" />
+
+    <!-- Клавиатура -->
+
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="64dp"
-            android:layout_marginBottom="6dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
             android:orientation="horizontal">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/k1"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginEnd="4dp"
-                android:layout_weight="1"
-                android:text="1"
-                android:textColor="@color/text_primary"
-                android:textSize="26sp"
-                app:backgroundTint="@color/surface_card" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/k2"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginStart="2dp"
-                android:layout_marginEnd="2dp"
-                android:layout_weight="1"
-                android:text="2"
-                android:textColor="@color/text_primary"
-                android:textSize="26sp"
-                app:backgroundTint="@color/surface_card" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/k3"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginStart="4dp"
-                android:layout_weight="1"
-                android:text="3"
-                android:textColor="@color/text_primary"
-                android:textSize="26sp"
-                app:backgroundTint="@color/surface_card" />
+            <TextView android:id="@+id/k1" style="@style/Widget.CallShift.RoundKey" />
+            <TextView android:id="@+id/k2" style="@style/Widget.CallShift.RoundKey" />
+            <TextView android:id="@+id/k3" style="@style/Widget.CallShift.RoundKey" />
         </LinearLayout>
-
-        <!-- Ряд 2: 4, 5, 6 -->
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="64dp"
-            android:layout_marginBottom="6dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
             android:orientation="horizontal">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/k4"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginEnd="4dp"
-                android:layout_weight="1"
-                android:text="4"
-                android:textColor="@color/text_primary"
-                android:textSize="26sp"
-                app:backgroundTint="@color/surface_card" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/k5"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginStart="2dp"
-                android:layout_marginEnd="2dp"
-                android:layout_weight="1"
-                android:text="5"
-                android:textColor="@color/text_primary"
-                android:textSize="26sp"
-                app:backgroundTint="@color/surface_card" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/k6"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginStart="4dp"
-                android:layout_weight="1"
-                android:text="6"
-                android:textColor="@color/text_primary"
-                android:textSize="26sp"
-                app:backgroundTint="@color/surface_card" />
+            <TextView android:id="@+id/k4" style="@style/Widget.CallShift.RoundKey" />
+            <TextView android:id="@+id/k5" style="@style/Widget.CallShift.RoundKey" />
+            <TextView android:id="@+id/k6" style="@style/Widget.CallShift.RoundKey" />
         </LinearLayout>
-
-        <!-- Ряд 3: 7, 8, 9 -->
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="64dp"
-            android:layout_marginBottom="6dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
             android:orientation="horizontal">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/k7"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginEnd="4dp"
-                android:layout_weight="1"
-                android:text="7"
-                android:textColor="@color/text_primary"
-                android:textSize="26sp"
-                app:backgroundTint="@color/surface_card" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/k8"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginStart="2dp"
-                android:layout_marginEnd="2dp"
-                android:layout_weight="1"
-                android:text="8"
-                android:textColor="@color/text_primary"
-                android:textSize="26sp"
-                app:backgroundTint="@color/surface_card" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/k9"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginStart="4dp"
-                android:layout_weight="1"
-                android:text="9"
-                android:textColor="@color/text_primary"
-                android:textSize="26sp"
-                app:backgroundTint="@color/surface_card" />
+            <TextView android:id="@+id/k7" style="@style/Widget.CallShift.RoundKey" />
+            <TextView android:id="@+id/k8" style="@style/Widget.CallShift.RoundKey" />
+            <TextView android:id="@+id/k9" style="@style/Widget.CallShift.RoundKey" />
         </LinearLayout>
-
-        <!-- Ряд 4: *, 0, # -->
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="64dp"
-            android:layout_marginBottom="16dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
             android:orientation="horizontal">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/kStar"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginEnd="4dp"
-                android:layout_weight="1"
-                android:text="*"
-                android:textColor="@color/text_primary"
-                android:textSize="28sp"
-                app:backgroundTint="@color/surface_card" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/k0"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginStart="2dp"
-                android:layout_marginEnd="2dp"
-                android:layout_weight="1"
-                android:text="0"
-                android:textColor="@color/text_primary"
-                android:textSize="26sp"
-                app:backgroundTint="@color/surface_card" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/kHash"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginStart="4dp"
-                android:layout_weight="1"
-                android:text="#"
-                android:textColor="@color/text_primary"
-                android:textSize="26sp"
-                app:backgroundTint="@color/surface_card" />
+            <TextView android:id="@+id/kStar" style="@style/Widget.CallShift.RoundKey" />
+            <TextView android:id="@+id/k0" style="@style/Widget.CallShift.RoundKey" />
+            <TextView android:id="@+id/kHash" style="@style/Widget.CallShift.RoundKey" />
         </LinearLayout>
-    </LinearLayout>
 
     <!-- Кнопка вызова -->
-    <com.google.android.material.button.MaterialButton
+    <ImageButton
         android:id="@+id/btnCall"
-        style="@style/Widget.Material3.Button"
-        android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:layout_marginBottom="16dp"
-        android:backgroundTint="@color/status_ok"
-        android:text="Позвонить"
-        android:textColor="#FFFFFF"
-        android:textSize="16sp"
-        app:cornerRadius="28dp" />
+        style="@style/Widget.CallShift.RoundCall"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="14dp"
+        android:backgroundTint="#43A047"
+        android:contentDescription="Позвонить"
+        android:src="@drawable/ic_call" />
+
+    </LinearLayout>
 
 </LinearLayout>

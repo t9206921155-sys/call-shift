@@ -23,7 +23,7 @@
                 android:layout_marginBottom="12dp"
                 app:cardBackgroundColor="@color/surface_card"
                 app:cardCornerRadius="12dp"
-                app:strokeColor="#3D5A4C"
+                app:strokeColor="@color/card_stroke"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -61,6 +61,17 @@
                         android:textColor="@color/text_secondary"
                         android:textSize="14sp" />
 
+                    <TextView
+                        android:id="@+id/tvTodayStats"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:background="?attr/selectableItemBackground"
+                        android:paddingTop="4dp"
+                        android:paddingBottom="4dp"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+
                     <!-- Кнопка немедленной активации роли перехвата (если роль не выдана) -->
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnGrantRole"
@@ -86,6 +97,78 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Автоответчик -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardAutoReply"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardBackgroundColor="@color/surface_card"
+                app:cardCornerRadius="12dp"
+                app:strokeColor="@color/card_stroke"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="💬 Автоответчик"
+                            android:textColor="@color/text_primary"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switchAutoReply"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvAutoReply"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnAutoReplySetup"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Настроить"
+                            android:textColor="@color/brand_accent" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnWhitelist"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Белый список"
+                            android:textColor="@color/brand_accent" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+
             <!-- Быстрые действия -->
             <LinearLayout
                 android:layout_width="match_parent"
@@ -95,12 +178,12 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnDialer"
-                    style="@style/Widget.Material3.Button.TonalButton"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="52dp"
                     android:layout_weight="1"
                     android:text="Телефон"
-                    android:textSize="12sp" />
+                    android:textSize="13sp" 
+                    style="@style/Widget.CallShift.MainAction"/>
 
                 <Space
                     android:layout_width="4dp"
@@ -108,12 +191,12 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnCarrier"
-                    style="@style/Widget.Material3.Button.TonalButton"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="52dp"
                     android:layout_weight="1"
-                    android:text="Сетевая CF"
-                    android:textSize="12sp" />
+                    android:text="Сеть"
+                    android:textSize="13sp" 
+                    style="@style/Widget.CallShift.MainAction"/>
 
                 <Space
                     android:layout_width="4dp"
@@ -121,12 +204,12 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnLogs"
-                    style="@style/Widget.Material3.Button.TonalButton"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="52dp"
                     android:layout_weight="1"
                     android:text="Журнал"
-                    android:textSize="12sp" />
+                    android:textSize="13sp" 
+                    style="@style/Widget.CallShift.MainAction"/>
 
                 <Space
                     android:layout_width="4dp"
@@ -134,12 +217,12 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnDiag"
-                    style="@style/Widget.Material3.Button.TonalButton"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="52dp"
                     android:layout_weight="1"
                     android:text="Статус"
-                    android:textSize="12sp" />
+                    android:textSize="13sp" 
+                    style="@style/Widget.CallShift.MainAction"/>
             </LinearLayout>
 
             <LinearLayout
@@ -156,6 +239,14 @@
                     android:textColor="@color/text_primary"
                     android:textSize="18sp"
                     android:textStyle="bold" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnTheme"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Тема"
+                    android:textColor="@color/brand_accent" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnPanic"

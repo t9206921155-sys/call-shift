@@ -15,6 +15,10 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import fi.callshift.app.CallShiftApp
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import fi.callshift.app.domain.SimSelector
+import fi.callshift.app.domain.VerdictSpec
 import fi.callshift.app.databinding.ActivityDiagnosticsBinding
 
 class DiagnosticsActivity : AppCompatActivity() {
@@ -151,6 +155,10 @@ class DiagnosticsActivity : AppCompatActivity() {
         sb.append(if (report.isIgnoringBatteryOptimizations) "Исключено (OK)" else "Включена (OEM может выгружать сервис)")
 
         binding.tvReport.text = sb.toString()
+        lifecycleScope.launch {
+            val ready = runCatching { readinessText() }.getOrElse { "Проверка готовности: ошибка ${it.message}" }
+            binding.tvReport.text = ready + "\n\n" + sb.toString()
+        }
 
         val adb = buildString {
             append("# Разрешения и роли для CallShift через ADB:\n")
@@ -171,5 +179,40 @@ class DiagnosticsActivity : AppCompatActivity() {
             cm.setPrimaryClip(ClipData.newPlainText("CallShift ADB", adb))
             Toast.makeText(this, "Команды скопированы в буфер", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    /** «Проверка готовности»: почему правило может не сработать — простым языком. */
+    private suspend fun readinessText(): String {
+        val r = app.detector.detect()
+        val out = StringBuilder("ПРОВЕРКА ГОТОВНОСТИ\n")
+        fun line(ok: Boolean, text: String) { out.append(if (ok) "✅ " else "❌ ").append(text).append('\n') }
+        line(app.settings.masterEnabled, "Главный переключатель CallShift " + if (app.settings.masterEnabled) "включён" else "ВЫКЛЮЧЕН — звонки не проверяются")
+        line(r.isCallScreeningRole || r.isDefaultDialer, if (r.isDefaultDialer) "CallShift — звонилка по умолчанию" else if (r.isCallScreeningRole) "Роль фильтра звонков выдана" else "Нет роли — CallShift не видит звонки")
+        val perm = { p: String -> checkSelfPermission(p) == android.content.pm.PackageManager.PERMISSION_GRANTED }
+        line(perm(Manifest.permission.READ_PHONE_STATE), "Разрешение «Телефон» (нужно для определения SIM)")
+        line(perm(Manifest.permission.READ_CONTACTS), "Разрешение «Контакты» (для условий «контакты/незнакомые»)")
+        line(r.isIgnoringBatteryOptimizations, "Батарея: " + if (r.isIgnoringBatteryOptimizations) "без ограничений" else "ограничена — система может усыплять CallShift")
+        val sims = runCatching { app.telecom.phoneAccounts() }.getOrDefault(emptyMap())
+        out.append("\nSIM, которые видит CallShift: ")
+        out.append(if (sims.isEmpty()) "не найдены (нет разрешения «Телефон»?)" else sims.values.joinToString(", "))
+        out.append("\n\nПравила (проверяются сверху вниз):\n")
+        val rules = app.ruleStore.rules()
+        if (rules.isEmpty()) out.append("❌ Правил нет — все звонки проходят как обычно\n")
+        val now = System.currentTimeMillis()
+        rules.forEach { rule ->
+            val warn = mutableListOf<String>()
+            if (!rule.enabled) warn += "выключено"
+            else if (!rule.isActiveAt(now)) warn += "срок действия не наступил или истёк"
+            if (rule.schedule != null) warn += "работает только по расписанию"
+            if (rule.simSelector != SimSelector.ANY) warn += "только для одной SIM"
+            if (rule.action.verdict == VerdictSpec.PASS) warn += "действие «Пропустить» — звонок не сбрасывается"
+            val ok = warn.isEmpty() || (rule.enabled && rule.isActiveAt(now) && warn.all { it.startsWith("работает") || it.startsWith("только") })
+            out.append(if (warn.isEmpty()) "✅ " else if (ok) "⚠ " else "❌ ")
+            out.append("«${rule.name}» → ${RuleLabels.verdictTitle(rule.action.verdict)}")
+            if (warn.isNotEmpty()) out.append(" (").append(warn.joinToString("; ")).append(")")
+            out.append('\n')
+        }
+        out.append("\nНе сбрасываются никогда: белый список, повторный звонок в течение 3 минут, экстренные номера.")
+        return out.toString()
     }
 }

@@ -2,6 +2,7 @@ package fi.callshift.app.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import fi.callshift.app.domain.AutoReplySettings
 import fi.callshift.app.domain.DefaultPolicy
 import fi.callshift.app.domain.SettingsPort
 import fi.callshift.app.domain.StrategySpec
@@ -86,6 +87,69 @@ class SettingsStore(context: Context) : SettingsPort {
 
     fun setDtmfTransferEnabled(value: Boolean) = prefs.edit().putBoolean(KEY_DTMF_TRANSFER, value).apply()
 
+    // ---------------- Автоответчик ----------------
+
+    override val autoReply: AutoReplySettings
+        get() = AutoReplySettings(
+            enabled = prefs.getBoolean(KEY_AR_ENABLED, false),
+            text = prefs.getString(KEY_AR_TEXT, null) ?: DEFAULT_AUTO_REPLY_TEXT,
+            scope = prefs.getString(KEY_AR_SCOPE, AutoReplySettings.SCOPE_ALL) ?: AutoReplySettings.SCOPE_ALL,
+            untilMs = prefs.getLong(KEY_AR_UNTIL, 0L).takeIf { it > 0 },
+            simSelector = prefs.getString(KEY_AR_SIM, "ANY") ?: "ANY",
+        )
+
+    fun setAutoReply(value: AutoReplySettings) = prefs.edit()
+        .putBoolean(KEY_AR_ENABLED, value.enabled)
+        .putString(KEY_AR_TEXT, value.text)
+        .putString(KEY_AR_SCOPE, value.scope)
+        .putLong(KEY_AR_UNTIL, value.untilMs ?: 0L)
+        .putString(KEY_AR_SIM, value.simSelector)
+        .apply()
+
+    fun setAutoReplyEnabled(enabled: Boolean) = setAutoReply(autoReply.copy(enabled = enabled))
+
+    // ---------------- Тема ----------------
+
+    val themeMode: String
+        get() = prefs.getString(KEY_THEME, THEME_DARK) ?: THEME_DARK
+
+    fun setThemeMode(mode: String) = prefs.edit().putString(KEY_THEME, mode).apply()
+
+    // ---------------- Белый список ----------------
+
+    override val whitelist: Set<String>
+        get() = prefs.getStringSet(KEY_WHITELIST, emptySet())?.toSet() ?: emptySet()
+
+    fun setWhitelist(numbers: Set<String>) = prefs.edit().putStringSet(KEY_WHITELIST, numbers.toSet()).apply()
+
+    // ---------------- Повторный звонок ----------------
+
+    val repeatCallEnabled: Boolean
+        get() = prefs.getBoolean(KEY_REPEAT_ENABLED, true)
+
+    val repeatCallMinutes: Int
+        get() = prefs.getInt(KEY_REPEAT_MINUTES, 3)
+
+    fun setRepeatCall(enabled: Boolean, minutes: Int) = prefs.edit()
+        .putBoolean(KEY_REPEAT_ENABLED, enabled)
+        .putInt(KEY_REPEAT_MINUTES, minutes)
+        .apply()
+
+    override val repeatCallWindowMs: Long
+        get() = if (repeatCallEnabled) repeatCallMinutes * 60_000L else 0L
+
+    private val rejectPrefs: SharedPreferences =
+        context.applicationContext.getSharedPreferences("callshift_rejects", Context.MODE_PRIVATE)
+
+    override fun lastRejectedAt(e164: String): Long? = rejectPrefs.getLong(e164, 0L).takeIf { it > 0 }
+
+    /** Запомнить сброс (для «повторного звонка»); старые записи чистим. */
+    fun markRejected(e164: String, atMs: Long = System.currentTimeMillis()) {
+        val edit = rejectPrefs.edit().putLong(e164, atMs)
+        rejectPrefs.all.forEach { (k, v) -> if (v is Long && atMs - v > 24 * 3600_000L) edit.remove(k) }
+        edit.apply()
+    }
+
     /** Принят ли юридический дисклеймер (ТЗ Приложение D). */
     val disclaimerAccepted: Boolean
         get() = prefs.getBoolean(KEY_DISCLAIMER, false)
@@ -111,6 +175,11 @@ class SettingsStore(context: Context) : SettingsPort {
             .toMap()
 
     companion object {
+        const val THEME_DARK = "dark"
+        const val THEME_LIGHT = "light"
+        const val THEME_SYSTEM = "system"
+        private const val KEY_THEME = "theme_mode"
+
         private const val KEY_MASTER = "master_enabled"
         private const val KEY_DEFAULT_VERDICT = "default_verdict"
         private const val KEY_DEFAULT_STRATEGY = "default_strategy"
@@ -124,5 +193,14 @@ class SettingsStore(context: Context) : SettingsPort {
         private const val KEY_STORM_WINDOW = "storm_window_ms"
         private const val KEY_DTMF_TRANSFER = "dtmf_transfer_enabled"
         private const val KEY_DISCLAIMER = "disclaimer_accepted"
+        private const val KEY_AR_ENABLED = "ar_enabled"
+        private const val KEY_AR_TEXT = "ar_text"
+        private const val KEY_AR_SCOPE = "ar_scope"
+        private const val KEY_AR_UNTIL = "ar_until"
+        private const val KEY_AR_SIM = "ar_sim"
+        private const val KEY_WHITELIST = "whitelist"
+        private const val KEY_REPEAT_ENABLED = "repeat_enabled"
+        private const val KEY_REPEAT_MINUTES = "repeat_minutes"
+        const val DEFAULT_AUTO_REPLY_TEXT = "Сейчас не могу ответить, перезвоню позже."
     }
 }

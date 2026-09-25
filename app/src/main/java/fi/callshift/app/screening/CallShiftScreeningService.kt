@@ -60,6 +60,7 @@ class CallShiftScreeningService : CallScreeningService() {
             }
 
             respond(callDetails, decision)
+            if (decision.shouldDisallow) ctx.e164?.let { runCatching { app.settings.markRejected(it) } }
 
             // Пост-обработка вне screening-пути (дозвон/MMI/уведомление).
             val action = decision.matchedAction ?: Action(
@@ -70,6 +71,15 @@ class CallShiftScreeningService : CallScreeningService() {
             serviceScope.launch {
                 runCatching { app.dispatcher.submit(ctx, decision, action) }
                     .onFailure { Log.e(TAG, "dispatch failed", it) }
+                // Без переадресации диспетчер ничего не пишет — фиксируем сам факт перехвата,
+                // чтобы в «Журнале» было видно: звонок дошёл до приложения и что с ним сделано.
+                if (decision.strategy == fi.callshift.app.domain.StrategyId.PASS) {
+                    runCatching { recordScreened(ctx, decision, started) }
+                        .onFailure { Log.e(TAG, "journal write failed", it) }
+                }
+                // SMS-автоответ после отбоя (если задан в правиле).
+                runCatching { app.smsReplier.maybeReply(ctx, decision, action.autoReplySms) }
+                    .onFailure { Log.e(TAG, "sms auto-reply failed", it) }
             }
 
             Log.i(
@@ -82,6 +92,46 @@ class CallShiftScreeningService : CallScreeningService() {
             runCatching { respondPass(callDetails, "screening_error:${t.javaClass.simpleName}") }
             Log.e(TAG, "onScreenCall error — fail-open", t)
         }
+    }
+
+    private suspend fun recordScreened(ctx: CallContext, decision: Decision, startedNs: Long) {
+        val verdictText = when (decision.verdict) {
+            Verdict.PASS -> "звонок прошёл как обычно"
+            Verdict.DISALLOW_REJECT -> "звонок сброшен"
+            Verdict.DISALLOW_AS_MISSED -> "звонок сброшен (в пропущенные)"
+            Verdict.SILENCE -> "звонок без звука"
+        }
+        val why = decision.ruleName?.let { "правило «$it»" } ?: when (decision.reason) {
+            "default_policy" -> "ни одно правило не подошло"
+            "master_switch_off" -> "главный переключатель выключен"
+            "no_screening_role" -> "нет роли перехвата"
+            fi.callshift.app.domain.RuleEngine.REASON_WHITELIST -> "номер в белом списке"
+            fi.callshift.app.domain.RuleEngine.REASON_REPEAT_CALL -> "повторный звонок — пропущен как срочный"
+            else -> decision.reason
+        } + if (decision.skipped.isNotEmpty()) {
+            "\nПочему не сработали правила:\n" + decision.skipped.joinToString("\n") { "• $it" }
+        } else ""
+        val totalMs = (System.nanoTime() - startedNs) / 1_000_000L
+        app.eventStore.record(
+            fi.callshift.app.forward.CallEvent(
+                ts = System.currentTimeMillis(),
+                direction = ctx.direction.name,
+                numberE164 = ctx.e164,
+                numberMasked = app.normalizer.mask(ctx.e164 ?: ctx.rawHandle),
+                sim = ctx.phoneAccount?.label ?: ctx.phoneAccount?.id ?: "—",
+                ruleId = decision.ruleId,
+                ruleName = decision.ruleName,
+                strategy = "SCREENED",
+                target = null,
+                result = if (decision.verdict == Verdict.PASS) "PASS" else "OK",
+                errorCode = null,
+                errorMessage = "$verdictText: $why",
+                reason = decision.reason,
+                screeningMs = decision.engineMs,
+                forwardMs = 0,
+                totalMs = totalMs,
+            ),
+        )
     }
 
     /** Формируем доменный контекст из системного Call.Details. */
@@ -114,11 +164,18 @@ class CallShiftScreeningService : CallScreeningService() {
      *  3) null → «неизвестно» → правило трактуется как «любая SIM».
      */
     private fun resolvePhoneAccount(details: Call.Details): PhoneAccountRef? {
+        // 0) Публичный API: Call.Details.getAccountHandle().
+        runCatching {
+            val id = details.accountHandle?.id
+            if (!id.isNullOrBlank()) {
+                return PhoneAccountRef(id = id, label = app.telecom.phoneAccounts()[id] ?: id)
+            }
+        }
         runCatching {
             val method = details.javaClass.getMethod("getPhoneAccountHandle")
             val handle = method.invoke(details)
             if (handle != null) {
-                val id = handle.javaClass.getField("id").get(handle)?.toString()
+                val id = (handle as? android.telecom.PhoneAccountHandle)?.id
                 if (!id.isNullOrBlank()) {
                     return PhoneAccountRef(id = id, label = app.telecom.phoneAccounts()[id] ?: id)
                 }
@@ -133,6 +190,10 @@ class CallShiftScreeningService : CallScreeningService() {
                     return PhoneAccountRef(id = id, label = id)
                 }
             }
+        }
+        // Запасной способ: какая SIM сейчас в состоянии «звонит».
+        app.telecom.ringingAccountId()?.let { id ->
+            return PhoneAccountRef(id = id, label = app.telecom.phoneAccounts()[id] ?: id)
         }
         return null
     }

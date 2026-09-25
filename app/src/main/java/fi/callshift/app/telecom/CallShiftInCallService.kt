@@ -47,6 +47,7 @@ class CallShiftInCallService : InCallService() {
         super.onCallRemoved(call)
         controller.onCallRemoved(call)
         if (!controller.hasCalls()) {
+            fi.callshift.app.ui.CallRecorder.stop()
             // Вызовов не осталось — закрываем экран звонка.
             runCatching {
                 startActivity(

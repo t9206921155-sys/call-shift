@@ -3,6 +3,9 @@
     <style name="Theme.CallShift" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/brand_accent</item>
         <item name="colorSecondary">@color/brand_secondary</item>
+        <!-- Без фиолетовых тонов Material по умолчанию -->
+        <item name="colorSecondaryContainer">@color/surface_card</item>
+        <item name="colorOnSecondaryContainer">@color/text_primary</item>
         <item name="android:statusBarColor">@color/brand_primary</item>
         <item name="android:navigationBarColor">@color/brand_primary</item>
         <item name="android:windowBackground">@color/brand_primary</item>
@@ -10,9 +13,13 @@
 
     <!-- Тема экрана звонка: без action bar, тёмный фон, показ поверх блокировки -->
     <style name="Theme.CallShift.InCall" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/brand_accent</item>
+        <item name="colorSecondaryContainer">#4D43A047</item>
+        <item name="colorOnSecondaryContainer">#FFFFFF</item>
         <item name="android:windowBackground">@color/brand_primary</item>
-        <item name="android:statusBarColor">@color/brand_primary</item>
-        <item name="android:navigationBarColor">@color/brand_primary</item>
+        <!-- Прозрачные панели: градиент экрана звонка виден под часами и навигацией -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowFullscreen">false</item>
     </style>
 
@@ -69,5 +76,103 @@
         <item name="android:textColor">#FFFFFF</item>
         <item name="android:insetLeft">0dp</item>
         <item name="android:insetRight">0dp</item>
+    </style>
+
+    <!-- ===== Экран звонка ===== -->
+    <!-- Круглая кнопка управления (микрофон/динамик/…) 64dp -->
+    <style name="Widget.CallShift.RoundControl" parent="">
+        <item name="android:layout_width">72dp</item>
+        <item name="android:layout_height">72dp</item>
+        <item name="android:background">@drawable/bg_circle</item>
+        <item name="android:backgroundTint">#26FFFFFF</item>
+        <item name="android:scaleType">fitCenter</item>
+        <item name="android:padding">21dp</item>
+        <item name="tint">#FFFFFF</item>
+    </style>
+
+    <!-- Большая круглая кнопка вызова/сброса 76dp -->
+    <style name="Widget.CallShift.RoundCall" parent="">
+        <item name="android:layout_width">76dp</item>
+        <item name="android:layout_height">76dp</item>
+        <item name="android:background">@drawable/bg_circle</item>
+        <item name="android:scaleType">center</item>
+        <item name="android:padding">20dp</item>
+        <item name="android:elevation">6dp</item>
+        <item name="tint">#FFFFFF</item>
+    </style>
+
+    <!-- Подпись под круглой кнопкой -->
+    <style name="Text.CallShift.ControlLabel" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">6dp</item>
+        <item name="android:textColor">#D8E7DE</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:maxLines">2</item>
+    </style>
+
+    <!-- Круглая клавиша цифровой клавиатуры (цифра + буквы задаются в коде) -->
+    <style name="Widget.CallShift.RoundKey" parent="">
+        <item name="android:layout_width">72dp</item>
+        <item name="android:layout_height">72dp</item>
+        <item name="android:layout_marginStart">12dp</item>
+        <item name="android:layout_marginEnd">12dp</item>
+        <item name="android:layout_marginTop">5dp</item>
+        <item name="android:layout_marginBottom">5dp</item>
+        <item name="android:background">@drawable/bg_circle</item>
+        <item name="android:backgroundTint">#1FFFFFFF</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textSize">28sp</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:lineSpacingMultiplier">0.85</item>
+    </style>
+
+    <!-- Чип-переключатель (дни недели, варианты) на тёмном фоне -->
+    <style name="Widget.CallShift.Chip" parent="Widget.Material3.Chip.Filter">
+        <item name="chipBackgroundColor">@color/chip_bg</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="chipStrokeWidth">0dp</item>
+        <item name="checkedIconVisible">false</item>
+        <item name="chipMinTouchTargetSize">40dp</item>
+    </style>
+
+    <style name="Widget.CallShift.SmallTonal" parent="Widget.Material3.Button.TonalButton">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="backgroundTint">@color/surface_card</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <style name="Widget.CallShift.DialTab" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="backgroundTint">@color/dial_tab_bg</item>
+        <item name="strokeColor">#40FFFFFF</item>
+    </style>
+
+    <!-- Кнопки главного экрана: одинаковая высота, текст в одну строку, цвета темы -->
+    <style name="Widget.CallShift.MainAction" parent="Widget.Material3.Button.TonalButton">
+        <item name="android:layout_height">52dp</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:paddingStart">4dp</item>
+        <item name="android:paddingEnd">4dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="backgroundTint">@color/surface_card</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="strokeColor">@color/card_stroke</item>
+        <item name="strokeWidth">1dp</item>
     </style>
 </resources>

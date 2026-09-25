@@ -62,15 +62,41 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         setupListeners()
+        showLastCrashIfAny()
+    }
+
+    /** Если приложение падало — показать текст ошибки с кнопкой «Копировать». */
+    private fun showLastCrashIfAny() {
+        val report = fi.callshift.app.util.CrashReporter.takeLastCrash(this) ?: return
+        AlertDialog.Builder(this)
+            .setTitle("Приложение было закрыто из-за ошибки")
+            .setMessage(report.take(4000))
+            .setPositiveButton("Копировать") { _, _ ->
+                val cm = getSystemService(android.content.ClipboardManager::class.java)
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("CallShift crash", report))
+                Toast.makeText(this, "Текст ошибки скопирован — отправьте его разработчику", Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton("Закрыть", null)
+            .show()
     }
 
     override fun onResume() {
         super.onResume()
         updateStatus()
         loadRules()
+        updateTodayStats()
     }
 
     private fun setupListeners() {
+        binding.switchAutoReply.setOnCheckedChangeListener { btn, on ->
+            if (!btn.isPressed) return@setOnCheckedChangeListener
+            val cur = app.settings.autoReply
+            app.settings.setAutoReply(if (on) cur.copy(enabled = true, untilMs = cur.untilMs?.takeIf { it > System.currentTimeMillis() }) else cur.copy(enabled = false))
+            AutoReplyTileService.requestUpdate(this)
+            updateAutoReply()
+        }
+        binding.btnAutoReplySetup.setOnClickListener { startActivity(Intent(this, AutoReplyActivity::class.java)) }
+        binding.btnWhitelist.setOnClickListener { startActivity(Intent(this, WhitelistActivity::class.java)) }
         binding.switchMaster.isChecked = app.settings.masterEnabled
         binding.switchMaster.setOnCheckedChangeListener { _, isChecked ->
             app.settings.setMasterEnabled(isChecked)
@@ -107,12 +133,31 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, CarrierForwardActivity::class.java))
         }
 
+        binding.tvTodayStats.setOnClickListener { startActivity(Intent(this, LogActivity::class.java)) }
+
         binding.btnLogs.setOnClickListener {
             startActivity(Intent(this, LogActivity::class.java))
         }
 
         binding.btnDiag.setOnClickListener {
             startActivity(Intent(this, DiagnosticsActivity::class.java))
+        }
+
+        binding.btnTheme.setOnClickListener {
+            val modes = listOf(
+                fi.callshift.app.data.SettingsStore.THEME_DARK to "Тёмная",
+                fi.callshift.app.data.SettingsStore.THEME_LIGHT to "Светлая",
+                fi.callshift.app.data.SettingsStore.THEME_SYSTEM to "Как в системе",
+            )
+            val cur = modes.indexOfFirst { it.first == app.settings.themeMode }.coerceAtLeast(0)
+            AlertDialog.Builder(this)
+                .setTitle("Тема оформления")
+                .setSingleChoiceItems(modes.map { it.second }.toTypedArray(), cur) { d, i ->
+                    d.dismiss()
+                    app.settings.setThemeMode(modes[i].first)
+                    fi.callshift.app.CallShiftApp.applyTheme(modes[i].first)
+                }
+                .show()
         }
 
         binding.btnPanic.setOnClickListener {
@@ -172,6 +217,7 @@ class MainActivity : AppCompatActivity() {
             Manifest.permission.CALL_PHONE,
             Manifest.permission.READ_CONTACTS,
             Manifest.permission.READ_CALL_LOG,
+            Manifest.permission.SEND_SMS,
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             perms.add(Manifest.permission.POST_NOTIFICATIONS)
@@ -199,7 +245,17 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun updateAutoReply() {
+        val ar = app.settings.autoReply
+        val active = ar.isActiveAt(System.currentTimeMillis())
+        binding.switchAutoReply.isChecked = active
+        binding.tvAutoReply.text = AutoReplyActivity.summary(ar)
+        binding.cardAutoReply.setStrokeColor(if (active) getColor(R.color.brand_accent) else getColor(R.color.card_stroke))
+        binding.btnWhitelist.text = "Белый список (${app.settings.whitelist.size})"
+    }
+
     private fun updateStatus() {
+        updateAutoReply()
         val report = app.detector.detect()
         binding.switchMaster.isChecked = app.settings.masterEnabled
 
@@ -258,35 +314,79 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Цвет правила по действию: сброс — красный, без звука — оранжевый, пропуск — зелёный, перенаправление — бирюзовый. */
+    private fun ruleColor(rule: Rule): Int = when {
+        !rule.enabled -> getColor(R.color.rule_disabled)
+        rule.action.strategy.name != "NONE" && rule.action.strategy.name != "NOTIFY" -> EventView.Kind.FORWARDED.color
+        rule.action.verdict == fi.callshift.app.domain.VerdictSpec.PASS -> EventView.Kind.PASSED.color
+        rule.action.verdict == fi.callshift.app.domain.VerdictSpec.SILENCE -> EventView.Kind.SILENCED.color
+        else -> EventView.Kind.REJECTED.color
+    }
+
+    private fun updateTodayStats() {
+        lifecycleScope.launch {
+            val today = EventView.startOfToday()
+            val events = app.eventStore.events(limit = 1000).filter { it.ts >= today }
+            binding.tvTodayStats.text = if (events.isEmpty()) "📊 Сегодня событий не было"
+            else "📊 Сегодня: " + EventView.stats(events).text() + "  ›"
+        }
+    }
+
     private fun bindRuleItem(item: ItemRuleBinding, rule: Rule) {
-        item.tvPriority.text = "#${rule.priority}"
+        item.tvPriority.text = when {
+            rule.priority <= 50 -> "1-е"
+            rule.priority >= 500 -> "посл."
+            else -> "обыч."
+        }
         item.tvRuleName.text = rule.name
         item.switchEnabled.isChecked = rule.enabled
 
         item.tvSummary.text = buildString {
-            if (rule.conditions.isEmpty) {
-                append("Условие: любые вызовы")
-            } else {
-                append("Условий: ").append(rule.conditions.anyOf.flatten().size)
+            val conds = rule.conditions.anyOf.flatten()
+            val who = when {
+                conds.any { it.type == fi.callshift.app.domain.RuleEngine.TYPE_ANONYMOUS && it.value == true } -> "скрытые номера"
+                conds.any { it.type == fi.callshift.app.domain.RuleEngine.TYPE_IN_CONTACTS && it.value == true } -> "только контакты"
+                conds.any { it.type == fi.callshift.app.domain.RuleEngine.TYPE_IN_CONTACTS && it.value == false } -> "только незнакомые"
+                else -> "все звонки"
             }
-            if (rule.schedule != null) append(" · расписание")
-            if (rule.simSelector != "ANY") append(" · ").append(rule.simSelector)
+            append("Для: ").append(who)
+            conds.firstOrNull { it.type == fi.callshift.app.domain.RuleEngine.TYPE_NUMBER_MATCH }?.pattern
+                ?.takeIf { it != "*" }?.let { append(" · номер ").append(it) }
+            if (rule.action.autoReplySms != null) append(" · SMS")
+            ScheduleEditor.shortText(rule)?.let { append(" · ").append(it) }
+            if (rule.simSelector != "ANY") {
+                val id = rule.simSelector.removePrefix(fi.callshift.app.domain.SimSelector.HANDLE_PREFIX)
+                val accounts = app.telecom.phoneAccounts()
+                val idx = accounts.keys.indexOf(id)
+                val simName = when {
+                    idx >= 0 -> "SIM ${idx + 1} (${accounts[id]})"
+                    rule.simSelector == "SIM1" -> "SIM 1"
+                    rule.simSelector == "SIM2" -> "SIM 2"
+                    else -> "SIM ?"
+                }
+                append(" · ").append(simName)
+            }
         }
 
         item.tvAction.text = buildString {
             append("Действие: ")
-            append(rule.action.strategy.name)
+            append(RuleLabels.strategyTitle(rule.action.strategy.name))
             if (!rule.action.target.isNullOrBlank()) {
                 val target = if (app.settings.maskNumbersInUi) app.normalizer.mask(rule.action.target) else rule.action.target
                 append(" → ").append(target)
             }
-            append(" (").append(rule.action.verdict.name).append(")")
+            append(" · ").append(RuleLabels.verdictTitle(rule.action.verdict))
+            item.vRuleStripe.setBackgroundColor(ruleColor(rule))
+            item.tvAction.setTextColor(ruleColor(rule))
         }
 
         item.switchEnabled.setOnCheckedChangeListener { _, isChecked ->
             lifecycleScope.launch {
                 app.ruleStore.setEnabled(rule.id, isChecked)
             }
+            val c = ruleColor(rule.copy(enabled = isChecked))
+            item.vRuleStripe.setBackgroundColor(c)
+            item.tvAction.setTextColor(c)
         }
 
         item.root.setOnClickListener {

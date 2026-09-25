@@ -64,18 +64,97 @@ class RuleEngine(
     }
 
     private suspend fun evaluateUnsafe(ctx: CallContext): Decision {
+        val decision = autoReplyDecision(ctx) ?: rulesDecision(ctx)
+        if (!decision.shouldDisallow) return decision
+        return exemption(ctx)?.let { Decision.pass(it) } ?: decision
+    }
+
+    /**
+     * Исключения из сброса: номер в белом списке или повторный звонок в течение окна
+     * («значит срочно»). Возвращает причину или null.
+     */
+    private fun exemption(ctx: CallContext): String? {
+        val number = ctx.e164 ?: return null
+        if (settings.whitelist.any { NumberMatcher.matches(it, number) }) return REASON_WHITELIST
+        val window = settings.repeatCallWindowMs
+        if (window > 0) {
+            val last = settings.lastRejectedAt(number)
+            if (last != null && clock() - last in 0..window) return REASON_REPEAT_CALL
+        }
+        return null
+    }
+
+    /** Режим «Автоответчик»: сбросить и отправить SMS (до правил). */
+    private suspend fun autoReplyDecision(ctx: CallContext): Decision? {
+        val ar = settings.autoReply
+        if (!ar.isActiveAt(clock())) return null
+        val simIndex = simIndexProvider(ctx.phoneAccount)
+        if (!SimSelector.matches(ar.simSelector, ctx.phoneAccount, simIndex)) return null
+        if (ar.scope == AutoReplySettings.SCOPE_UNKNOWN) {
+            // Контакты недоступны (null) → не сбрасываем (fail-open).
+            if (contacts.contains(ctx.e164) != false) return null
+        }
+        val action = Action(
+            verdict = VerdictSpec.DISALLOW_REJECT,
+            strategy = StrategySpec.NONE,
+            autoReplySms = ar.text.ifBlank { null },
+        )
+        return Decision(
+            verdict = Verdict.DISALLOW_REJECT,
+            strategy = StrategyId.PASS,
+            ruleName = AUTO_REPLY_NAME,
+            reason = REASON_AUTO_REPLY,
+            phoneAccount = ctx.phoneAccount,
+            matchedAction = action,
+        )
+    }
+
+    private suspend fun rulesDecision(ctx: CallContext): Decision {
         val now = clock()
         val rules = ruleStore.rules()
         val simIndex = simIndexProvider(ctx.phoneAccount)
 
+        val skipped = mutableListOf<String>()
         for (rule in rules) {
-            if (!rule.isActiveAt(now)) continue
-            if (!ScheduleMatcher.matches(rule.schedule, now, zone)) continue
-            if (!SimSelector.matches(rule.simSelector, ctx.phoneAccount, simIndex)) continue
-            if (!matchesConditions(rule.conditions, ctx)) continue
-            return decisionFrom(rule, ctx, "rule#${rule.id}:${rule.name}")
+            val why = when {
+                !rule.enabled -> "выключено"
+                !rule.isActiveAt(now) -> if (rule.validFrom != null && now < rule.validFrom) "срок действия ещё не начался" else "срок действия истёк"
+                !ScheduleMatcher.matches(rule.schedule, now, zone) -> "сейчас не по расписанию"
+                !simMatches(rule.simSelector, ctx, simIndex) ->
+                    if (ctx.phoneAccount == null) "не удалось определить SIM звонка (в правиле выбрана конкретная SIM)"
+                    else "звонок пришёл на другую SIM"
+                !matchesConditions(rule.conditions, ctx) -> conditionMissReason(rule.conditions, ctx)
+                else -> null
+            }
+            if (why == null) return decisionFrom(rule, ctx, "rule#${rule.id}:${rule.name}")
+            skipped += "«${rule.name}» — $why"
         }
-        return decisionFromPolicy(settings.defaultPolicy, ctx, "default_policy")
+        return decisionFromPolicy(settings.defaultPolicy, ctx, "default_policy").copy(skipped = skipped)
+    }
+
+    /**
+     * SIM: точное совпадение id, либо совпадение по порядковому номеру SIM
+     * (id аккаунта в разных API телефона может записываться по-разному).
+     */
+    private fun simMatches(selector: String, ctx: CallContext, simIndex: Int?): Boolean {
+        if (SimSelector.matches(selector, ctx.phoneAccount, simIndex)) return true
+        if (!selector.startsWith(SimSelector.HANDLE_PREFIX) || simIndex == null) return false
+        val ruleIndex = simIndexProvider(PhoneAccountRef(id = selector.removePrefix(SimSelector.HANDLE_PREFIX), label = ""))
+        return ruleIndex != null && ruleIndex == simIndex
+    }
+
+    private suspend fun conditionMissReason(group: ConditionGroup, ctx: CallContext): String {
+        val all = group.anyOf.flatten()
+        if (all.any { it.type == TYPE_IN_CONTACTS } && contacts.contains(ctx.e164) == null) {
+            return "нет доступа к контактам — условие «контакты/незнакомые» не проверить"
+        }
+        return when {
+            all.any { it.type == TYPE_ANONYMOUS } -> "номер не скрытый"
+            all.any { it.type == TYPE_IN_CONTACTS && it.value == true } -> "номера нет в контактах"
+            all.any { it.type == TYPE_IN_CONTACTS && it.value == false } -> "номер есть в контактах"
+            all.any { it.type == TYPE_NUMBER_MATCH } -> "номер не подходит под шаблон"
+            else -> "не подошли условия"
+        }
     }
 
     /** Матчинг условий: anyOf( allOf(...) ) — FR-1.3, п. 9.4. */
@@ -147,6 +226,11 @@ class RuleEngine(
         )
 
     companion object {
+        const val AUTO_REPLY_NAME = "Автоответчик"
+        const val REASON_AUTO_REPLY = "auto_reply"
+        const val REASON_WHITELIST = "whitelist"
+        const val REASON_REPEAT_CALL = "repeat_call"
+
         /** ТЗ п. 10.2 / FR-2.1: бюджет 3000 мс при системном таймауте ~5000 мс. */
         const val DEFAULT_BUDGET_MS = 3000L
 
