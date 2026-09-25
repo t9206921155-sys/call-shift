@@ -39,8 +39,10 @@ class RuleEditActivity : AppCompatActivity() {
         finish()
     }
 
-    private val strategies = StrategySpec.values().map { it.name }
-    private val verdicts = VerdictSpec.values().map { it.name }
+    private val strategyKeys = RuleLabels.strategies.keys.toList()
+    private val verdictKeys = RuleLabels.verdicts.keys.toList()
+    private val strategies = strategyKeys.map { it.name }
+    private val verdicts = verdictKeys.map { it.name }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,15 +59,36 @@ class RuleEditActivity : AppCompatActivity() {
     }
 
     private fun setupSpinners() {
-        val stratAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, strategies)
+        val stratAdapter = ArrayAdapter(
+            this, android.R.layout.simple_spinner_dropdown_item,
+            strategyKeys.map { RuleLabels.strategies.getValue(it).title },
+        )
         binding.spinnerStrategy.adapter = stratAdapter
 
-        val verdAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, verdicts)
+        val verdAdapter = ArrayAdapter(
+            this, android.R.layout.simple_spinner_dropdown_item,
+            verdictKeys.map { RuleLabels.verdicts.getValue(it).title },
+        )
         binding.spinnerVerdict.adapter = verdAdapter
 
+        binding.spinnerStrategy.onItemSelectedListener = onSelected { pos ->
+            val label = RuleLabels.strategies.getValue(strategyKeys[pos])
+            binding.tvStrategyHint.text = label.hint
+            binding.tilTarget.visibility = if (label.needsTarget) View.VISIBLE else View.GONE
+        }
+        binding.spinnerVerdict.onItemSelectedListener = onSelected { pos ->
+            binding.tvVerdictHint.text = RuleLabels.verdicts.getValue(verdictKeys[pos]).hint
+        }
+
         // Значения по умолчанию
-        binding.spinnerStrategy.setSelection(strategies.indexOf(StrategySpec.CALLBACK_DIAL.name))
+        binding.spinnerStrategy.setSelection(strategies.indexOf(StrategySpec.NONE.name))
         binding.spinnerVerdict.setSelection(verdicts.indexOf(VerdictSpec.DISALLOW_REJECT.name))
+    }
+
+    private fun onSelected(block: (Int) -> Unit) = object : android.widget.AdapterView.OnItemSelectedListener {
+        override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) =
+            block(position)
+        override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
     }
 
     private fun loadRule(id: Long) {
@@ -129,13 +152,21 @@ class RuleEditActivity : AppCompatActivity() {
             return
         }
 
-        val strategy = StrategySpec.valueOf(binding.spinnerStrategy.selectedItem as String)
-        val verdict = VerdictSpec.valueOf(binding.spinnerVerdict.selectedItem as String)
-        val target = binding.etTarget.text.toString().trim().ifBlank { null }
+        val strategy = strategyKeys[binding.spinnerStrategy.selectedItemPosition.coerceAtLeast(0)]
+        val verdict = verdictKeys[binding.spinnerVerdict.selectedItemPosition.coerceAtLeast(0)]
+        val target = if (RuleLabels.strategies.getValue(strategy).needsTarget) {
+            binding.etTarget.text.toString().trim().ifBlank { null }
+        } else {
+            null
+        }
+        if (RuleLabels.strategies.getValue(strategy).needsTarget && target == null) {
+            Toast.makeText(this, "Укажите номер, на который переадресовывать", Toast.LENGTH_LONG).show()
+            return
+        }
         val dtmfTransfer = binding.cbDtmfTransfer.isChecked
         val smsReply = binding.etSmsReply.text.toString().trim().ifBlank { null }
         if (smsReply != null && verdict != VerdictSpec.DISALLOW_REJECT && verdict != VerdictSpec.DISALLOW_AS_MISSED) {
-            Toast.makeText(this, "SMS-автоответ работает только с вердиктом DISALLOW_REJECT / DISALLOW_AS_MISSED", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "SMS-автоответ работает только если звонок сбрасывается («Сбросить» или «Сбросить и записать в пропущенные»)", Toast.LENGTH_LONG).show()
             return
         }
 
@@ -204,7 +235,14 @@ class RuleEditActivity : AppCompatActivity() {
                     val decision = app.ruleEngine.evaluate(ctx)
                     AlertDialog.Builder(this@RuleEditActivity)
                         .setTitle("Результат проверки")
-                        .setMessage("Вердикт: ${decision.verdict}\nСтратегия: ${decision.strategy}\nЦель: ${decision.target ?: "нет"}\nПричина: ${decision.reason}\nВремя: ${decision.engineMs} мс")
+                        .setMessage(
+                            "Правило: ${decision.ruleName ?: "ни одно не подошло"}\n" +
+                                "Со звонком: ${runCatching { RuleLabels.verdictTitle(VerdictSpec.valueOf(decision.verdict.name)) }.getOrDefault(decision.verdict.name)}\n" +
+                                "Куда: ${RuleLabels.strategyTitle(decision.strategy.name)}\n" +
+                                "Номер цели: ${decision.target ?: "нет"}\n" +
+                                "Служебная причина: ${decision.reason}\n" +
+                                "Время: ${decision.engineMs} мс",
+                        )
                         .setPositiveButton("OK", null)
                         .show()
                 }

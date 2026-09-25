@@ -83,7 +83,7 @@ class LogActivity : AppCompatActivity() {
         )
 
         val detail = buildString {
-            append(event.strategy)
+            append(RuleLabels.strategyTitle(event.strategy))
             if (!event.target.isNullOrBlank()) {
                 val target = if (app.settings.maskNumbersInUi) app.normalizer.mask(event.target) else event.target
                 append(" → ").append(target)

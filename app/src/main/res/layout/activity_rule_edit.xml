@@ -110,7 +110,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Стратегия:"
+            android:text="Куда направить звонок:"
             android:textColor="@color/text_secondary"
             android:textSize="14sp" />
 
@@ -122,9 +122,18 @@
             android:background="@color/surface_card" />
 
         <TextView
+            android:id="@+id/tvStrategyHint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Вердикт перехвата:"
+            android:layout_marginBottom="12dp"
+            android:textColor="@color/text_muted"
+            android:textSize="13sp" />
+
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Что сделать со звонком на этом телефоне:"
             android:textColor="@color/text_secondary"
             android:textSize="14sp" />
 
@@ -135,12 +144,21 @@
             android:layout_marginBottom="8dp"
             android:background="@color/surface_card" />
 
+        <TextView
+            android:id="@+id/tvVerdictHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:textColor="@color/text_muted"
+            android:textSize="13sp" />
+
+
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilTarget"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
-            android:hint="Целевой номер (E.164, например +358401234567)"
+            android:hint="Номер, куда переадресовывать (например +79001234567)"
             android:textColorHint="@color/text_muted"
             app:boxBackgroundColor="@color/surface_card"
             app:boxStrokeColor="@color/brand_accent">
@@ -184,7 +202,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
-            android:text="Только при вердикте DISALLOW_*. Не чаще 1 SMS на номер за 30 мин; скрытым и коротким номерам не отправляется. Оплачивается по тарифу оператора."
+            android:text="Только если звонок сбрасывается. Не чаще 1 SMS на номер за 30 мин; скрытым и коротким номерам не отправляется. Оплачивается по тарифу оператора."
             android:textColor="@color/text_secondary"
             android:textSize="12sp" />
 

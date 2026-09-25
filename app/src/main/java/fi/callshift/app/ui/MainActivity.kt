@@ -292,12 +292,12 @@ class MainActivity : AppCompatActivity() {
 
         item.tvAction.text = buildString {
             append("Действие: ")
-            append(rule.action.strategy.name)
+            append(RuleLabels.strategyTitle(rule.action.strategy.name))
             if (!rule.action.target.isNullOrBlank()) {
                 val target = if (app.settings.maskNumbersInUi) app.normalizer.mask(rule.action.target) else rule.action.target
                 append(" → ").append(target)
             }
-            append(" (").append(rule.action.verdict.name).append(")")
+            append(" · ").append(RuleLabels.verdictTitle(rule.action.verdict))
         }
 
         item.switchEnabled.setOnCheckedChangeListener { _, isChecked ->
