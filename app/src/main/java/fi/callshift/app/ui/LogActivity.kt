@@ -79,7 +79,7 @@ class LogActivity : AppCompatActivity() {
 
         item.tvResult.text = event.result
         item.tvResult.setTextColor(
-            if (event.result == "OK") getColor(R.color.status_ok) else getColor(R.color.status_error),
+            if (event.result == "OK" || event.result == "PASS") getColor(R.color.status_ok) else getColor(R.color.status_error),
         )
 
         val detail = buildString {
