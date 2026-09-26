@@ -69,6 +69,17 @@ class SmsRuleActivity : AppCompatActivity() {
         val message = field("message", "Например: Я в отпуске, перезвоню позже", rule.action.autoReplySms.orEmpty(), InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE)
         message.filters = arrayOf(InputFilter.LengthFilter(201)); message.minLines = 2
         SmsParts.attach(message, ui.add(TextView(this).apply { setTextColor(getColor(R.color.text_secondary)) }))
+        ui.header("Готовый текст (не включает режим)")
+        listOf("На работе" to "Я на работе, перезвоню позже.", "За рулём" to "Я за рулём, перезвоню, когда остановлюсь.",
+            "В отпуске" to "Я в отпуске. По срочному вопросу напишите SMS.").forEach { (title, body) ->
+            ui.add(MaterialButton(this).apply { text = title; setOnClickListener { name.setText(title); message.setText(body) } })
+        }
+        ui.header("Когда закончить режим")
+        durationSpinner = ui.add(Spinner(this).apply {
+            adapter = darkSpinnerAdapter(this@SmsRuleActivity, listOf("Сохранить текущий срок", "Без даты окончания", "Через 1 час", "Через 3 часа", "Через сутки", "Через 7 дней"))
+            setSelection(state?.getInt("duration") ?: 0)
+        })
+        ui.hint("Срок отсчитывается от сохранения. После окончания правило перестанет срабатывать; SMS по таймеру не отправляется. Кнопки сценариев меняют только название и текст — SIM и получателей выберите сами.")
         ui.header("Повторный ответ этому номеру")
         intervalKeys = ReplyOptions.intervals.keys.toMutableList().also { if (rule.action.replyCooldownMinutes !in it) it += rule.action.replyCooldownMinutes }
         intervalSpinner = ui.add(Spinner(this).apply {
@@ -100,11 +111,20 @@ class SmsRuleActivity : AppCompatActivity() {
                     else -> null
                 }
                 if (error != null) { Toast.makeText(this@SmsRuleActivity, error, Toast.LENGTH_LONG).show(); return@setOnClickListener }
+                val expiry = when (durationSpinner.selectedItemPosition) {
+                    0 -> rule.validTo
+                    1 -> null
+                    else -> System.currentTimeMillis() + listOf(0L, 0L, 1L, 3L, 24L, 168L)[durationSpinner.selectedItemPosition] * 3_600_000L
+                }
+                if (expiry != null && rule.validFrom != null && expiry < rule.validFrom) {
+                    Toast.makeText(this@SmsRuleActivity, "Окончание раньше сохранённого начала. Измените даты в полном редакторе.", Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
                 val conditions = buildList {
                     if (mask.isNotEmpty()) add(ConditionSpec(RuleEngine.TYPE_NUMBER_MATCH, pattern = mask))
                     if (whoSpinner.selectedItemPosition != 0) add(ConditionSpec(RuleEngine.TYPE_IN_CONTACTS, value = whoSpinner.selectedItemPosition == 1))
                 }
-                val draft = rule.copy(name = name.text.toString().trim().take(256),
+                val draft = rule.copy(validTo = expiry, name = name.text.toString().trim().take(256),
                     simSelector = simKeys[simSpinner.selectedItemPosition], conditions = ConditionGroup(listOf(conditions)),
                     schedule = ScheduleSpec(dayChecks.mapIndexedNotNull { i, c -> (i + 1).takeIf { c.isChecked } }, f, t),
                     action = rule.action.copy(verdict = VerdictSpec.DISALLOW_REJECT, strategy = StrategySpec.NONE, autoReplySms = body,
@@ -141,9 +161,11 @@ class SmsRuleActivity : AppCompatActivity() {
             }
         })
         setContentView(ui.scroll)
+        SystemBarsInsets.apply(this)
     }
     private val fields = mutableMapOf<String, EditText>()
     private val dayChecks = mutableListOf<MaterialCheckBox>()
+    private lateinit var durationSpinner: Spinner
     private lateinit var simSpinner: Spinner
     private lateinit var whoSpinner: Spinner
     private lateinit var intervalSpinner: Spinner
@@ -152,6 +174,7 @@ class SmsRuleActivity : AppCompatActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         fields.forEach { (key, value) -> outState.putString(key, value.text.toString()) }
         if (::simSpinner.isInitialized) {
+            outState.putInt("duration", durationSpinner.selectedItemPosition)
             outState.putString("sim", simKeys[simSpinner.selectedItemPosition]); outState.putInt("who", whoSpinner.selectedItemPosition)
             outState.putInt("interval", intervalKeys[intervalSpinner.selectedItemPosition])
             outState.putIntegerArrayList("days", ArrayList(dayChecks.mapIndexedNotNull { i, c -> (i + 1).takeIf { c.isChecked } }))

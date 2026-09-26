@@ -173,7 +173,7 @@ class DiagnosticsActivity : AppCompatActivity() {
         val report = app.detector.detect()
         val pkg = packageName
 
-        val sb = StringBuilder()
+        val sb = StringBuilder(CompatibilitySummary.text(app) + "\n\n")
         sb.append("Устройство: ${report.manufacturer} ${report.model} (Android API ${report.apiLevel})\n")
         sb.append("Профиль: ${report.profile.name}\n\n")
 

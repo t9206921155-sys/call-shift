@@ -331,7 +331,17 @@ class MainActivity : AppCompatActivity() {
     private fun updateTodayStats() {
         lifecycleScope.launch {
             val today = EventView.startOfToday()
-            val events = app.eventStore.events(limit = 1000).filter { it.ts >= today }
+            val all = app.eventStore.events(limit = 1000)
+            fun line(e: fi.callshift.app.forward.CallEvent): String {
+                val time = java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date(e.ts))
+                return "$time · ${e.numberMasked}\n${EventView.sentence(e)}"
+            }
+            val call = all.filter { it.strategy in listOf("SCREENED", "DIALER_RULES") }.maxByOrNull { it.ts }
+            val sms = all.filter { it.strategy == "SMS_REPLY" }.maxByOrNull { it.ts }
+            binding.tvLastCall.text = "Последний обработанный звонок\n" + (call?.let(::line) ?: "Пока нет записей. Проверьте роль и сделайте тестовый звонок.") +
+                "\n\nПоследняя SMS-попытка (может относиться к другому звонку)\n" + (sms?.let { EventView.kind(it).title + "\n" + line(it) } ?: "Пока нет записей")
+            binding.tvLastCall.setOnClickListener { startActivity(Intent(this@MainActivity, LogActivity::class.java)) }
+            val events = all.filter { it.ts >= today }
             binding.tvTodayStats.text = if (events.isEmpty()) "📊 Сегодня событий не было"
             else "📊 Сегодня: " + EventView.stats(events).text() + "  ›"
         }

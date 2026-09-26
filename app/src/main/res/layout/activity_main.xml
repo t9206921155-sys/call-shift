@@ -225,6 +225,10 @@
                     style="@style/Widget.CallShift.MainAction"/>
             </LinearLayout>
 
+            <TextView android:id="@+id/tvLastCall"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:padding="12dp" android:textColor="@color/text_primary"
+                android:text="Последний звонок: пока нет записей" />
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnSmsSafety"
                 android:layout_width="match_parent"

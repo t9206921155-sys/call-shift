@@ -14,7 +14,13 @@ val keystorePropsFile = rootProject.file("keystore.properties")
 val keystoreProps = Properties().apply {
     if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
 }
-val hasReleaseKeystore = keystorePropsFile.exists()
+val signingEnv = mapOf("storeFile" to "CALLSHIFT_KEYSTORE", "storePassword" to "CALLSHIFT_STORE_PASSWORD",
+    "keyAlias" to "CALLSHIFT_KEY_ALIAS", "keyPassword" to "CALLSHIFT_KEY_PASSWORD")
+val hasSigningEnvironment = signingEnv.values.any { !providers.environmentVariable(it).orNull.isNullOrBlank() }
+if (!keystorePropsFile.exists() && hasSigningEnvironment) {
+    signingEnv.forEach { (property, variable) -> providers.environmentVariable(variable).orNull?.let { keystoreProps.setProperty(property, it) } }
+}
+val hasReleaseKeystore = keystorePropsFile.exists() || hasSigningEnvironment
 if (hasReleaseKeystore) {
     require(listOf("storeFile", "storePassword", "keyAlias", "keyPassword").all {
         !keystoreProps.getProperty(it).isNullOrBlank()
@@ -33,8 +39,8 @@ android {
         applicationId = "fi.callshift.app"
         minSdk = 28          // Android 9.0 — минимум по ТЗ (п. 15.1)
         targetSdk = 35
-        versionCode = Integer.parseInt(providers.gradleProperty("versionCode").getOrElse("26"))
-        versionName = providers.gradleProperty("versionName").getOrElse("0.7.2-sms-safety-test")
+        versionCode = Integer.parseInt(providers.gradleProperty("versionCode").getOrElse("27"))
+        versionName = providers.gradleProperty("versionName").getOrElse("0.7.3-compatibility-test")
 
         resourceConfigurations += listOf("en", "ru")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

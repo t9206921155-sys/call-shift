@@ -5,6 +5,7 @@ import fi.callshift.app.forward.CallEvent
 /** Человеческое представление записи журнала. */
 object EventView {
     enum class Kind(val title: String, val icon: String, val color: Int) {
+        REJECT_REQUESTED("Запрошен сброс", "⊘", 0xFFFFB74D.toInt()),
         REJECTED("Сброшен", "⊘", 0xFFE57373.toInt()),
         SILENCED("Без звука", "🔕", 0xFFFFB74D.toInt()),
         PASSED("Прошёл", "✓", 0xFF81C784.toInt()),
@@ -24,6 +25,11 @@ object EventView {
     }
 
     fun kind(e: CallEvent): Kind = when (e.strategy) {
+        "DIALER_RULES" -> when (e.result) {
+            "PASS" -> Kind.PASSED
+            "REQUESTED" -> Kind.REJECT_REQUESTED
+            else -> Kind.ERROR
+        }
         "SCREENED" -> when {
             e.result == "PASS" -> Kind.PASSED
             e.errorMessage?.startsWith("звонок без звука") == true -> Kind.SILENCED

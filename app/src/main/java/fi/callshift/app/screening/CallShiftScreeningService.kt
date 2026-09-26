@@ -41,6 +41,11 @@ class CallShiftScreeningService : CallScreeningService() {
     override fun onScreenCall(callDetails: Call.Details) {
         val started = System.nanoTime()
         try {
+            // Android 10+ may also screen outgoing calls. Never reject/reply to those.
+            if (android.os.Build.VERSION.SDK_INT >= 29 && callDetails.callDirection != Call.Details.DIRECTION_INCOMING) {
+                respondPass(callDetails, "not_incoming")
+                return
+            }
             val ctx = CallContextFactory(app).buildContext(callDetails)
 
             // Экстренные номера — абсолютный приоритет (FR-2.6, E-04).

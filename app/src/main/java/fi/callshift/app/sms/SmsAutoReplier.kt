@@ -186,12 +186,13 @@ class SmsAutoReplier(
         return runCatching {
             val sm = appContext.getSystemService(android.telephony.SubscriptionManager::class.java)
             val subs = sm.activeSubscriptionInfoList.orEmpty()
-            val bare = accountId.trimEnd('F', 'f')
-            subs.firstOrNull { it.subscriptionId.toString() == accountId }?.subscriptionId
+            val canonical = fi.callshift.app.CallShiftApp.from(appContext).telecom.canonicalAccountId(accountId) ?: accountId
+            val bare = canonical.trimEnd('F', 'f')
+            subs.firstOrNull { it.subscriptionId.toString() == canonical }?.subscriptionId
                 ?: subs.firstOrNull {
                     @Suppress("DEPRECATION")
                     val icc = runCatching { it.iccId }.getOrNull().orEmpty()
-                    icc.isNotEmpty() && (icc == accountId || icc.trimEnd('F', 'f') == bare)
+                    icc.isNotEmpty() && (icc == canonical || icc.trimEnd('F', 'f') == bare)
                 }?.subscriptionId
         }.getOrNull()
     }
