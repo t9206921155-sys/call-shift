@@ -33,4 +33,5 @@
     <string name="notif_status_active">CallShift active (%1$s, rules: %2$d)</string>
     <string name="notif_status_inactive">CallShift disabled</string>
     <string name="notif_incoming">Incoming call</string>
+    <string name="status_sim_count">SIM cards detected: %1$d</string>
 </resources>

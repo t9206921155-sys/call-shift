@@ -40,13 +40,7 @@ class AndroidTelecomPort(
 
     // ------------------------------------------------------------------ SIM
 
-    /**
-     * Список SIM-аккаунтов.
-     *
-     * ОГРАНИЧЕНИЕ ПЛАТФОРМЫ (Приложение E, P-3): поле `PhoneAccountHandle.id`
-     * закрыто (@hide) в публичном SDK, поэтому читаем его reflection'ом, а при
-     * неудаче — берём стабильное представление из toString() ("[pkg] <id>").
-     */
+    /** SIM identifiers use the public API, just like Call.Details.accountHandle. */
     override fun phoneAccounts(): Map<String, String> {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE)
             != PackageManager.PERMISSION_GRANTED
@@ -59,29 +53,51 @@ class AndroidTelecomPort(
         }.getOrDefault(emptyMap())
     }
 
-    override fun simIndex(accountId: String?): Int? {
-        if (accountId == null) return null
-        val accounts = runCatching { telecom.callCapablePhoneAccounts }.getOrDefault(emptyList())
-        val idx = accounts.indexOfFirst { handleId(it) == accountId }
-        return if (idx < 0) null else idx
-    }
-
-    private fun handleFor(accountId: String?): PhoneAccountHandle? {
-        if (accountId == null) return null
-        return runCatching {
-            telecom.callCapablePhoneAccounts.firstOrNull { handleId(it) == accountId }
-        }.getOrNull()
-    }
-
-    private fun handleId(handle: PhoneAccountHandle): String {
-        runCatching {
-            val id = handle.javaClass.getField("id").get(handle)?.toString()
-            if (!id.isNullOrBlank()) return id
+    /**
+     * Какая SIM сейчас звонит — запасной способ, когда система не передала SIM
+     * в CallScreeningService (так бывает на части прошивок). Одна SIM — она и есть;
+     * несколько — ищем подписку в состоянии RINGING (Android 12+).
+     */
+    fun ringingAccountId(): String? = runCatching {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE)
+            != PackageManager.PERMISSION_GRANTED
+        ) return null
+        val accounts = telecom.callCapablePhoneAccounts
+        if (accounts.size == 1) return handleId(accounts[0])
+        if (android.os.Build.VERSION.SDK_INT < 31) return null
+        val tm = context.getSystemService(android.telephony.TelephonyManager::class.java) ?: return null
+        val ringing = accounts.filter { h ->
+            val subId = runCatching { tm.getSubscriptionId(h) }.getOrDefault(-1)
+            subId >= 0 && runCatching {
+                tm.createForSubscriptionId(subId).callStateForSubscription == android.telephony.TelephonyManager.CALL_STATE_RINGING
+            }.getOrDefault(false)
         }
-        val str = handle.toString()
-        val inBrackets = str.substringAfterLast('[', "").substringBefore(']', "")
-        return inBrackets.ifBlank { str }
+        if (ringing.size == 1) handleId(ringing[0]) else null
+    }.getOrNull()
+
+    override fun simIndex(accountId: String?): Int? {
+        val accounts = runCatching { telecom.callCapablePhoneAccounts }.getOrDefault(emptyList())
+        val resolved = resolveAccountId(accountId, accounts) ?: return null
+        return accounts.indexOfFirst { it.id == resolved }.takeIf { it >= 0 }
     }
+
+    /** Used when opening old rules: retain their SIM, never silently select ANY. */
+    fun canonicalAccountId(accountId: String?): String? = runCatching {
+        resolveAccountId(accountId, telecom.callCapablePhoneAccounts)
+    }.getOrNull()
+
+    private fun resolveAccountId(accountId: String?, accounts: List<PhoneAccountHandle>): String? =
+        fi.callshift.app.domain.PhoneAccountIds.resolve(accountId, accounts.map {
+            fi.callshift.app.domain.PhoneAccountIds.Account(it.id, it.toString())
+        })
+
+    private fun handleFor(accountId: String?): PhoneAccountHandle? = runCatching {
+        val accounts = telecom.callCapablePhoneAccounts
+        val resolved = resolveAccountId(accountId, accounts)
+        accounts.firstOrNull { it.id == resolved }
+    }.getOrNull()
+
+    private fun handleId(handle: PhoneAccountHandle): String = handle.id
 
     // ------------------------------------------------------------------ MMI
 

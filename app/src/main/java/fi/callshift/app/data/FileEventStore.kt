@@ -26,6 +26,8 @@ class FileEventStore(
 
     private val file: File = File(context.applicationContext.filesDir, FILE_NAME)
     private val mutex = Mutex()
+    private val revision = kotlinx.coroutines.flow.MutableStateFlow(0L)
+    val changes: kotlinx.coroutines.flow.StateFlow<Long> = revision
 
     @Volatile
     private var cache: MutableList<CallEvent> = mutableListOf()
@@ -37,9 +39,11 @@ class FileEventStore(
         withContext(io) {
             mutex.withLock {
                 ensureLoadedLocked()
-                cache.add(0, event)
+                val existing = event.eventId?.let { id -> cache.indexOfFirst { it.eventId == id } } ?: -1
+                if (existing >= 0) cache[existing] = event else cache.add(0, event)
                 while (cache.size > MAX_EVENTS) cache.removeAt(cache.size - 1)
                 writeLocked()
+                revision.value += 1
             }
         }
     }
@@ -56,6 +60,7 @@ class FileEventStore(
             cache.clear()
             loaded = true
             writeLocked()
+            revision.value += 1
         }
     }
 
@@ -139,6 +144,7 @@ class FileEventStore(
     }
 
     private fun encode(e: CallEvent): JSONObject = JSONObject().apply {
+        put("eventId", e.eventId ?: JSONObject.NULL)
         put("ts", e.ts)
         put("direction", e.direction)
         put("numberE164", e.numberE164 ?: JSONObject.NULL)
@@ -161,6 +167,7 @@ class FileEventStore(
         if (o == null) return null
         return try {
             CallEvent(
+                eventId = if (o.isNull("eventId")) null else o.optString("eventId"),
                 ts = o.optLong("ts"),
                 direction = o.optString("direction", "INCOMING"),
                 numberE164 = if (o.isNull("numberE164")) null else o.optString("numberE164"),

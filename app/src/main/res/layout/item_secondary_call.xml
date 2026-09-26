@@ -3,10 +3,21 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="8dp"
-    android:background="#2E4A3E"
+    android:background="@drawable/bg_chip"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:padding="8dp">
+    android:paddingStart="14dp"
+    android:paddingTop="6dp"
+    android:paddingEnd="6dp"
+    android:paddingBottom="6dp">
+
+    <ImageView
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:layout_marginEnd="10dp"
+        android:contentDescription="@null"
+        android:src="@drawable/ic_pause"
+        android:tint="#BFD6C9" />
 
     <TextView
         android:id="@+id/tvSecondary"
@@ -18,9 +29,10 @@
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnSwap"
-        style="@style/Widget.Material3.Button.TonalButton"
+        style="@style/Widget.Material3.Button.TextButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/incall_swap"
-        android:textSize="12sp" />
+        android:textColor="#7FE0AE"
+        android:textSize="13sp" />
 </LinearLayout>

@@ -13,10 +13,6 @@ import fi.callshift.app.domain.Signal
 import fi.callshift.app.domain.StrategySpec
 import fi.callshift.app.domain.Verdict
 import fi.callshift.app.domain.VerdictSpec
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
@@ -41,12 +37,16 @@ import kotlinx.coroutines.withTimeoutOrNull
 class CallShiftScreeningService : CallScreeningService() {
 
     private val app: CallShiftApp by lazy { CallShiftApp.from(this) }
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onScreenCall(callDetails: Call.Details) {
         val started = System.nanoTime()
         try {
-            val ctx = buildContext(callDetails)
+            // Android 10+ may also screen outgoing calls. Never reject/reply to those.
+            if (android.os.Build.VERSION.SDK_INT >= 29 && callDetails.callDirection != Call.Details.DIRECTION_INCOMING) {
+                respondPass(callDetails, "not_incoming")
+                return
+            }
+            val ctx = CallContextFactory(app).buildContext(callDetails)
 
             // Экстренные номера — абсолютный приоритет (FR-2.6, E-04).
             if (ctx.isEmergency) {
@@ -60,6 +60,7 @@ class CallShiftScreeningService : CallScreeningService() {
             }
 
             respond(callDetails, decision)
+            if (decision.shouldDisallow) ctx.e164?.let { runCatching { app.settings.markRejected(it) } }
 
             // Пост-обработка вне screening-пути (дозвон/MMI/уведомление).
             val action = decision.matchedAction ?: Action(
@@ -67,9 +68,22 @@ class CallShiftScreeningService : CallScreeningService() {
                 strategy = StrategySpec.NONE,
                 target = decision.target,
             )
-            serviceScope.launch {
+            // Telecom may unbind/destroy this service immediately after the response.
+            // Replies must not be cancelled together with the screening service.
+            app.appScope.launch {
+                // Reply must not wait for a forwarding/network strategy.
+                runCatching { app.smsReplier.maybeReply(ctx, decision, action.autoReplySms) }
+                    .onFailure { Log.e(TAG, "auto-reply failed", it) }
+            }
+            app.appScope.launch {
                 runCatching { app.dispatcher.submit(ctx, decision, action) }
                     .onFailure { Log.e(TAG, "dispatch failed", it) }
+                // Без переадресации диспетчер ничего не пишет — фиксируем сам факт перехвата,
+                // чтобы в «Журнале» было видно: звонок дошёл до приложения и что с ним сделано.
+                if (decision.strategy == fi.callshift.app.domain.StrategyId.PASS) {
+                    runCatching { recordScreened(ctx, decision, started) }
+                        .onFailure { Log.e(TAG, "journal write failed", it) }
+                }
             }
 
             Log.i(
@@ -84,85 +98,44 @@ class CallShiftScreeningService : CallScreeningService() {
         }
     }
 
-    /** Формируем доменный контекст из системного Call.Details. */
-    private fun buildContext(details: Call.Details): CallContext {
-        val raw = runCatching { details.handle?.schemeSpecificPart }.getOrNull()
-        val normalized = app.normalizer.normalize(raw)
-        val isEmergency = normalized.isEmergency ||
-            app.normalizer.looksLikeLocalEmergency(raw.orEmpty()) ||
-            hasHiddenProperty(details, "PROPERTY_EMERGENCY_CALLBACK")
-
-        return CallContext(
-            rawHandle = raw,
-            e164 = normalized.e164,
-            national = normalized.national,
-            // CallScreeningService вызывается только для входящих вызовов.
-            direction = Direction.INCOMING,
-            phoneAccount = resolvePhoneAccount(details),
-            isEmergency = isEmergency,
-            isSelfManaged = runCatching {
-                details.hasProperty(Call.Details.PROPERTY_SELF_MANAGED)
-            }.getOrDefault(false),
-            signals = currentSignals(),
+    private suspend fun recordScreened(ctx: CallContext, decision: Decision, startedNs: Long) {
+        val verdictText = when (decision.verdict) {
+            Verdict.PASS -> "звонок прошёл как обычно"
+            Verdict.DISALLOW_REJECT -> "запрошен сброс звонка"
+            Verdict.DISALLOW_AS_MISSED -> "запрошен сброс звонка (в пропущенные)"
+            Verdict.SILENCE -> "звонок без звука"
+        }
+        val why = decision.ruleName?.let { "правило «$it»" } ?: when (decision.reason) {
+            "default_policy" -> "ни одно правило не подошло"
+            "master_switch_off" -> "главный переключатель выключен"
+            "no_screening_role" -> "нет роли перехвата"
+            fi.callshift.app.domain.RuleEngine.REASON_WHITELIST -> "номер в белом списке"
+            fi.callshift.app.domain.RuleEngine.REASON_REPEAT_CALL -> "повторный звонок — пропущен как срочный"
+            else -> decision.reason
+        } + if (decision.skipped.isNotEmpty()) {
+            "\nПочему не сработали правила:\n" + decision.skipped.joinToString("\n") { "• $it" }
+        } else ""
+        val totalMs = (System.nanoTime() - startedNs) / 1_000_000L
+        app.eventStore.record(
+            fi.callshift.app.forward.CallEvent(
+                ts = System.currentTimeMillis(),
+                direction = ctx.direction.name,
+                numberE164 = ctx.e164,
+                numberMasked = app.normalizer.mask(ctx.e164 ?: ctx.rawHandle),
+                sim = ctx.phoneAccount?.label ?: ctx.phoneAccount?.id ?: "—",
+                ruleId = decision.ruleId,
+                ruleName = decision.ruleName,
+                strategy = "SCREENED",
+                target = null,
+                result = if (decision.verdict == Verdict.PASS) "PASS" else "OK",
+                errorCode = null,
+                errorMessage = "$verdictText: $why",
+                reason = decision.reason,
+                screeningMs = decision.engineMs,
+                forwardMs = 0,
+                totalMs = totalMs,
+            ),
         )
-    }
-
-    /**
-     * Best-effort определение SIM (Приложение E, P-2/P-3):
-     *  1) reflection к скрытому getPhoneAccountHandle();
-     *  2) ключи phoneAccount в extras;
-     *  3) null → «неизвестно» → правило трактуется как «любая SIM».
-     */
-    private fun resolvePhoneAccount(details: Call.Details): PhoneAccountRef? {
-        runCatching {
-            val method = details.javaClass.getMethod("getPhoneAccountHandle")
-            val handle = method.invoke(details)
-            if (handle != null) {
-                val id = handle.javaClass.getField("id").get(handle)?.toString()
-                if (!id.isNullOrBlank()) {
-                    return PhoneAccountRef(id = id, label = app.telecom.phoneAccounts()[id] ?: id)
-                }
-            }
-        }
-        runCatching {
-            val extras = details.extras ?: return@runCatching
-            for (key in extras.keySet()) {
-                if (key.contains("phone_account", ignoreCase = true)) {
-                    val value = extras.get(key)?.toString() ?: continue
-                    val id = value.substringAfterLast('[').substringBefore(']').ifBlank { value }
-                    return PhoneAccountRef(id = id, label = id)
-                }
-            }
-        }
-        return null
-    }
-
-    private fun hasHiddenProperty(details: Call.Details, constantName: String): Boolean {
-        val value = runCatching {
-            Call.Details::class.java.getField(constantName).getInt(null)
-        }.getOrNull() ?: return false
-        return runCatching { details.hasProperty(value) }.getOrDefault(false)
-    }
-
-    /** Дешёвые сигналы окружения для условий правил (ТЗ п. 9.4). */
-    private fun currentSignals(): Map<Signal, String> {
-        val signals = mutableMapOf<Signal, String>()
-        runCatching {
-            val bm = getSystemService(BATTERY_SERVICE) as android.os.BatteryManager
-            val level = bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
-            if (level > 0) signals[Signal.BATTERY] = level.toString()
-        }
-        runCatching {
-            val cm = getSystemService(CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
-            val caps = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
-            signals[Signal.NETWORK] = when {
-                caps == null -> "NONE"
-                caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> "WIFI"
-                caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) -> "MOBILE"
-                else -> "OTHER"
-            }
-        }
-        return signals
     }
 
     /** Маппинг Decision → CallResponse с учётом профиля полномочий (ТЗ п. 3.5). */
@@ -205,8 +178,8 @@ class CallShiftScreeningService : CallScreeningService() {
         }
         // setSkipCallLog игнорируется системой для сторонних приложений — не используем.
 
-        runCatching { respondToCall(details, builder.build()) }
-            .onFailure { Log.e(TAG, "respondToCall failed", it) }
+        // Do not report success or send an SMS when submitting the response throws.
+        respondToCall(details, builder.build())
     }
 
     private fun respondPass(details: Call.Details, reason: String) {
@@ -225,11 +198,6 @@ class CallShiftScreeningService : CallScreeningService() {
     private fun hasAnswerPermission(): Boolean =
         checkSelfPermission(android.Manifest.permission.ANSWER_PHONE_CALLS) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
-
-    override fun onDestroy() {
-        runCatching { serviceScope.cancel() }
-        super.onDestroy()
-    }
 
     companion object {
         private const val TAG = "CallShift"

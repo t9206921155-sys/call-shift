@@ -11,6 +11,28 @@ class DomainTest {
     private val normalizer = PhoneNumberNormalizer(defaultRegion = "FI")
 
     @Test
+    fun testDomesticEightNormalizesIndependentlyOfRegion() {
+        for (region in listOf("FI", "RU", "US")) {
+            val n = PhoneNumberNormalizer(region)
+            for (raw in listOf("89161234567", "8 (916) 123-45-67", "tel:89161234567;123")) {
+                assertEquals(n.normalize("+79161234567").e164, n.normalize(raw).e164)
+                assertTrue(n.normalize(raw).isValid)
+            }
+        }
+    }
+
+    @Test
+    fun testDomesticEightMatchesSavedRulesInBothDirections() {
+        assertTrue(NumberMatcher.matches("8 (916) 123-45-67", "+79161234567"))
+        assertTrue(NumberMatcher.matches("+79161234567", "89161234567"))
+        assertTrue(NumberMatcher.matches("+79*", "89161234567"))
+        assertFalse(NumberMatcher.matches("89161234567", "+79161234568"))
+        assertFalse(NumberMatcher.matches("+89161234567", "+79161234567"))
+        assertFalse(NumberMatcher.matches("8123", "7123"))
+        assertFalse(NumberMatcher.matches("891612345678", "791612345678"))
+    }
+
+    @Test
     fun testNormalizeFinnishMobileNumber() {
         val result = normalizer.normalize("040 123 4567")
         assertEquals("+358401234567", result.e164)

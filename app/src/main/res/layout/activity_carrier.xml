@@ -37,6 +37,7 @@
             android:textSize="14sp" />
 
         <Spinner
+            android:popupBackground="@color/surface_card"
             android:id="@+id/spinnerSim"
             android:layout_width="match_parent"
             android:layout_height="48dp"
@@ -70,6 +71,7 @@
             android:textSize="14sp" />
 
         <Spinner
+            android:popupBackground="@color/surface_card"
             android:id="@+id/spinnerMmiCode"
             android:layout_width="match_parent"
             android:layout_height="48dp"

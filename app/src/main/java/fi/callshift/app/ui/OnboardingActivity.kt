@@ -52,6 +52,7 @@ class OnboardingActivity : AppCompatActivity() {
 
         binding.btnRequestPerms.setOnClickListener {
             val perms = mutableListOf(
+                Manifest.permission.SEND_SMS,
                 Manifest.permission.READ_PHONE_STATE,
                 Manifest.permission.READ_PHONE_NUMBERS,
                 Manifest.permission.CALL_PHONE,
@@ -75,6 +76,12 @@ class OnboardingActivity : AppCompatActivity() {
                 }
             }
 
+            if (Build.VERSION.SDK_INT == 28) {
+                @Suppress("DEPRECATION")
+                val intent = Intent(android.telecom.TelecomManager.ACTION_CHANGE_DEFAULT_DIALER)
+                    .putExtra(android.telecom.TelecomManager.EXTRA_CHANGE_DEFAULT_DIALER_PACKAGE_NAME, packageName)
+                if (runCatching { screeningRoleLauncher.launch(intent) }.isSuccess) return@setOnClickListener
+            }
             // Fallback: переход в системные настройки приложений по умолчанию
             runCatching {
                 startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
@@ -96,12 +103,13 @@ class OnboardingActivity : AppCompatActivity() {
     }
 
     private fun updateStepButtons() {
+        binding.tvCompatibility.text = CompatibilitySummary.text(app)
         val report = app.detector.detect()
         if (report.isCallScreeningRole || report.isDefaultDialer) {
             binding.btnRequestRole.text = "✓ 2. Роль перехвата назначена"
             binding.btnRequestRole.isEnabled = false
         } else if (binding.cbDisclaimer.isChecked) {
-            binding.btnRequestRole.text = "2. Назначить роль Call Screening"
+            binding.btnRequestRole.text = if (Build.VERSION.SDK_INT == 28) "2. Назначить CallShift приложением «Телефон»" else "2. Назначить роль Call Screening"
             binding.btnRequestRole.isEnabled = true
         }
 

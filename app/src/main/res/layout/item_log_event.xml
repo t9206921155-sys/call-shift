@@ -6,11 +6,23 @@
     android:layout_marginBottom="6dp"
     app:cardBackgroundColor="@color/surface_card"
     app:cardCornerRadius="6dp"
-    app:strokeColor="#3D5A4C"
+    app:strokeColor="@color/card_stroke"
     app:strokeWidth="1dp">
 
     <LinearLayout
         android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+    <View
+        android:id="@+id/vStripe"
+        android:layout_width="5dp"
+        android:layout_height="match_parent"
+        android:background="@color/brand_accent" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_weight="1"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:padding="10dp">
@@ -56,7 +68,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:textColor="@color/text_muted"
-            android:textSize="11sp" />
+            android:textSize="12sp" />
 
+    </LinearLayout>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
