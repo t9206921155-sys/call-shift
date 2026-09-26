@@ -178,6 +178,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun requestScreeningRole() {
+        if (Build.VERSION.SDK_INT == 28) { requestDialerRole(); return }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val roleManager = getSystemService(RoleManager::class.java)
             if (roleManager.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)) {
@@ -267,7 +268,7 @@ class MainActivity : AppCompatActivity() {
             binding.tvStatus.text = "Статус: Внимание! Нет роли перехвата вызовов.\nНажмите кнопку ниже, чтобы включить защиту."
             binding.tvStatus.setTextColor(getColor(R.color.status_error))
             binding.btnGrantRole.visibility = View.VISIBLE
-            binding.btnGrantRole.text = "Выдать роль перехвата (Call Screening)"
+            binding.btnGrantRole.text = if (Build.VERSION.SDK_INT == 28) "Назначить CallShift приложением «Телефон»" else "Выдать роль перехвата (Call Screening)"
             binding.cardStatus.strokeColor = getColor(R.color.status_error)
         } else {
             val profileStr = when (report.profile) {

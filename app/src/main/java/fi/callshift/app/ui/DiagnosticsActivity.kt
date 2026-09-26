@@ -55,7 +55,9 @@ class DiagnosticsActivity : AppCompatActivity() {
 
     private fun setupButtons() {
         binding.btnTestSms.setOnClickListener { testSms() }
+        if (Build.VERSION.SDK_INT == 28) binding.btnActionScreening.text = "Android 9: назначить приложение «Телефон»"
         binding.btnActionScreening.setOnClickListener {
+            if (Build.VERSION.SDK_INT == 28) { binding.btnActionDialer.performClick(); return@setOnClickListener }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val roleManager = getSystemService(RoleManager::class.java)
                 if (roleManager.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)) {
