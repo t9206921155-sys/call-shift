@@ -17,6 +17,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import fi.callshift.app.CallShiftApp
 import fi.callshift.app.R
 import fi.callshift.app.databinding.ActivityMainBinding
@@ -62,6 +63,11 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         setupListeners()
+        lifecycleScope.launch {
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                app.eventStore.changes.collect { updateTodayStats() }
+            }
+        }
         showLastCrashIfAny()
     }
 
