@@ -9,6 +9,7 @@ import android.view.accessibility.AccessibilityNodeInfo as Node
 import fi.callshift.app.CallShiftApp
 import fi.callshift.app.domain.MaxUiDiagnostics
 import fi.callshift.app.domain.MaxUiPolicy
+import fi.callshift.app.domain.MaxProfilePolicy
 import fi.callshift.app.domain.MaxSearchPolicy
 import fi.callshift.app.forward.CallEvent
 import kotlinx.coroutines.launch
@@ -22,7 +23,12 @@ class MaxUiService : AccessibilityService() {
     private val app by lazy { CallShiftApp.from(this) }
     private data class Pending(val event: CallEvent, val number: String, val text: String, val dry: Boolean,
         var edited: Boolean = false, var searchClicked: Boolean = false, var query: String? = null,
-        var queryAt: Long = 0, var queryIndex: Int = 0, var selectedAt: Long? = null)
+        var queryAt: Long = 0, var queryIndex: Int = 0, var selectedAt: Long? = null,
+        val contactName: String? = null, val triedRows: MutableSet<Node> = mutableSetOf(),
+        var inspectedNames: Int = 0, var inspectedTotal: Int = 0,
+        var profile: ProfileVisit? = null, var skipCurrentProfile: Boolean = false, var returningSearch: Boolean = false)
+    private data class ProfileVisit(val title: Node, val editor: Node, val caption: String, val window: Int,
+        val started: Long, var returning: Boolean = false, var verified: Boolean = false, var returnedAt: Long? = null)
     private var pending: Pending? = null
     private var busy = false
     private val tick = Runnable { step() }
@@ -43,6 +49,9 @@ class MaxUiService : AccessibilityService() {
     fun stop(reason: String) { finish("BLOCKED", reason); runCatching { store.modes(false, false) } }
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.packageName?.toString() != MaxUiPolicy.PACKAGE) return
+        if (pending?.profile?.returnedAt != null && event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+            finish("BLOCKED", "Действие пользователя изменило проверенный экран; отправка остановлена"); return
+        }
         if (pending == null && SystemClock.elapsedRealtime() < probeUntil) capture()
         if (pending == null && diagnostics.active()) trace(MaxUiDiagnostics.Stage.OBSERVE)
         if (pending != null && !busy) { main.removeCallbacks(tick); main.postDelayed(tick, 300) }
@@ -60,9 +69,9 @@ class MaxUiService : AccessibilityService() {
         visit(root, 0)
         return out
     }
-    /** Only a phone label in a toolbar, never a phone number in message history. */
+    /** Toolbar title (phone OR name). A name is not recipient proof. */
     private fun header(n: Node): Boolean {
-        if (!n.isVisibleToUser || n.isEditable || n.isPassword || MaxUiPolicy.phone(n.text?.toString().orEmpty()) == null) return false
+        if (!n.isVisibleToUser || n.isEditable || n.isPassword || n.text.isNullOrBlank()) return false
         val bounds = android.graphics.Rect(); n.getBoundsInScreen(bounds)
         if (bounds.top < 0 || bounds.bottom > resources.displayMetrics.heightPixels / 3) return false
         var parent = n.parent
@@ -80,11 +89,14 @@ class MaxUiService : AccessibilityService() {
         val root = rootInActiveWindow ?: return
         if (!unlocked() || root.packageName?.toString() != MaxUiPolicy.PACKAGE) return
         val all = nodes(root)
-        val h = all.filter { header(it) && !it.viewIdResourceName.isNullOrBlank() }.singleOrNull() ?: return
+        val headers = all.filter { header(it) && !it.viewIdResourceName.isNullOrBlank() }
+        val h = headers.filter { MaxUiPolicy.phone(it.text.toString()) != null }.singleOrNull()
+            ?: headers.filter { it.viewIdResourceName.substringAfterLast('/').contains("title", true) }.singleOrNull()
+            ?: headers.singleOrNull() ?: return
         val input = all.filter { it.isVisibleToUser && it.isEnabled && it.isEditable && !it.isPassword && !it.viewIdResourceName.isNullOrBlank() }.singleOrNull() ?: return
-        candidate = Profile(h.viewIdResourceName, input.viewIdResourceName, version(), MaxUiPolicy.phone(h.text.toString())!!, SystemClock.elapsedRealtime())
+        candidate = Profile(h.viewIdResourceName, input.viewIdResourceName, version(), MaxUiPolicy.phone(h.text.toString()) ?: "имя (не экспортируется)", SystemClock.elapsedRealtime())
     }
-    private fun begin(event: CallEvent, number: String, text: String) {
+    private fun begin(event: CallEvent, number: String, text: String, contactName: String?) {
         trace(MaxUiDiagnostics.Stage.START)
         if (pending != null) { log(event, "BLOCKED", "MAX уже занят другой попыткой; очередь и повтор отключены"); return }
         if (!store.enabled || !unlocked() || store.version != version() || store.header.isEmpty() || store.input.isEmpty()) {
@@ -92,7 +104,7 @@ class MaxUiService : AccessibilityService() {
         }
         val canonical = MaxUiPolicy.phone(number)
         if (canonical == null) { log(event, "BLOCKED", "Номер звонящего некорректен"); return }
-        pending = Pending(event, canonical, text, !store.live || diagnostics.active())
+        pending = Pending(event, canonical, text, !store.live || diagnostics.active(), contactName = contactName)
         log(event, "UI_PENDING", "Ожидаем проверку открытого чата MAX. Отправка не подтверждена")
         main.postDelayed(timeout, 30_000)
         try {
@@ -117,8 +129,21 @@ class MaxUiService : AccessibilityService() {
             val inputs = all.filter { it.viewIdResourceName == store.input && it.isEditable && it.isEnabled && it.isVisibleToUser && !it.isPassword }
             val input = inputs.singleOrNull()
             val draft = input?.text?.toString().orEmpty()
+            if (handleProfile(p, root, all, h.singleOrNull(), input)) return
+            if (p.returningSearch) {
+                if (searchFields(all).singleOrNull()?.text?.toString() != p.query) {
+                    main.postDelayed(tick, 500); return
+                }
+                p.returningSearch = false; p.selectedAt = null; p.skipCurrentProfile = false
+            }
+            if (!p.edited && input != null && h.size == 1 && searchFields(all).isEmpty() &&
+                MaxUiPolicy.phone(h.single().text.toString()) == null && !p.skipCurrentProfile && p.profile == null) {
+                if (draft.isNotEmpty()) { finish("BLOCKED", "В чате есть черновик — карточка не открывается"); return }
+                openProfile(p, root, h.single(), input)
+                return
+            }
             if (!p.edited) {
-                val correctChat = h.size == 1 && MaxSearchPolicy.equivalent(h.single().text?.toString(), p.number)
+                val correctChat = h.size == 1 && MaxSearchPolicy.equivalent(checkedRecipient(p, h.singleOrNull(), input), p.number)
                 if (!correctChat || (p.query != null && p.selectedAt == null) || searchFields(all).isNotEmpty()) {
                     if (draft.isNotEmpty()) { finish("BLOCKED", "В открытом чате есть черновик — поиск не запускается"); return }
                     search(p, root, all)
@@ -126,10 +151,10 @@ class MaxUiService : AccessibilityService() {
                 }
             }
             val reason = MaxUiPolicy.block(MaxUiPolicy.Check(store.enabled, unlocked(), root.packageName.toString(),
-                store.version == version(), h.size, h.singleOrNull()?.text?.toString()?.let(MaxUiPolicy::phone), p.number,
+                store.version == version(), h.size, checkedRecipient(p, h.singleOrNull(), input), p.number,
                 inputs.size, if (p.edited && draft == p.text) "" else draft))
             if (reason != null) { finish("BLOCKED", reason); return }
-            if (p.dry) { finish("UI_CHECKED", "Проверка: номер в шапке и пустое поле совпали. Текст не введён, кнопка не нажата; работа кнопки отправки ещё не проверена"); return }
+            if (p.dry) { finish("UI_CHECKED", "Проверка: номер в шапке или карточке и пустое поле подтверждены. Текст не введён, кнопка не нажата; работа кнопки отправки ещё не проверена"); return }
             if (!store.live || !app.settings.masterEnabled) { finish("BLOCKED", "Разрешение отправки или главный переключатель выключены"); return }
             if (!p.edited) {
                 trace(MaxUiDiagnostics.Stage.INPUT, all)
@@ -149,7 +174,7 @@ class MaxUiService : AccessibilityService() {
                         val ns = nodes(fresh)
                         val recipient = ns.filter { it.viewIdResourceName == store.header && header(it) }.singleOrNull()
                         val field = ns.filter { it.viewIdResourceName == store.input && it.isVisibleToUser && it.isEnabled && it.isEditable && !it.isPassword }.singleOrNull()
-                        if (!MaxSearchPolicy.equivalent(recipient?.text?.toString(), p.number) || field == null || !field.text.isNullOrEmpty()) {
+                        if (!MaxSearchPolicy.equivalent(checkedRecipient(p, recipient, field), p.number) || field == null || !field.text.isNullOrEmpty()) {
                             finish("BLOCKED", "Получатель или черновик изменился до ввода"); return@withContext
                         }
                         val args = Bundle().apply { putCharSequence(Node.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, p.text) }
@@ -177,6 +202,82 @@ class MaxUiService : AccessibilityService() {
             log(p.event, "UI_UNKNOWN", if (clicked) "Нажата кнопка MAX. Отправка и доставка НЕ подтверждены; повторов нет"
                 else "Результат нажатия MAX неизвестен. Проверьте чат вручную; повторов нет")
         } catch (_: Exception) { finish("UI_UNKNOWN", "Сценарий MAX остановлен с неопределённым результатом. Проверьте чат; повторов нет") }
+    }
+    private fun checkedRecipient(p: Pending, title: Node?, editor: Node?): String? {
+        val direct = title?.text?.toString()?.let(MaxUiPolicy::phone)
+        if (direct != null) return direct
+        val proof = p.profile ?: return null
+        if (!proof.verified || proof.returnedAt == null || SystemClock.elapsedRealtime() - proof.returnedAt!! > 10_000) return null
+        // A matching display name alone is insufficient: return must preserve original node identities.
+        return p.number.takeIf { title != null && title == proof.title && editor == proof.editor &&
+            title.windowId == proof.window && title.text?.toString() == proof.caption }
+    }
+    private fun openProfile(p: Pending, root: Node, title: Node, input: Node) {
+        var action: Node? = title
+        repeat(4) {
+            val node = action ?: return@repeat
+            if (node.isClickable && node.isEnabled && node.isVisibleToUser) return@repeat
+            action = node.parent
+        }
+        val button = action
+        if (button == null || !button.isClickable || !button.isVisibleToUser || !button.isEnabled || collection(button) || button == root) {
+            finish("BLOCKED", "Не определено безопасное открытие карточки из заголовка чата"); return
+        }
+        p.profile = ProfileVisit(title, input, title.text.toString(), root.windowId, SystemClock.elapsedRealtime())
+        trace(MaxUiDiagnostics.Stage.PROFILE_OPEN)
+        if (!button.performAction(Node.ACTION_CLICK)) { finish("BLOCKED", "MAX не открыл карточку контакта"); return }
+        main.postDelayed(tick, 500)
+    }
+    /** A labelled phone field must belong to a small non-editable section, not chat history. */
+    private fun profileField(all: List<Node>, expected: String): Pair<Boolean, Boolean> {
+        val labels = all.filter { it.isVisibleToUser && !it.isEditable && !it.isPassword && MaxProfilePolicy.phoneLabel(it.text?.toString()) }
+        if (labels.size != 1) return false to false
+        val label = labels.single()
+        var section = label.parent
+        repeat(3) {
+            val parent = section ?: return false to false
+            val fields = nodes(parent)
+            if (fields.size > 18 || fields.any { it.isEditable } || collection(parent)) return false to false
+            val visible = fields.filter { it.isVisibleToUser && !it.isPassword }
+            val values = visible.mapNotNull { it.text?.toString() }
+            val phones = values.mapNotNull(MaxUiPolicy::phone).distinct()
+            if (phones.isNotEmpty()) return true to (MaxProfilePolicy.verifiedPhone(label.text?.toString(), values, expected) != null)
+            section = parent.parent
+        }
+        return false to false
+    }
+    private fun handleProfile(p: Pending, root: Node, all: List<Node>, title: Node?, input: Node?): Boolean {
+        val visit = p.profile ?: return false
+        if (visit.returnedAt != null) return false
+        if (SystemClock.elapsedRealtime() - visit.started > 6000) { finish("BLOCKED", "Проверка карточки/возврата истекла. Отправки нет"); return true }
+        if (!visit.returning) {
+            trace(MaxUiDiagnostics.Stage.PROFILE_CHECK, all)
+            if (all.any { it.isVisibleToUser && it.isEditable }) { main.postDelayed(tick, 400); return true }
+            val (found, matches) = profileField(all, p.number)
+            if (!found) { main.postDelayed(tick, 400); return true }
+            visit.verified = matches
+            visit.returning = true
+            if (!performGlobalAction(GLOBAL_ACTION_BACK)) { finish("BLOCKED", "Не удалось вернуться из карточки"); return true }
+            main.postDelayed(tick, 500); return true
+        }
+        trace(MaxUiDiagnostics.Stage.PROFILE_RETURN, all)
+        if (title == null || input == null) { main.postDelayed(tick, 400); return true }
+        if (title != visit.title || input != visit.editor || root.windowId != visit.window || title.text?.toString() != visit.caption || !input.text.isNullOrEmpty()) {
+            finish("BLOCKED", "После карточки исходный чат не подтверждён или изменён черновик"); return true
+        }
+        if (visit.verified) {
+            visit.returnedAt = SystemClock.elapsedRealtime()
+            return false
+        }
+        // Wrong namesake: never enter message text. Return to the search before another candidate.
+        p.profile = null
+        p.skipCurrentProfile = true
+        if (p.query != null && p.selectedAt != null) {
+            p.returningSearch = true
+            if (!performGlobalAction(GLOBAL_ACTION_BACK)) { finish("BLOCKED", "Не удалось вернуться к поиску после несовпадения номера"); return true }
+            main.postDelayed(tick, 500); return true
+        }
+        return false
     }
     private fun searchFields(all: List<Node>) = all.filter {
         it.isVisibleToUser && it.isEnabled && it.isEditable && !it.isPassword &&
@@ -227,7 +328,7 @@ class MaxUiService : AccessibilityService() {
             waitForUi(); return
         }
         val queryText = field.text?.toString().orEmpty()
-        val queries = MaxSearchPolicy.queries(p.number)
+        val queries = MaxSearchPolicy.queries(p.number) + listOfNotNull(p.contactName)
         if (p.query == null) {
             if (queryText.isNotEmpty()) { finish("BLOCKED", "В поиске уже введён текст. Он не будет заменён автоматически"); return }
             p.query = queries.first()
@@ -239,16 +340,23 @@ class MaxUiService : AccessibilityService() {
         if (queryText != p.query) { finish("BLOCKED", "Поисковый запрос изменился — сценарий остановлен"); return }
         if (now - p.queryAt < 700) { waitForUi(); return }
         val rows = all.filter {
-            !it.isEditable && !it.isPassword && it.isVisibleToUser && MaxSearchPolicy.equivalent(it.text?.toString(), p.number)
-        }.mapNotNull(::resultRow).distinct()
-        if (rows.size > 1) { finish("BLOCKED", "MAX показывает несколько результатов с этим номером — выбор неоднозначен"); return }
-        val row = rows.singleOrNull()
+            !it.isEditable && !it.isPassword && it.isVisibleToUser &&
+                (MaxSearchPolicy.equivalent(it.text?.toString(), p.number) ||
+                    (p.query == p.contactName && MaxProfilePolicy.candidateNameMatches(it.text?.toString(), p.contactName)))
+        }.mapNotNull(::resultRow).distinct().filterNot { p.query != p.contactName && it in p.triedRows }
+        if (rows.size > 1 && p.query != p.contactName) { finish("BLOCKED", "MAX показывает несколько результатов с этим номером — выбор неоднозначен"); return }
+        if (p.inspectedTotal >= 3) { finish("BLOCKED", "Проверены 3 кандидата. Номер не подтверждён; отправки нет"); return }
+        val row = if (p.query == p.contactName) rows.getOrNull(p.inspectedNames) else rows.singleOrNull()
         if (row != null) {
             // Root, query and row must still be active. The opened chat is verified again.
             if (!root.refresh() || rootInActiveWindow?.windowId != root.windowId || !field.refresh() || field.text?.toString() != p.query || !row.refresh()) {
                 finish("BLOCKED", "Результаты поиска изменились до выбора"); return
             }
+            p.triedRows += row
+            p.inspectedTotal++
+            if (p.query == p.contactName) p.inspectedNames++
             p.selectedAt = now
+            p.skipCurrentProfile = false
             if (!row.performAction(Node.ACTION_CLICK)) { finish("BLOCKED", "MAX не открыл результат поиска"); return }
             waitForUi(); return
         }
@@ -307,10 +415,23 @@ class MaxUiService : AccessibilityService() {
             if (Looper.myLooper() == Looper.getMainLooper()) begin.run() else service.main.post(begin)
         }
         fun stopNow() { instance?.main?.post { instance?.stop("Остановлено пользователем") } }
-        suspend fun submit(context: android.content.Context, event: CallEvent, number: String, text: String) = withContext(Dispatchers.Main) {
+        suspend fun submit(context: android.content.Context, event: CallEvent, number: String, text: String) {
+            val name = withContext(Dispatchers.IO) {
+                if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != android.content.pm.PackageManager.PERMISSION_GRANTED) null
+                else runCatching {
+                    val uri = android.net.Uri.withAppendedPath(android.provider.ContactsContract.PhoneLookup.CONTENT_FILTER_URI, android.net.Uri.encode(number))
+                    context.contentResolver.query(uri, arrayOf(android.provider.ContactsContract.PhoneLookup.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                        val names = mutableSetOf<String>()
+                        while (cursor.moveToNext() && names.size < 2) cursor.getString(0)?.trim()?.takeIf { it.isNotBlank() && it.length <= 120 }?.let(names::add)
+                        names.singleOrNull()
+                    }
+                }.getOrNull()
+            }
+            withContext(Dispatchers.Main) {
             val service = instance
             if (service == null) CallShiftApp.from(context).eventStore.record(event.copy(result = "BLOCKED", errorMessage = "Служба специальных возможностей MAX не подключена"))
-            else service.begin(event, number, text)
+            else service.begin(event, number, text, name)
+            }
         }
     }
 }

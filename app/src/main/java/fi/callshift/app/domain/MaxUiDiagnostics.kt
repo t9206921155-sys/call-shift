@@ -2,8 +2,8 @@ package fi.callshift.app.domain
 
 /** Memory-only bounded report. Raw UI strings, resource IDs and phone values never enter frames. */
 class MaxUiDiagnostics(private val now: () -> Long) {
-    enum class Stage { OBSERVE, START, CHAT, SEARCH, RESULTS, VERIFY, DRY_CHECK, INPUT, CLICK, STOP }
-    enum class Label { EMPTY, PHONE, SEARCH, SEND, REDACTED, PASSWORD }
+    enum class Stage { OBSERVE, START, CHAT, SEARCH, RESULTS, VERIFY, PROFILE_OPEN, PROFILE_CHECK, PROFILE_RETURN, DRY_CHECK, INPUT, CLICK, STOP }
+    enum class Label { EMPTY, PHONE, SEARCH, SEND, REDACTED, PASSWORD, PHONE_FIELD }
     data class Node(val visible: Boolean, val editable: Boolean, val clickable: Boolean,
         val enabled: Boolean, val hasId: Boolean, val top: Boolean, val label: Label)
     data class Frame(val stage: Stage, val version: Long, val unlocked: Boolean, val profile: Boolean,
@@ -27,12 +27,12 @@ class MaxUiDiagnostics(private val now: () -> Long) {
         frames.addLast(frame)
     }
     @Synchronized fun report(api: Int, appVersion: String): String = buildString {
-        appendLine("CallShift MAX diagnostic v1")
+        appendLine("CallShift MAX diagnostic v2")
         // Version string restricted too: callers cannot accidentally export arbitrary strings here.
         appendLine("Android API=$api; app=${appVersion.takeIf { it.matches(Regex("[0-9][0-9A-Za-z.-]{0,60}")) } ?: "unknown"}")
         appendLine("Capture active=${active()}; frames=${frames.size}")
         appendLine("No UI text, names, numbers, resource IDs, screenshots or message contents included.")
-        appendLine("counts: visible,editable,enabledClickable,withId,topThird,EMPTY,PHONE,SEARCH,SEND,REDACTED,PASSWORD")
+        appendLine("counts: visible,editable,enabledClickable,withId,topThird,EMPTY,PHONE,SEARCH,SEND,REDACTED,PASSWORD,PHONE_FIELD")
         frames.forEachIndexed { index, f ->
             appendLine("${index + 1}: ${f.stage} MAXversion=${f.version} unlocked=${f.unlocked} profile=${f.profile} result=${f.outcome} counts=${f.counts.joinToString(",")}")
         }
@@ -44,6 +44,7 @@ class MaxUiDiagnostics(private val now: () -> Long) {
             val values = listOfNotNull(text, description, hint).filter { it.isNotBlank() }
             return when {
                 values.isEmpty() -> Label.EMPTY
+                values.any(MaxProfilePolicy::phoneLabel) -> Label.PHONE_FIELD
                 values.any { MaxUiPolicy.phone(it) != null } -> Label.PHONE
                 values.any(MaxSearchPolicy::isSearchLabel) -> Label.SEARCH
                 values.any { it.trim().lowercase(java.util.Locale.ROOT) in setOf("send", "send message", "отправить", "отправить сообщение") } -> Label.SEND
