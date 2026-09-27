@@ -1,0 +1,84 @@
+name: Publish signed CallShift 0.7.3
+on:
+  push:
+    branches: [arena/01a0d923-call-shift]
+    paths: [.github/workflows/signed-release.yml, scripts/restore-signing.sh]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: callshift-production-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Require the existing unpublished release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(gh release view v0.7.3 --json isDraft --jq '.isDraft')" = true || { echo '::error::Refusing to replace a published release.'; exit 1; }
+      - name: Download the original signed APK as identity reference
+        uses: actions/download-artifact@v4
+        with:
+          name: CallShift-signed-release-apk
+          run-id: 36305423377
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/original-signed-apk
+      - name: Restore existing key (never generate a key)
+        env:
+          CALLSHIFT_SIGNING_KEY: ${{ secrets.CALLSHIFT_SIGNING_KEY }}
+          CALLSHIFT_STORE_PASSWORD: ${{ secrets.CALLSHIFT_STORE_PASSWORD }}
+        run: bash scripts/restore-signing.sh
+      - name: Test and build release
+        env:
+          CALLSHIFT_STORE_PASSWORD: ${{ secrets.CALLSHIFT_STORE_PASSWORD }}
+          CALLSHIFT_KEY_PASSWORD: ${{ secrets.CALLSHIFT_STORE_PASSWORD }}
+          CALLSHIFT_KEY_ALIAS: callshift
+          CALLSHIFT_KEYSTORE: ${{ runner.temp }}/callshift-signing.p12
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:testStandardDebugUnitTest :app:assembleStandardRelease -PrequireReleaseSigning=true -PversionCode=29 -PversionName=0.7.3 --no-daemon
+      - name: Verify original and new APK signatures against restored certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          signer=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          mapfile -t originals < <(find "$RUNNER_TEMP/original-signed-apk" -name '*.apk')
+          test "${#originals[@]}" -eq 1
+          expected=$(openssl x509 -in "$RUNNER_TEMP/callshift-certificate.pem" -outform DER | sha256sum | cut -d' ' -f1)
+          "$signer" verify --verbose --print-certs "${originals[0]}" > "$RUNNER_TEMP/original-signature.txt"
+          grep -Fi "certificate SHA-256 digest: $expected" "$RUNNER_TEMP/original-signature.txt"
+          mkdir -p release-public
+          cp app/build/outputs/apk/standard/release/app-standard-release.apk release-public/CallShift-0.7.3.apk
+          cp "$RUNNER_TEMP/callshift-certificate.pem" release-public/certificate.pem
+          "$signer" verify --verbose --print-certs release-public/CallShift-0.7.3.apk > release-public/signature-verification.txt
+          grep -Fi "certificate SHA-256 digest: $expected" release-public/signature-verification.txt
+          (cd release-public && sha256sum CallShift-0.7.3.apk > SHA256SUMS.txt)
+          echo "Certificate SHA-256: $expected" >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain only public release files
+        uses: actions/upload-artifact@v4
+        with:
+          name: CallShift-0.7.3-verified-release
+          path: release-public/
+          if-no-files-found: error
+      - name: Upload APK and publish the existing draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh release view v0.7.3 --json isDraft --jq '.isDraft')" = true
+          gh release upload v0.7.3 release-public/CallShift-0.7.3.apk release-public/certificate.pem release-public/signature-verification.txt release-public/SHA256SUMS.txt --clobber
+          gh release edit v0.7.3 --target "$GITHUB_SHA" --title 'CallShift 0.7.3' --notes-file docs/RELEASE_073.md --draft=false
+      - name: Remove private material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/callshift-signing.p12"
