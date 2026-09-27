@@ -43,11 +43,14 @@ class MaxUiService : AccessibilityService() {
             main.postDelayed(this, 750)
         }
     }
-    /** Only a unique focused application window can replace a missing active root. */
+    /** Prefer the focused foreground window: active root can still refer to MAX behind a dialog. */
     private fun pickerRoot(): Node? {
-        rootInActiveWindow?.let { return it }
-        return windows.filter { it.isFocused && it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION }
-            .singleOrNull()?.root
+        val focused = windows.filter { it.isFocused && it.type in setOf(
+            android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION,
+            android.view.accessibility.AccessibilityWindowInfo.TYPE_SYSTEM) }
+        if (focused.size > 1) return null
+        if (focused.size == 1) return focused.single().root // never fall through to a background root
+        return rootInActiveWindow
     }
     private var lastPickerIssue = MaxPickerInspection.Issue.STARTED
     private fun pickerReport(report: MaxPickerInspection.Report) {
@@ -581,7 +584,14 @@ class MaxUiService : AccessibilityService() {
             private set
         fun endPickerProbe() { instance?.endPicker() }
         fun startPickerProbe(): Boolean {
-            val service = instance ?: return false
+            val service = instance
+            if (service == null) {
+                pickerCandidate = null
+                pickerStatus = MaxPickerInspection.Issue.SERVICE_UNAVAILABLE.explanation
+                diagnostics.start(60_000)
+                diagnostics.recordPicker(MaxPickerInspection.Report(MaxPickerInspection.Issue.SERVICE_UNAVAILABLE))
+                return false
+            }
             return runCatching {
                 service.stop("Остановлено для изучения системного окна выбора MAX")
                 pickerCandidate = null

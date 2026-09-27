@@ -1,5 +1,5 @@
 name: Publish signed CallShift 0.8.6-max-picker
-# Generic opt-in system chooser routing, per-account SIM keys, explicit hint handling and fail-closed selection.
+# Foreground chooser window inspection, text-free refusal diagnostics and safe caption/icon rows.
 on:
   push:
     branches: [arena/01a0d923-call-shift]
