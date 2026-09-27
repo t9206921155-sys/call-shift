@@ -298,11 +298,13 @@ class MaxUiService : AccessibilityService() {
         val connected get() = instance != null
         fun collectDiagnostics(forCall: Boolean) {
             val service = instance ?: return
-            service.main.post {
+            val begin = Runnable {
                 service.stop("Остановлено для безопасной диагностики")
                 diagnostics.start(if (forCall) 180_000 else 60_000)
                 service.store.modes(forCall, false)
             }
+            // A UI button must cancel a pending send before returning, not enqueue behind it.
+            if (Looper.myLooper() == Looper.getMainLooper()) begin.run() else service.main.post(begin)
         }
         fun stopNow() { instance?.main?.post { instance?.stop("Остановлено пользователем") } }
         suspend fun submit(context: android.content.Context, event: CallEvent, number: String, text: String) = withContext(Dispatchers.Main) {

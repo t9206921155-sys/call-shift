@@ -66,6 +66,7 @@ class MaxUiActivity : AppCompatActivity() {
         button("Записать интерфейс MAX — 60 секунд") {
             if (!MaxUiService.connected) { toast("Сначала подключите службу"); return@button }
             MaxUiService.collectDiagnostics(false)
+            refresh()
             val launch = packageManager.getLaunchIntentForPackage(MaxUiPolicy.PACKAGE)
             if (launch == null) toast("MAX не найден") else runCatching { startActivity(launch) }.onFailure { toast("Откройте MAX вручную") }
         }
@@ -73,6 +74,7 @@ class MaxUiActivity : AppCompatActivity() {
         button("Диагностика следующего звонка — 3 минуты") {
             if (!MaxUiService.connected) { toast("Сначала подключите службу"); return@button }
             MaxUiService.collectDiagnostics(true)
+            refresh()
             toast("Реальная отправка выключена. Сделайте тестовый звонок с правилом MAX UI; номер может вводиться только в поиск.")
         }
         button("Посмотреть / скопировать отчёт") {
