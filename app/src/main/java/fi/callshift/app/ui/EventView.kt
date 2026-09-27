@@ -5,6 +5,9 @@ import fi.callshift.app.forward.CallEvent
 /** Человеческое представление записи журнала. */
 object EventView {
     enum class Kind(val title: String, val icon: String, val color: Int) {
+        MAX_CHECKED("MAX: проверка без отправки", "✓", 0xFF90A4AE.toInt()),
+        MAX_UNKNOWN("MAX: результат не подтверждён", "?", 0xFFFFB74D.toInt()),
+        MAX_BLOCKED("MAX: сценарий остановлен", "!", 0xFFFFB74D.toInt()),
         REJECT_REQUESTED("Запрошен сброс", "⊘", 0xFFFFB74D.toInt()),
         REJECTED("Сброшен", "⊘", 0xFFE57373.toInt()),
         SILENCED("Без звука", "🔕", 0xFFFFB74D.toInt()),
@@ -25,6 +28,11 @@ object EventView {
     }
 
     fun kind(e: CallEvent): Kind = when (e.strategy) {
+        "MAX_UI_REPLY" -> when (e.result) {
+            "UI_CHECKED" -> Kind.MAX_CHECKED
+            "UI_UNKNOWN", "UI_PENDING" -> Kind.MAX_UNKNOWN
+            else -> Kind.MAX_BLOCKED
+        }
         "DIALER_RULES" -> when (e.result) {
             "PASS" -> Kind.PASSED
             "REQUESTED" -> Kind.REJECT_REQUESTED

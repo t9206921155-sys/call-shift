@@ -145,6 +145,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, LogActivity::class.java))
         }
 
+        binding.btnMaxUi.setOnClickListener { startActivity(Intent(this, fi.callshift.app.max.MaxUiActivity::class.java)) }
         binding.btnSmsSafety.setOnClickListener { startActivity(Intent(this, SmsSafetyActivity::class.java)) }
         binding.btnDiag.setOnClickListener {
             startActivity(Intent(this, DiagnosticsActivity::class.java))

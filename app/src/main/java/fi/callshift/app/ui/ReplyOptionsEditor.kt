@@ -18,6 +18,10 @@ class ReplyOptionsEditor(context: Context, parent: LinearLayout) {
         fun hint(text: String) = parent.addView(TextView(context).apply {
             this.text = text; setTextColor(context.getColor(R.color.text_secondary)); textSize = 14f
         })
+        parent.addView(com.google.android.material.button.MaterialButton(context).apply {
+            text = "Настройка MAX: экспериментальная автоматизация"
+            setOnClickListener { context.startActivity(android.content.Intent(context, fi.callshift.app.max.MaxUiActivity::class.java)) }
+        })
         hint("Каналы ответа — можно выбрать несколько. Ответ готовится во ВСЕХ отмеченных каналах, не только в одном запасном.")
         ReplyChannel.labels.forEach { (key, label) ->
             val check = MaterialCheckBox(context).apply {

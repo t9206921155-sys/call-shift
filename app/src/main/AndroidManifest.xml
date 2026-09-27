@@ -65,6 +65,12 @@
         android:theme="@style/Theme.CallShift"
         tools:targetApi="35">
 
+        <activity android:name=".max.MaxUiActivity" android:exported="false" />
+        <service android:name=".max.MaxUiService" android:label="CallShift — MAX (эксперимент)"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:exported="true">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/max_accessibility" />
+        </service>
         <activity android:name=".telegram.TelegramAccountActivity" android:exported="false" />
 
         <receiver android:name=".sms.SmsStatusReceiver" android:exported="false" />

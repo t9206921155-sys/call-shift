@@ -230,6 +230,10 @@
                 android:padding="12dp" android:textColor="@color/text_primary"
                 android:text="Последний звонок: пока нет записей" />
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnMaxUi" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:text="MAX: эксперимент"
+                style="@style/Widget.CallShift.MainAction" />
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnSmsSafety"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

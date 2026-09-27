@@ -87,6 +87,13 @@ class SmsAutoReplier(
                 }
             }
             is SmsAutoReplyPolicy.Result.Send -> {
+                if (channel == fi.callshift.app.domain.MaxUiPolicy.CHANNEL) {
+                    check(prefs.edit().putLong(key, now).commit()) { "Не удалось сохранить попытку MAX" }
+                    fi.callshift.app.max.MaxUiService.submit(appContext,
+                        event(ctx, decision, "UI_PENDING", null, "MAX: проверка интерфейса").copy(eventId = java.util.UUID.randomUUID().toString()),
+                        r.number, r.text)
+                    return
+                }
                 if (channel == fi.callshift.app.domain.TelegramReplyPolicy.CHANNEL) {
                     // Reserve before contacting Telegram: timeouts must not cause duplicate messages.
                     check(prefs.edit().putLong(key, now).commit()) { "Не удалось сохранить попытку Telegram" }
@@ -220,6 +227,7 @@ class SmsAutoReplier(
         sim = ctx.phoneAccount?.label?.takeIf { it.isNotBlank() } ?: ctx.phoneAccount?.id ?: "—",
         ruleId = d.ruleId, ruleName = d.ruleName,
         strategy = when (d.matchedAction?.replyChannel ?: "SMS") {
+            fi.callshift.app.domain.MaxUiPolicy.CHANNEL -> "MAX_UI_REPLY"
             "SMS" -> "SMS_REPLY"
             fi.callshift.app.domain.TelegramReplyPolicy.CHANNEL -> "TELEGRAM_REPLY"
             else -> "MESSENGER_DRAFT"
