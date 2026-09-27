@@ -1,5 +1,5 @@
 name: Publish signed CallShift 0.8.3-max-profile
-# Includes final toolbar/profile navigation safety checks.
+# Includes final toolbar/profile navigation safety checks and synthetic test fixtures.
 on:
   push:
     branches: [arena/01a0d923-call-shift]

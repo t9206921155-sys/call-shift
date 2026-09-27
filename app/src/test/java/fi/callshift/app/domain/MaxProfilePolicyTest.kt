@@ -25,6 +25,6 @@ class MaxProfilePolicyTest {
     }
     @Test fun diagnosticExportsFieldCategoryNotNameOrPhone() {
         assertEquals(MaxUiDiagnostics.Label.PHONE_FIELD, MaxUiDiagnostics.label(false, "Номер телефона", null, null))
-        assertEquals(MaxUiDiagnostics.Label.REDACTED, MaxUiDiagnostics.label(false, "Рабочий Омега", null, null))
+        assertEquals(MaxUiDiagnostics.Label.REDACTED, MaxUiDiagnostics.label(false, "Тестовый контакт", null, null))
     }
 }
