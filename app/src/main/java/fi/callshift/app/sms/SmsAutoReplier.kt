@@ -91,7 +91,7 @@ class SmsAutoReplier(
                     check(prefs.edit().putLong(key, now).commit()) { "Не удалось сохранить попытку MAX" }
                     fi.callshift.app.max.MaxUiService.submit(appContext,
                         event(ctx, decision, "UI_PENDING", null, "MAX: проверка интерфейса").copy(eventId = java.util.UUID.randomUUID().toString()),
-                        r.number, r.text)
+                        r.number, r.text, account)
                     return
                 }
                 if (channel == fi.callshift.app.domain.TelegramReplyPolicy.CHANNEL) {

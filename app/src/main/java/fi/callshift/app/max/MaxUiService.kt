@@ -8,6 +8,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo as Node
 import fi.callshift.app.CallShiftApp
 import fi.callshift.app.domain.MaxUiDiagnostics
+import fi.callshift.app.domain.MaxRoutePolicy
 import fi.callshift.app.domain.MaxUiPolicy
 import fi.callshift.app.domain.MaxProfileCapture
 import fi.callshift.app.domain.MaxProfilePolicy
@@ -21,8 +22,25 @@ import kotlinx.coroutines.Dispatchers
 class MaxUiService : AccessibilityService() {
     private val main = Handler(Looper.getMainLooper())
     private val store by lazy { MaxUiStore(this) }
+    private val routes by lazy { MaxRouteStore(this) }
+    private var pickerUntil = 0L
+    private val pickerTick = object : Runnable {
+        override fun run() {
+            if (SystemClock.elapsedRealtime() >= pickerUntil) { pickerUntil = 0; return }
+            if (unlocked()) runCatching {
+                rootInActiveWindow?.let { root -> MaxSystemPicker.read(this@MaxUiService, root)?.let {
+                    pickerCandidate = it.picker
+                    pickerStatus = "Окно выбора распознано. Вернитесь в настройки маршрутов."
+                } }
+            }
+            main.postDelayed(this, 750)
+        }
+    }
     private val app by lazy { CallShiftApp.from(this) }
     private data class Pending(val event: CallEvent, val number: String, val text: String, val dry: Boolean,
+        val accountId: String, val route: MaxRoutePolicy.Route,
+        val started: Long = SystemClock.elapsedRealtime(), var routeClickedAt: Long? = null,
+        var routeReady: Boolean = false,
         var edited: Boolean = false, var searchClicked: Boolean = false, var query: String? = null,
         var queryAt: Long = 0, var queryIndex: Int = 0, var selectedAt: Long? = null,
         val contactName: String? = null, val triedRows: MutableSet<Node> = mutableSetOf(),
@@ -56,9 +74,11 @@ class MaxUiService : AccessibilityService() {
     override fun onDestroy() { stop("Служба отключена"); instance = null; logs.close(); super.onDestroy() }
     fun stop(reason: String) {
         endProbe()
+        endPicker()
         finish("BLOCKED", reason)
         runCatching { store.modes(false, false) }
     }
+    private fun endPicker() { pickerUntil = 0; main.removeCallbacks(pickerTick) }
     private fun endProbe() { main.removeCallbacks(probeTick); probeUntil = 0 }
     private fun startProbe() {
         stop("Отправка остановлена для настройки интерфейса")
@@ -71,7 +91,7 @@ class MaxUiService : AccessibilityService() {
     }
     private fun captureState(issue: MaxProfileCapture.Issue) {
         // Returning to CallShift must not hide the last concrete refusal from MAX.
-        if (issue == MaxProfileCapture.Issue.OTHER_APP && captureIssue !in listOf(
+        if (issue in listOf(MaxProfileCapture.Issue.OTHER_APP, MaxProfileCapture.Issue.NO_ROOT) && captureIssue !in listOf(
                 MaxProfileCapture.Issue.NOT_STARTED, MaxProfileCapture.Issue.WAITING,
                 MaxProfileCapture.Issue.NO_ROOT, MaxProfileCapture.Issue.OTHER_APP)) return
         captureIssue = issue
@@ -145,15 +165,27 @@ class MaxUiService : AccessibilityService() {
             candidate = next
         }
     }
-    private fun begin(event: CallEvent, number: String, text: String, contactName: String?) {
+    private fun begin(event: CallEvent, number: String, text: String, contactName: String?, accountId: String?) {
         trace(MaxUiDiagnostics.Stage.START)
         if (pending != null) { log(event, "BLOCKED", "MAX уже занят другой попыткой; очередь и повтор отключены"); return }
-        if (!store.enabled || !unlocked() || store.version != version() || store.header.isEmpty() || store.input.isEmpty()) {
-            log(event, "BLOCKED", "MAX UI: включите проверку, настройте профиль и разблокируйте экран"); return
+        val startupIssue = when {
+            !store.enabled -> "MAX: режим выключен. Включите проверку без отправки"
+            !unlocked() -> "MAX: разблокируйте экран"
+            store.header.isEmpty() || store.input.isEmpty() -> "MAX: профиль интерфейса не сохранён"
+            store.version != version() -> "MAX обновился: повторите настройку профиля интерфейса"
+            accountId == null || accountId !in app.telecom.phoneAccounts().keys -> "MAX: SIM звонка не определена однозначно; аккаунт не выбирается"
+            else -> null
+        }
+        if (startupIssue != null) { log(event, "BLOCKED", startupIssue); return }
+        val route = MaxRoutePolicy.resolve(accountId, app.telecom.phoneAccounts().keys, routes.routes())
+        if (route == null) { log(event, "BLOCKED", "MAX: для SIM звонка не выбран аккаунт. Откройте «Аккаунт отправителя по SIM»"); return }
+        val dry = !store.live || diagnostics.active()
+        if (!dry && !routes.tested(accountId!!, route)) {
+            log(event, "BLOCKED", "MAX: сначала нужен успешный проверочный звонок для маршрута этой SIM"); return
         }
         val canonical = MaxUiPolicy.phone(number)
         if (canonical == null) { log(event, "BLOCKED", "Номер звонящего некорректен"); return }
-        pending = Pending(event, canonical, text, !store.live || diagnostics.active(), contactName = contactName)
+        pending = Pending(event, canonical, text, dry, accountId!!, route, contactName = contactName)
         log(event, "UI_PENDING", "Ожидаем проверку открытого чата MAX. Отправка не подтверждена")
         main.postDelayed(timeout, 30_000)
         try {
@@ -166,12 +198,24 @@ class MaxUiService : AccessibilityService() {
         if (busy) return
         val p = pending ?: return
         try {
-            val root = rootInActiveWindow ?: return
-            if (root.packageName?.toString() != MaxUiPolicy.PACKAGE) return // timeout, not another application
             if (!store.enabled || !unlocked() || !app.settings.masterEnabled || store.version != version()) {
                 finish("BLOCKED", "MAX: режим выключен, экран заблокирован или версия интерфейса изменилась"); return
             }
             if (!p.dry && !store.live) { finish("BLOCKED", "Реальная отправка выключена"); return }
+            if (routes.routes()[p.accountId] != p.route || p.accountId !in app.telecom.phoneAccounts().keys) {
+                finish("BLOCKED", "MAX: SIM или маршрут изменились во время сценария"); return
+            }
+            val root = rootInActiveWindow
+            if (root == null) {
+                if (!p.routeReady && SystemClock.elapsedRealtime() - p.started > 8000) {
+                    finish("BLOCKED", "MAX: Android не передал окно выбора или окно MAX"); return
+                }
+                main.postDelayed(tick, 500); return
+            }
+            if (!routeReady(p, root)) return
+            if (root.packageName?.toString() != MaxUiPolicy.PACKAGE) {
+                main.postDelayed(tick, 500); return
+            }
             val all = nodes(root)
             trace(MaxUiDiagnostics.Stage.CHAT, all)
             val h = all.filter { it.viewIdResourceName == store.header && header(it) }
@@ -251,6 +295,46 @@ class MaxUiService : AccessibilityService() {
             log(p.event, "UI_UNKNOWN", if (clicked) "Нажата кнопка MAX. Отправка и доставка НЕ подтверждены; повторов нет"
                 else "Результат нажатия MAX неизвестен. Проверьте чат вручную; повторов нет")
         } catch (_: Exception) { finish("UI_UNKNOWN", "Сценарий MAX остановлен с неопределённым результатом. Проверьте чат; повторов нет") }
+    }
+    /** One fresh, explicitly learned system choice per call. Never click twice or use list order. */
+    private fun routeReady(p: Pending, root: Node): Boolean {
+        if (p.routeReady) return true
+        val now = SystemClock.elapsedRealtime()
+        if (now - p.started > 8000) {
+            finish("BLOCKED", "MAX: не удалось открыть выбранный аккаунт за 8 секунд. Окно выбора недоступно или не поддерживается"); return false
+        }
+        trace(MaxUiDiagnostics.Stage.ROUTE_WAIT)
+        fun waitUi(): Boolean { main.removeCallbacks(tick); main.postDelayed(tick, 500); return false }
+        val inMax = root.packageName?.toString() == MaxUiPolicy.PACKAGE
+        val expected = p.route.picker
+        if (expected == null) {
+            if (inMax) { p.routeReady = true; trace(MaxUiDiagnostics.Stage.ROUTE_READY); return true }
+            if (MaxSystemPicker.read(this, root) != null) {
+                finish("BLOCKED", "MAX: обнаружено окно двух копий. Настройте аккаунт отправителя по SIM вместо режима одного MAX"); return false
+            }
+            return waitUi()
+        }
+        if (p.routeClickedAt != null) {
+            if (inMax && now - p.routeClickedAt!! >= 700) {
+                p.routeReady = true; trace(MaxUiDiagnostics.Stage.ROUTE_READY); return true
+            }
+            return waitUi()
+        }
+        if (inMax) {
+            finish("BLOCKED", "MAX: окно выбора копии не появилось. Аккаунт не подтверждён; отключите выбор MAX по умолчанию в настройках клонирования"); return false
+        }
+        val actual = MaxSystemPicker.read(this, root) ?: return waitUi()
+        val target = p.route.label
+        if (target == null || !MaxRoutePolicy.matches(expected, actual.picker, target)) {
+            finish("BLOCKED", "MAX: системное окно выбора изменилось. Повторите изучение окна и настройку маршрута SIM"); return false
+        }
+        trace(MaxUiDiagnostics.Stage.ROUTE_PICK)
+        // Mark BEFORE action: uncertain result must never lead to a second click.
+        p.routeClickedAt = now
+        if (actual.buttons[target]?.performAction(Node.ACTION_CLICK) != true) {
+            finish("BLOCKED", "MAX: система не приняла выбор аккаунта; повторного нажатия не будет"); return false
+        }
+        return waitUi()
     }
     private fun checkedRecipient(p: Pending, title: Node?, editor: Node?): String? {
         val direct = title?.text?.toString()?.let(MaxUiPolicy::phone)
@@ -424,12 +508,16 @@ class MaxUiService : AccessibilityService() {
     private fun finish(result: String, message: String) {
         trace(if (result == "UI_CHECKED") MaxUiDiagnostics.Stage.DRY_CHECK else MaxUiDiagnostics.Stage.STOP, outcome = result)
         val p = pending
+        if (result == "UI_CHECKED" && p != null && p.routeReady) runCatching { routes.passed(p.accountId, p.route) }
         pending = null; busy = false
         main.removeCallbacks(tick); main.removeCallbacks(timeout)
         if (p != null) log(p.event, result, message)
     }
     private fun log(event: CallEvent, result: String, message: String) {
-        if (result == "BLOCKED") trace(MaxUiDiagnostics.Stage.STOP, outcome = result)
+        if (result == "BLOCKED") {
+            diagnostics.stopReason(message)
+            trace(MaxUiDiagnostics.Stage.STOP, outcome = result)
+        }
         logs.trySend(event.copy(result = result, errorMessage = message, errorCode = if (result == "BLOCKED") "max_ui_blocked" else null))
     }
     private fun trace(stage: MaxUiDiagnostics.Stage, source: List<Node>? = null, outcome: String = "") {
@@ -458,6 +546,22 @@ class MaxUiService : AccessibilityService() {
             private set
         @Volatile var candidate: Profile? = null
         val connected get() = instance != null
+        @Volatile var pickerCandidate: MaxRoutePolicy.Picker? = null
+            private set
+        @Volatile var pickerStatus = "Окно выбора ещё не изучено"
+            private set
+        fun endPickerProbe() { instance?.endPicker() }
+        fun startPickerProbe(): Boolean {
+            val service = instance ?: return false
+            return runCatching {
+                service.stop("Остановлено для изучения системного окна выбора MAX")
+                pickerCandidate = null
+                pickerStatus = "Окно не распознано. Если вариантов нет, выключите выбор по умолчанию; если подписи недоступны — этот интерфейс пока не поддерживается."
+                service.pickerUntil = SystemClock.elapsedRealtime() + 60_000
+                service.main.post(service.pickerTick)
+                true
+            }.getOrDefault(false)
+        }
         fun startProfileProbe(): Boolean {
             val service = instance
             if (service == null) {
@@ -490,7 +594,7 @@ class MaxUiService : AccessibilityService() {
             if (Looper.myLooper() == Looper.getMainLooper()) begin.run() else service.main.post(begin)
         }
         fun stopNow() { instance?.main?.post { instance?.stop("Остановлено пользователем") } }
-        suspend fun submit(context: android.content.Context, event: CallEvent, number: String, text: String) {
+        suspend fun submit(context: android.content.Context, event: CallEvent, number: String, text: String, accountId: String?) {
             val name = withContext(Dispatchers.IO) {
                 if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != android.content.pm.PackageManager.PERMISSION_GRANTED) null
                 else runCatching {
@@ -505,7 +609,7 @@ class MaxUiService : AccessibilityService() {
             withContext(Dispatchers.Main) {
             val service = instance
             if (service == null) CallShiftApp.from(context).eventStore.record(event.copy(result = "BLOCKED", errorMessage = "Служба специальных возможностей MAX не подключена"))
-            else service.begin(event, number, text, name)
+            else service.begin(event, number, text, name, accountId)
             }
         }
     }
