@@ -8,6 +8,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo as Node
 import fi.callshift.app.CallShiftApp
 import fi.callshift.app.domain.MaxUiDiagnostics
+import fi.callshift.app.domain.MaxPickerInspection
 import fi.callshift.app.domain.MaxRoutePolicy
 import fi.callshift.app.domain.MaxUiPolicy
 import fi.callshift.app.domain.MaxProfileCapture
@@ -27,14 +28,34 @@ class MaxUiService : AccessibilityService() {
     private val pickerTick = object : Runnable {
         override fun run() {
             if (SystemClock.elapsedRealtime() >= pickerUntil) { pickerUntil = 0; return }
-            if (unlocked()) runCatching {
-                rootInActiveWindow?.let { root -> MaxSystemPicker.read(this@MaxUiService, root)?.let {
-                    pickerCandidate = it.picker
-                    pickerStatus = "Окно выбора распознано. Вернитесь в настройки маршрутов."
-                } }
-            }
+            runCatching {
+                if (!unlocked()) pickerReport(MaxPickerInspection.Report(MaxPickerInspection.Issue.LOCKED))
+                else {
+                    val root = pickerRoot()
+                    if (root == null) pickerReport(MaxPickerInspection.Report(MaxPickerInspection.Issue.NO_ROOT))
+                    else {
+                        val inspection = MaxSystemPicker.inspect(this@MaxUiService, root)
+                        pickerReport(inspection.report)
+                        inspection.snapshot?.let { pickerCandidate = it.picker }
+                    }
+                }
+            }.onFailure { pickerReport(MaxPickerInspection.Report(MaxPickerInspection.Issue.ERROR)) }
             main.postDelayed(this, 750)
         }
+    }
+    /** Only a unique focused application window can replace a missing active root. */
+    private fun pickerRoot(): Node? {
+        rootInActiveWindow?.let { return it }
+        return windows.filter { it.isFocused && it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION }
+            .singleOrNull()?.root
+    }
+    private var lastPickerIssue = MaxPickerInspection.Issue.STARTED
+    private fun pickerReport(report: MaxPickerInspection.Report) {
+        diagnostics.recordPicker(report)
+        if (pickerCandidate != null) return
+        if (!MaxPickerInspection.meaningful(report.issue) && MaxPickerInspection.meaningful(lastPickerIssue)) return
+        lastPickerIssue = report.issue
+        pickerStatus = "${report.issue.name}: ${report.issue.explanation}"
     }
     private val app by lazy { CallShiftApp.from(this) }
     private data class Pending(val event: CallEvent, val number: String, val text: String, val dry: Boolean,
@@ -67,6 +88,10 @@ class MaxUiService : AccessibilityService() {
     }
     override fun onServiceConnected() {
         instance = this
+        serviceInfo = serviceInfo.apply {
+            flags = flags or android.accessibilityservice.AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS or
+                android.accessibilityservice.AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
+        }
         // Reconnection/reboot must not silently resume permission to send messages.
         store.modes(store.enabled, false)
     }
@@ -207,7 +232,7 @@ class MaxUiService : AccessibilityService() {
             if (routes.routes()[p.accountId] != p.route || p.accountId !in app.telecom.phoneAccounts().keys) {
                 finish("BLOCKED", "MAX: SIM или маршрут изменились во время сценария"); return
             }
-            val root = rootInActiveWindow
+            val root = if (!p.routeReady) pickerRoot() else rootInActiveWindow
             if (root == null) {
                 if (!p.routeReady && SystemClock.elapsedRealtime() - p.started > 8000) {
                     finish("BLOCKED", "MAX: Android не передал окно выбора или окно MAX"); return
@@ -325,7 +350,9 @@ class MaxUiService : AccessibilityService() {
         if (inMax) {
             finish("BLOCKED", "MAX: окно выбора копии не появилось. Аккаунт не подтверждён; отключите выбор MAX по умолчанию в настройках клонирования"); return false
         }
-        val actual = MaxSystemPicker.read(this, root) ?: return waitUi()
+        val inspection = MaxSystemPicker.inspect(this, root)
+        diagnostics.recordPicker(inspection.report)
+        val actual = inspection.snapshot ?: return waitUi()
         val target = p.route.label
         if (target == null || !MaxRoutePolicy.matches(expected, actual.picker, target)) {
             finish("BLOCKED", "MAX: системное окно выбора изменилось. Повторите изучение окна и настройку маршрута SIM"); return false
@@ -558,7 +585,9 @@ class MaxUiService : AccessibilityService() {
             return runCatching {
                 service.stop("Остановлено для изучения системного окна выбора MAX")
                 pickerCandidate = null
-                pickerStatus = "Окно не распознано. Если вариантов нет, выключите выбор по умолчанию; если подписи недоступны — этот интерфейс пока не поддерживается."
+                diagnostics.start(60_000)
+                service.lastPickerIssue = MaxPickerInspection.Issue.STARTED
+                service.pickerReport(MaxPickerInspection.Report(MaxPickerInspection.Issue.STARTED))
                 service.pickerUntil = SystemClock.elapsedRealtime() + 60_000
                 service.main.post(service.pickerTick)
                 true

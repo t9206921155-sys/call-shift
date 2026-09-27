@@ -24,12 +24,28 @@ class MaxRoutesActivity : AppCompatActivity() {
             text = "1. Изучить окно выбора двух MAX"
             setOnClickListener {
                 AlertDialog.Builder(this@MaxRoutesActivity).setTitle("Чтение системного окна выбора")
-                    .setMessage("CallShift на 60 секунд прочитает системное окно выбора MAX. Сохраняются локально пакет/версия окна и подписи двух вариантов. Ничего не нажимается и не отправляется. Когда окно появится, НЕ выбирайте MAX: подождите 2–3 секунды, нажмите «Отмена» или «Назад» и вернитесь сюда. Если сразу откроется чат, автоматический выбор клона не настроится: требуется окно выбора при каждом запуске, без приложения по умолчанию.")
+                    .setMessage("CallShift на 60 секунд прочитает системное окно выбора MAX. Сохраняются локально пакет/версия окна и подписи двух вариантов. Ничего не нажимается и не отправляется. Автоматически записываются только коды причин и счётчики элементов — без текстов, имён и номеров. Когда окно появится, НЕ выбирайте MAX: подождите 2–3 секунды, нажмите «Отмена» или «Назад» и вернитесь сюда. Если сразу откроется чат, автоматический выбор клона не настроится: требуется окно выбора при каждом запуске, без приложения по умолчанию.")
                     .setPositiveButton("Начать") { _, _ ->
                         if (!MaxUiService.startPickerProbe()) { message("Подключите службу CallShift — MAX в специальных возможностях"); return@setPositiveButton }
                         val launch = packageManager.getLaunchIntentForPackage(MaxUiPolicy.PACKAGE)
                         if (launch == null) message("MAX не установлен") else runCatching { startActivity(launch) }.onFailure { message("Android не разрешил открыть MAX") }
                     }.setNegativeButton("Отмена", null).show()
+            }
+        })
+        ui.add(MaterialButton(this).apply {
+            text = "Показать / скопировать отчёт распознавания"
+            setOnClickListener {
+                val report = MaxUiService.diagnostics.report(android.os.Build.VERSION.SDK_INT, fi.callshift.app.BuildConfig.VERSION_NAME) +
+                    "\nService connected now=${MaxUiService.connected}; picker learned=${MaxUiService.pickerCandidate != null}\n"
+                val textView = android.widget.TextView(this@MaxRoutesActivity).apply {
+                    text = report; setPadding(24, 16, 24, 16); setTextIsSelectable(true)
+                }
+                val scroll = android.widget.ScrollView(this@MaxRoutesActivity).apply { addView(textView) }
+                AlertDialog.Builder(this@MaxRoutesActivity).setTitle("Распознавание окна MAX").setView(scroll)
+                    .setPositiveButton("Копировать") { _, _ ->
+                        getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(
+                            android.content.ClipData.newPlainText("MAX picker diagnostics", report))
+                    }.setNegativeButton("Закрыть", null).show()
             }
         })
         val learned = MaxUiService.pickerCandidate

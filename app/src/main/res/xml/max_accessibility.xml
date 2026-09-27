@@ -4,7 +4,7 @@
     android:accessibilityFeedbackType="feedbackGeneric"
     android:notificationTimeout="150"
     android:packageNames="ru.oneme.app"
-    android:accessibilityFlags="flagReportViewIds"
+    android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows"
     android:canRetrieveWindowContent="true"
     android:description="@string/max_accessibility_description"
     android:settingsActivity="fi.callshift.app.max.MaxUiActivity" />
