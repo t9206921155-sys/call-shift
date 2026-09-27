@@ -11,6 +11,7 @@ import fi.callshift.app.domain.MaxUiDiagnostics
 import fi.callshift.app.domain.MaxPickerInspection
 import fi.callshift.app.domain.MaxRoutePolicy
 import fi.callshift.app.domain.MaxUiPolicy
+import fi.callshift.app.domain.MaxProfileActionPolicy
 import fi.callshift.app.domain.MaxProfileCapture
 import fi.callshift.app.domain.MaxProfilePolicy
 import fi.callshift.app.domain.MaxSearchPolicy
@@ -384,20 +385,60 @@ class MaxUiService : AccessibilityService() {
         return p.number.takeIf { title != null && title == proof.title && editor == proof.editor &&
             title.windowId == proof.window && title.text?.toString() == proof.caption }
     }
-    private fun openProfile(p: Pending, root: Node, title: Node, input: Node) {
-        var action: Node? = title
-        repeat(4) {
-            val node = action ?: return@repeat
-            if (node.isClickable && node.isEnabled && node.isVisibleToUser) return@repeat
-            action = node.parent
+    private fun profileClickable(n: Node): Boolean = n.isEnabled && n.isVisibleToUser && !n.isEditable && !n.isPassword &&
+        MaxProfileActionPolicy.supportsClick(n.isClickable, n.actionList.any { it.id == Node.ACTION_CLICK })
+    private fun toolbar(n: Node): Boolean = n.className?.toString()?.endsWith("Toolbar") == true ||
+        n.viewIdResourceName?.contains("toolbar", ignoreCase = true) == true
+    private fun under(n: Node, parent: Node): Boolean {
+        var current: Node? = n
+        repeat(20) {
+            val c = current ?: return false
+            if (c == parent) return true
+            if (collection(c)) return false
+            current = c.parent
         }
-        val button = action
-        if (button == null || !button.isClickable || !button.isVisibleToUser || !button.isEnabled || collection(button) || button == root) {
-            finish("BLOCKED", "Не определено безопасное открытие карточки из заголовка чата"); return
+        return false
+    }
+    private fun profileButton(root: Node, title: Node): Node? {
+        fun report(found: Boolean, semantic: Int = 0) = diagnostics.profileOpener(
+            title.isClickable, title.actionList.any { it.id == Node.ACTION_CLICK }, semantic, found)
+        report(false)
+        // Prefer the title or a non-collection ancestor. Stop at the toolbar boundary;
+        // do not click a whole container with back/call/menu buttons.
+        var current: Node? = title
+        var bar: Node? = null
+        repeat(20) {
+            val n = current ?: return@repeat
+            if (n == root || collection(n)) { current = null; return@repeat }
+            if (toolbar(n)) { bar = n; current = null; return@repeat }
+            if (profileClickable(n) && nodes(n).none { it != n && profileClickable(it) }) { report(true); return n }
+            current = n.parent
+        }
+        val headerBar = bar ?: return null
+        val candidates = nodes(headerBar).filter { it != headerBar && !collection(it) &&
+            profileClickable(it) && under(it, headerBar) }
+        val priorities = candidates.map { MaxProfileActionPolicy.priority(it.text?.toString(), it.contentDescription?.toString()) }
+        val index = MaxProfileActionPolicy.choose(priorities)
+        report(index != null, priorities.count { it != null })
+        return index?.let(candidates::get)
+    }
+    private fun openProfile(p: Pending, root: Node, title: Node, input: Node) {
+        val button = profileButton(root, title)
+        if (button == null) {
+            finish("BLOCKED", "Не определено безопасное открытие карточки из заголовка чата: нет однозначного действия заголовка, профиля или аватара"); return
+        }
+        val fresh = rootInActiveWindow
+        if (!unlocked() || !store.enabled || !app.settings.masterEnabled || fresh == null ||
+            fresh.packageName?.toString() != MaxUiPolicy.PACKAGE || fresh.windowId != root.windowId ||
+            !title.refresh() || !header(title) || title.viewIdResourceName != store.header ||
+            !input.refresh() || !input.isVisibleToUser || !input.isEditable || input.isPassword || editableText(input).isNotEmpty() ||
+            !button.refresh() || !profileClickable(button) || profileButton(fresh, title) != button) {
+            finish("BLOCKED", "Экран изменился до открытия карточки MAX; нажатия не было"); return
         }
         p.profile = ProfileVisit(title, input, title.text.toString(), root.windowId, SystemClock.elapsedRealtime())
         trace(MaxUiDiagnostics.Stage.PROFILE_OPEN)
         if (!button.performAction(Node.ACTION_CLICK)) { finish("BLOCKED", "MAX не открыл карточку контакта"); return }
+        // Do not try another button after an uncertain result. Phone proof is still mandatory.
         main.postDelayed(tick, 500)
     }
     /** A labelled phone field must belong to a small non-editable section, not chat history. */
