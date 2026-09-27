@@ -28,20 +28,27 @@ class MaxUiActivity : AppCompatActivity() {
         }
         ui.hint("Найдите CallShift — MAX (эксперимент). Если Android блокирует разрешение для APK, прочитайте предупреждение системы; приложение не обходит его и не включает службу само.")
         button("2. Проверить интерфейс MAX (60 секунд)") {
-            if (!MaxUiService.connected) { toast("Сначала подключите службу"); return@button }
-            MaxUiService.candidate = null
-            MaxUiService.probeUntil = SystemClock.elapsedRealtime() + 60_000
+            if (!MaxUiService.startProfileProbe()) { toast(MaxUiService.captureIssue.explanation); refresh(); return@button }
             val launch = packageManager.getLaunchIntentForPackage(MaxUiPolicy.PACKAGE)
             if (launch == null) toast("MAX не найден") else runCatching { startActivity(launch) }.onFailure { toast("Не удалось открыть MAX") }
         }
-        ui.hint("Откройте личный чат: в шапке теперь может быть номер или имя. Затем вернитесь сюда. При настройке профиля ничего не вводится и не отправляется. В проверочном сценарии после звонка служба может открыть поиск, ввести номер и перейти в результат — но не вводит текст сообщения и не нажимает отправку. Если номер или элементы недоступны службе, автоматизация для этого экрана не поддерживается.")
+        ui.hint("Откройте саму переписку с полем сообщения — НЕ карточку контакта, как на экране с номером телефона. В шапке может быть номер или имя. Подождите 2–3 секунды и вернитесь сюда. Настройка сама записывает диагностический отчёт; отдельно запускать диагностику не нужно. Найденный образец доступен для сохранения 10 минут. При настройке профиля ничего не вводится и не отправляется. В проверочном сценарии после звонка служба может открыть поиск, ввести номер и перейти в результат — но не вводит текст сообщения и не нажимает отправку. Если номер или элементы недоступны службе, автоматизация для этого экрана не поддерживается.")
         button("3. Сохранить найденный профиль интерфейса") {
-            val c = MaxUiService.candidate
-            if (c == null || SystemClock.elapsedRealtime() - c.at > 60_000) { toast("Подходящий экран не найден. Не будем угадывать элементы — нужна проверка интерфейса этой версии MAX."); return@button }
+            MaxUiService.endProfileProbe()
+            val c = MaxUiService.usableCandidate(this)
+            if (c == null) {
+                val reason = if (MaxUiService.candidate != null) fi.callshift.app.domain.MaxProfileCapture.Issue.EXPIRED.explanation else MaxUiService.captureIssue.explanation
+                AlertDialog.Builder(this).setTitle("Почему профиль не сохранён").setMessage(reason + "\n\nОтчёт настройки уже записан. Нажмите «Посмотреть / скопировать отчёт» ниже. Для образца нужен экран переписки с полем сообщения, не карточка контакта.")
+                    .setPositiveButton("Понятно", null).show()
+                return@button
+            }
             AlertDialog.Builder(this).setTitle("Проверка профиля")
                 .setMessage("Шапка образца: ${c.phone}. Сохраняются только элементы интерфейса, не привязка человека. Если в шапке имя, при каждой попытке номер будет проверяться в карточке контакта. Сохранение выключит реальную отправку.")
                 .setPositiveButton("Сохранить") { _, _ ->
-                    runCatching { store.profile(c.header, c.input, c.version); store.modes(true, false) }
+                    runCatching {
+                        check(MaxUiService.usableCandidate(this) == c) { "Образец изменился или устарел" }
+                        store.profile(c.header, c.input, c.version); store.modes(true, false)
+                    }.onSuccess { toast("Профиль сохранён. Включена только проверка без отправки.") }
                         .onFailure { toast("Не удалось сохранить") }
                     refresh()
                 }.setNegativeButton("Отмена", null).show()
@@ -91,10 +98,14 @@ class MaxUiActivity : AppCompatActivity() {
         button("Очистить и закончить диагностику") { MaxUiService.diagnostics.clear(); toast("Отчёт очищен. Реальная отправка остаётся выключенной."); refresh() }
         setContentView(ui.scroll)
     }
-    override fun onResume() { super.onResume(); if (::status.isInitialized) refresh() }
+    override fun onResume() {
+        super.onResume()
+        MaxUiService.endProfileProbe()
+        if (::status.isInitialized) refresh()
+    }
     private fun refresh() {
-        val c = MaxUiService.candidate?.takeIf { SystemClock.elapsedRealtime() - it.at <= 60_000 }
-        status.text = "Служба: ${if (MaxUiService.connected) "подключена" else "не подключена"}\nРежим: ${if (!store.enabled) "выключен" else if (store.live) "реальная отправка" else "проверка без отправки"}\nПрофиль MAX: ${store.version}\nПоследний образец: ${c?.phone ?: "подходящий экран не найден"}"
+        val c = MaxUiService.usableCandidate(this)
+        status.text = "Служба: ${if (MaxUiService.connected) "подключена" else "не подключена"}\nРежим: ${if (!store.enabled) "выключен" else if (store.live) "реальная отправка" else "проверка без отправки"}\nПрофиль MAX: ${store.version}\nПоследний образец: ${c?.phone ?: "нет"}\n${if (c != null) "Образец найден — нажмите «Сохранить»" else MaxUiService.captureIssue.explanation}"
     }
     private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_LONG).show()
 }

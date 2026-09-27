@@ -9,6 +9,7 @@ import android.view.accessibility.AccessibilityNodeInfo as Node
 import fi.callshift.app.CallShiftApp
 import fi.callshift.app.domain.MaxUiDiagnostics
 import fi.callshift.app.domain.MaxUiPolicy
+import fi.callshift.app.domain.MaxProfileCapture
 import fi.callshift.app.domain.MaxProfilePolicy
 import fi.callshift.app.domain.MaxSearchPolicy
 import fi.callshift.app.forward.CallEvent
@@ -32,6 +33,13 @@ class MaxUiService : AccessibilityService() {
     private var pending: Pending? = null
     private var busy = false
     private val tick = Runnable { step() }
+    private val probeTick = object : Runnable {
+        override fun run() {
+            if (SystemClock.elapsedRealtime() >= probeUntil) { probeUntil = 0; return }
+            runCatching { capture() }.onFailure { captureState(MaxProfileCapture.Issue.ERROR) }
+            main.postDelayed(this, 750)
+        }
+    }
     private val timeout = Runnable { finish("BLOCKED", "Время ожидания MAX истекло. Повтора не будет; проверьте черновик вручную") }
 
     private val logs = kotlinx.coroutines.channels.Channel<CallEvent>(kotlinx.coroutines.channels.Channel.UNLIMITED)
@@ -46,13 +54,31 @@ class MaxUiService : AccessibilityService() {
     }
     override fun onInterrupt() { stop("Служба прервана") }
     override fun onDestroy() { stop("Служба отключена"); instance = null; logs.close(); super.onDestroy() }
-    fun stop(reason: String) { finish("BLOCKED", reason); runCatching { store.modes(false, false) } }
+    fun stop(reason: String) {
+        endProbe()
+        finish("BLOCKED", reason)
+        runCatching { store.modes(false, false) }
+    }
+    private fun endProbe() { main.removeCallbacks(probeTick); probeUntil = 0 }
+    private fun startProbe() {
+        stop("Отправка остановлена для настройки интерфейса")
+        candidate = null
+        store.clearStaged()
+        diagnostics.start(60_000)
+        probeUntil = SystemClock.elapsedRealtime() + 60_000
+        captureState(MaxProfileCapture.Issue.WAITING)
+        main.post(probeTick)
+    }
+    private fun captureState(issue: MaxProfileCapture.Issue) {
+        captureIssue = issue
+        diagnostics.recordCapture(issue, version(), unlocked(), connected)
+    }
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.packageName?.toString() != MaxUiPolicy.PACKAGE) return
         if (pending?.profile?.returnedAt != null && event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
             finish("BLOCKED", "Действие пользователя изменило проверенный экран; отправка остановлена"); return
         }
-        if (pending == null && SystemClock.elapsedRealtime() < probeUntil) capture()
+        // Profile probing polls independently: quiet MAX screens need not emit events.
         if (pending == null && diagnostics.active()) trace(MaxUiDiagnostics.Stage.OBSERVE)
         if (pending != null && !busy) { main.removeCallbacks(tick); main.postDelayed(tick, 300) }
     }
@@ -86,15 +112,34 @@ class MaxUiService : AccessibilityService() {
         return toolbar
     }
     private fun capture() {
-        val root = rootInActiveWindow ?: return
-        if (!unlocked() || root.packageName?.toString() != MaxUiPolicy.PACKAGE) return
+        if (!unlocked()) { captureState(MaxProfileCapture.Issue.LOCKED); return }
+        val root = rootInActiveWindow ?: run { captureState(MaxProfileCapture.Issue.NO_ROOT); return }
+        if (root.packageName?.toString() != MaxUiPolicy.PACKAGE) { captureState(MaxProfileCapture.Issue.OTHER_APP); return }
         val all = nodes(root)
-        val headers = all.filter { header(it) && !it.viewIdResourceName.isNullOrBlank() }
-        val h = headers.filter { MaxUiPolicy.phone(it.text.toString()) != null }.singleOrNull()
-            ?: headers.filter { MaxProfilePolicy.titleId(it.viewIdResourceName) }.singleOrNull()
-            ?: headers.singleOrNull() ?: return
-        val input = all.filter { it.isVisibleToUser && it.isEnabled && it.isEditable && !it.isPassword && !it.viewIdResourceName.isNullOrBlank() }.singleOrNull() ?: return
-        candidate = Profile(h.viewIdResourceName, input.viewIdResourceName, version(), MaxUiPolicy.phone(h.text.toString()) ?: "имя (не экспортируется)", SystemClock.elapsedRealtime())
+        trace(MaxUiDiagnostics.Stage.PROBE, all)
+        val headers = all.mapIndexedNotNull { index, node ->
+            if (!header(node)) null else MaxProfileCapture.Header(index, !node.viewIdResourceName.isNullOrBlank(),
+                MaxUiPolicy.phone(node.text.toString()) != null, MaxProfilePolicy.titleId(node.viewIdResourceName.orEmpty()))
+        }
+        val inputs = all.mapIndexedNotNull { index, node ->
+            if (!node.isVisibleToUser || !node.isEnabled || !node.isEditable || node.isPassword) null
+            else MaxProfileCapture.Input(index, !node.viewIdResourceName.isNullOrBlank())
+        }
+        val selection = MaxProfileCapture.select(headers, inputs)
+        captureState(selection.issue)
+        if (selection.issue != MaxProfileCapture.Issue.READY) return
+        val h = all[selection.headerIndex!!]
+        val input = all[selection.inputIndex!!]
+        if (all.count { header(it) && it.viewIdResourceName == h.viewIdResourceName } != 1) {
+            captureState(MaxProfileCapture.Issue.AMBIGUOUS_HEADER); return
+        }
+        val previous = candidate
+        val next = Profile(h.viewIdResourceName, input.viewIdResourceName, version(),
+            MaxUiPolicy.phone(h.text.toString()) ?: "имя (не экспортируется)", SystemClock.elapsedRealtime())
+        if (previous == null || previous.header != next.header || previous.input != next.input || next.at - previous.at > 5000) {
+            store.stage(next.header, next.input, next.version, next.at)
+            candidate = next
+        }
     }
     private fun begin(event: CallEvent, number: String, text: String, contactName: String?) {
         trace(MaxUiDiagnostics.Stage.START)
@@ -403,9 +448,33 @@ class MaxUiService : AccessibilityService() {
     companion object {
         val diagnostics = MaxUiDiagnostics { SystemClock.elapsedRealtime() }
         @Volatile private var instance: MaxUiService? = null
+        @Volatile var captureIssue = MaxProfileCapture.Issue.WAITING
+            private set
         @Volatile var probeUntil = 0L
+            private set
         @Volatile var candidate: Profile? = null
         val connected get() = instance != null
+        fun startProfileProbe(): Boolean {
+            val service = instance
+            if (service == null) {
+                captureIssue = MaxProfileCapture.Issue.SERVICE_UNAVAILABLE
+                diagnostics.start(60_000)
+                diagnostics.recordCapture(captureIssue, -1, false, false)
+                return false
+            }
+            check(Looper.myLooper() == Looper.getMainLooper())
+            return runCatching { service.startProbe(); true }.getOrElse {
+                service.endProbe()
+                captureIssue = MaxProfileCapture.Issue.ERROR
+                false
+            }
+        }
+        fun endProfileProbe() { instance?.endProbe() }
+        fun usableCandidate(context: android.content.Context): Profile? {
+            val c = candidate ?: MaxUiStore(context).staged() ?: return null
+            val installed = runCatching { context.packageManager.getPackageInfo(MaxUiPolicy.PACKAGE, 0).longVersionCode }.getOrDefault(-1)
+            return c.takeIf { MaxProfileCapture.fresh(SystemClock.elapsedRealtime(), c.at, c.version, installed) }
+        }
         fun collectDiagnostics(forCall: Boolean) {
             val service = instance ?: return
             val begin = Runnable {

@@ -1,5 +1,5 @@
-name: Publish signed CallShift 0.8.3-max-profile
-# Includes final toolbar/profile navigation safety checks and synthetic test fixtures.
+name: Publish signed CallShift 0.8.4-max-setup
+# Includes profile setup, passive polling and capture-refusal diagnostics.
 on:
   push:
     branches: [arena/01a0d923-call-shift]
@@ -26,7 +26,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test "$(gh release view v0.8.3-max-profile --json isDraft --jq '.isDraft')" = true || { echo '::error::Refusing to replace a published release.'; exit 1; }
+          test "$(gh release view v0.8.4-max-setup --json isDraft --jq '.isDraft')" = true || { echo '::error::Refusing to replace a published release.'; exit 1; }
       - name: Download the original signed APK as identity reference
         uses: actions/download-artifact@v4
         with:
@@ -47,7 +47,7 @@ jobs:
           CALLSHIFT_KEYSTORE: ${{ runner.temp }}/callshift-signing.p12
         run: |
           chmod +x gradlew
-          ./gradlew :app:testStandardDebugUnitTest :app:assembleStandardRelease -PrequireReleaseSigning=true -PversionCode=35 -PversionName=0.8.3-max-profile --no-daemon
+          ./gradlew :app:testStandardDebugUnitTest :app:assembleStandardRelease -PrequireReleaseSigning=true -PversionCode=36 -PversionName=0.8.4-max-setup --no-daemon
       - name: Verify original and new APK signatures against restored certificate
         shell: bash
         run: |
@@ -59,16 +59,16 @@ jobs:
           "$signer" verify --verbose --print-certs "${originals[0]}" > "$RUNNER_TEMP/original-signature.txt"
           grep -Fi "certificate SHA-256 digest: $expected" "$RUNNER_TEMP/original-signature.txt"
           mkdir -p release-public
-          cp app/build/outputs/apk/standard/release/app-standard-release.apk release-public/CallShift-0.8.3-max-profile.apk
+          cp app/build/outputs/apk/standard/release/app-standard-release.apk release-public/CallShift-0.8.4-max-setup.apk
           cp "$RUNNER_TEMP/callshift-certificate.pem" release-public/certificate.pem
-          "$signer" verify --verbose --print-certs release-public/CallShift-0.8.3-max-profile.apk > release-public/signature-verification.txt
+          "$signer" verify --verbose --print-certs release-public/CallShift-0.8.4-max-setup.apk > release-public/signature-verification.txt
           grep -Fi "certificate SHA-256 digest: $expected" release-public/signature-verification.txt
-          (cd release-public && sha256sum CallShift-0.8.3-max-profile.apk > SHA256SUMS.txt)
+          (cd release-public && sha256sum CallShift-0.8.4-max-setup.apk > SHA256SUMS.txt)
           echo "Certificate SHA-256: $expected" >> "$GITHUB_STEP_SUMMARY"
       - name: Retain only public release files
         uses: actions/upload-artifact@v4
         with:
-          name: CallShift-0.8.3-max-profile-verified-release
+          name: CallShift-0.8.4-max-setup-verified-release
           path: release-public/
           if-no-files-found: error
       - name: Upload APK and publish the existing draft
@@ -77,9 +77,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(gh release view v0.8.3-max-profile --json isDraft --jq '.isDraft')" = true
-          gh release upload v0.8.3-max-profile release-public/CallShift-0.8.3-max-profile.apk release-public/certificate.pem release-public/signature-verification.txt release-public/SHA256SUMS.txt --clobber
-          gh release edit v0.8.3-max-profile --target "$GITHUB_SHA" --title 'CallShift 0.8.3-max-profile' --notes-file docs/RELEASE_MAX_PROFILE.md --draft=false --prerelease --latest=false
+          test "$(gh release view v0.8.4-max-setup --json isDraft --jq '.isDraft')" = true
+          gh release upload v0.8.4-max-setup release-public/CallShift-0.8.4-max-setup.apk release-public/certificate.pem release-public/signature-verification.txt release-public/SHA256SUMS.txt --clobber
+          gh release edit v0.8.4-max-setup --target "$GITHUB_SHA" --title 'CallShift 0.8.4-max-setup' --notes-file docs/RELEASE_MAX_SETUP.md --draft=false --prerelease --latest=false
       - name: Remove private material
         if: always()
         run: rm -f "$RUNNER_TEMP/callshift-signing.p12"

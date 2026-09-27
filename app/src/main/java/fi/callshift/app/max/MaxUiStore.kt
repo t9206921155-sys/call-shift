@@ -18,6 +18,20 @@ class MaxUiStore(context: Context) {
         check(p.edit().putString("header", header).putString("input", input).putLong("version", version)
             .putBoolean("live", false).commit())
     }
+    // Temporary interface metadata only: survives process recreation, never stores contact text.
+    fun clearStaged() { check(p.edit().remove("staged_header").remove("staged_input").remove("staged_wall").commit()) }
+    fun stage(header: String, input: String, version: Long, elapsed: Long) {
+        check(p.edit().putString("staged_header", header).putString("staged_input", input)
+            .putLong("staged_version", version).putLong("staged_elapsed", elapsed)
+            .putLong("staged_wall", System.currentTimeMillis()).commit())
+    }
+    fun staged(): MaxUiService.Profile? {
+        val age = System.currentTimeMillis() - p.getLong("staged_wall", 0)
+        if (age !in 0..600_000) return null
+        val h = p.getString("staged_header", null) ?: return null
+        val i = p.getString("staged_input", null) ?: return null
+        return MaxUiService.Profile(h, i, p.getLong("staged_version", -1), "восстановленный образец (без номера)", p.getLong("staged_elapsed", -1))
+    }
     /** Reserve before editing/clicking. Errors and process death never cause an automatic retry. */
     @Synchronized fun reserve(): Boolean {
         val entries = Json.decodeFromString<List<SmsSafety.Reservation>>(p.getString("attempts", "[]")!!)
