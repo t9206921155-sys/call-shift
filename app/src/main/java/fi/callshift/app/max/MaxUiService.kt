@@ -106,6 +106,8 @@ class MaxUiService : AccessibilityService() {
         if (pending == null && diagnostics.active()) trace(MaxUiDiagnostics.Stage.OBSERVE)
         if (pending != null && !busy) { main.removeCallbacks(tick); main.postDelayed(tick, 300) }
     }
+    private fun editableText(n: Node?): String = MaxUiPolicy.editableText(
+        n?.text?.toString(), n?.hintText?.toString(), n?.isShowingHintText == true)
     private fun unlocked() = getSystemService(PowerManager::class.java).isInteractive &&
         !getSystemService(KeyguardManager::class.java).isKeyguardLocked
     private fun version(): Long = runCatching { packageManager.getPackageInfo(MaxUiPolicy.PACKAGE, 0).longVersionCode }.getOrDefault(-1)
@@ -221,7 +223,7 @@ class MaxUiService : AccessibilityService() {
             val h = all.filter { it.viewIdResourceName == store.header && header(it) }
             val inputs = all.filter { it.viewIdResourceName == store.input && it.isEditable && it.isEnabled && it.isVisibleToUser && !it.isPassword }
             val input = inputs.singleOrNull()
-            val draft = input?.text?.toString().orEmpty()
+            val draft = editableText(input)
             if (handleProfile(p, root, all, h.singleOrNull(), input)) return
             if (p.returningSearch) {
                 if (searchFields(all).singleOrNull()?.text?.toString() != p.query) {
@@ -267,7 +269,7 @@ class MaxUiService : AccessibilityService() {
                         val ns = nodes(fresh)
                         val recipient = ns.filter { it.viewIdResourceName == store.header && header(it) }.singleOrNull()
                         val field = ns.filter { it.viewIdResourceName == store.input && it.isVisibleToUser && it.isEnabled && it.isEditable && !it.isPassword }.singleOrNull()
-                        if (!MaxSearchPolicy.equivalent(checkedRecipient(p, recipient, field), p.number) || field == null || !field.text.isNullOrEmpty()) {
+                        if (!MaxSearchPolicy.equivalent(checkedRecipient(p, recipient, field), p.number) || field == null || editableText(field).isNotEmpty()) {
                             finish("BLOCKED", "Получатель или черновик изменился до ввода"); return@withContext
                         }
                         val args = Bundle().apply { putCharSequence(Node.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, p.text) }
@@ -397,7 +399,7 @@ class MaxUiService : AccessibilityService() {
         }
         trace(MaxUiDiagnostics.Stage.PROFILE_RETURN, all)
         if (title == null || input == null) { main.postDelayed(tick, 400); return true }
-        if (title != visit.title || input != visit.editor || root.windowId != visit.window || title.text?.toString() != visit.caption || !input.text.isNullOrEmpty()) {
+        if (title != visit.title || input != visit.editor || root.windowId != visit.window || title.text?.toString() != visit.caption || editableText(input).isNotEmpty()) {
             finish("BLOCKED", "После карточки исходный чат не подтверждён или изменён черновик"); return true
         }
         if (visit.verified) {
@@ -462,7 +464,7 @@ class MaxUiService : AccessibilityService() {
             if (!button.performAction(Node.ACTION_CLICK)) { finish("BLOCKED", "MAX не принял открытие поиска"); return }
             waitForUi(); return
         }
-        val queryText = field.text?.toString().orEmpty()
+        val queryText = editableText(field)
         val queries = MaxSearchPolicy.queries(p.number) + listOfNotNull(p.contactName)
         if (p.query == null) {
             if (queryText.isNotEmpty()) { finish("BLOCKED", "В поиске уже введён текст. Он не будет заменён автоматически"); return }

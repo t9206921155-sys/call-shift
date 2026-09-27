@@ -5,6 +5,12 @@ import org.junit.Test
 
 class MaxUiPolicyTest {
     private val ok = MaxUiPolicy.Check(true, true, "ru.oneme.app", true, 1, "+79991234567", "+79991234567", 1, "")
+    @Test fun explicitHintIsNotDraftButMatchingUserTextIsPreserved() {
+        assertEquals("", MaxUiPolicy.editableText("Сообщение", "Сообщение", true))
+        assertEquals("Сообщение", MaxUiPolicy.editableText("Сообщение", "Сообщение", false))
+        assertEquals("Черновик", MaxUiPolicy.editableText("Черновик", "Сообщение", true))
+        assertEquals("Сообщение", MaxUiPolicy.editableText("Сообщение", null, true))
+    }
     @Test fun strictPhoneIdentityNotDisplayNames() {
         assertEquals("+79991234567", MaxUiPolicy.phone("8 (999) 123-45-67"))
         assertEquals("+79991234567", MaxUiPolicy.phone("+7 999 123 45 67"))

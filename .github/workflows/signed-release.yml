@@ -1,5 +1,5 @@
 name: Publish signed CallShift 0.8.5-max-routing
-# Generic opt-in system chooser routing, per-account SIM keys and fail-closed selection.
+# Generic opt-in system chooser routing, per-account SIM keys, explicit hint handling and fail-closed selection.
 on:
   push:
     branches: [arena/01a0d923-call-shift]
