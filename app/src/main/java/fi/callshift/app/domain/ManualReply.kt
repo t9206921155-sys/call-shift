@@ -3,6 +3,13 @@ package fi.callshift.app.domain
 import java.net.URLEncoder
 
 object ManualReply {
+    fun packages(channel: String): List<String> = when (channel) {
+        "WHATSAPP" -> listOf("com.whatsapp")
+        "TELEGRAM" -> listOf("org.telegram.messenger", "org.telegram.messenger.web")
+        "MAX" -> listOf("ru.oneme.app")
+        else -> emptyList()
+    }
+
     fun valid(channel: String?, number: String?, text: String?): Boolean =
         channel != null && ReplyChannel.isManual(channel) && number != null &&
             ReplyChannel.isPhoneAddress(number) && !text.isNullOrBlank() && text.length <= 201
