@@ -47,6 +47,12 @@
         android:name="android.hardware.touchscreen"
         android:required="false" />
 
+    <queries>
+        <package android:name="com.whatsapp" />
+        <package android:name="org.telegram.messenger" />
+        <package android:name="org.telegram.messenger.web" />
+        <package android:name="ru.oneme.app" />
+    </queries>
     <application
         android:name=".CallShiftApp"
         android:allowBackup="false"

@@ -94,14 +94,17 @@ class SmsAutoReplier(
                     return
                 }
                 if (channel != "SMS") {
+                    val draft = event(ctx, decision, "PENDING_USER", null,
+                        "$channel: нужна ручная отправка. Откройте ответ из журнала и проверьте получателя. Сообщение не отправлено.")
+                        .copy(eventId = java.util.UUID.randomUUID().toString(), replyChannel = channel, replyText = r.text)
+                    // Snapshot belongs to this attempt, never to the subsequently edited rule.
+                    recorder.record(draft)
                     try {
                         fi.callshift.app.messaging.MessengerReply.offer(appContext, r.number, r.text, channel)
                         prefs.edit().putLong(key, now).apply()
-                        record(ctx, decision, "PENDING_USER", null,
-                            "$channel: подготовлен ответ, требуется выбор/проверка получателя и ручная отправка. Сообщение не отправлено.")
                     } catch (error: Exception) {
-                        record(ctx, decision, "FAILED", "messenger_draft_failed",
-                            "$channel: ${error.message ?: "Не удалось подготовить ответ"}. SMS не отправлялась.")
+                        recorder.record(draft.copy(result = "FAILED", errorCode = "messenger_draft_failed",
+                            errorMessage = "$channel: уведомление недоступно. Ответ можно открыть из журнала. Сообщение не отправлено."))
                     }
                     return
                 }

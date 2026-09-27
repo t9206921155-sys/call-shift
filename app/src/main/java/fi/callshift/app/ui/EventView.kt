@@ -9,7 +9,7 @@ object EventView {
         REJECTED("Сброшен", "⊘", 0xFFE57373.toInt()),
         SILENCED("Без звука", "🔕", 0xFFFFB74D.toInt()),
         PASSED("Прошёл", "✓", 0xFF81C784.toInt()),
-        REPLY_DRAFT("Ответ ждёт отправки", "✎", 0xFFFFB74D.toInt()),
+        REPLY_DRAFT("Нужна ручная отправка", "✎", 0xFFFFB74D.toInt()),
         REPLY_SKIPPED("Ответ не подготовлен", "✎", 0xFF90A4AE.toInt()),
         TELEGRAM_PENDING("Telegram: ожидание", "✉", 0xFFFFB74D.toInt()),
         TELEGRAM_SENT("Telegram: отправлено", "✉", 0xFF64B5F6.toInt()),

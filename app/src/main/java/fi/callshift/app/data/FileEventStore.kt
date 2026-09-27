@@ -144,6 +144,8 @@ class FileEventStore(
     }
 
     private fun encode(e: CallEvent): JSONObject = JSONObject().apply {
+        put("replyChannel", e.replyChannel ?: JSONObject.NULL)
+        put("replyText", e.replyText ?: JSONObject.NULL)
         put("eventId", e.eventId ?: JSONObject.NULL)
         put("ts", e.ts)
         put("direction", e.direction)
@@ -167,6 +169,8 @@ class FileEventStore(
         if (o == null) return null
         return try {
             CallEvent(
+                replyChannel = if (o.isNull("replyChannel")) null else o.optString("replyChannel").ifBlank { null },
+                replyText = if (o.isNull("replyText")) null else o.optString("replyText").ifBlank { null },
                 eventId = if (o.isNull("eventId")) null else o.optString("eventId"),
                 ts = o.optLong("ts"),
                 direction = o.optString("direction", "INCOMING"),

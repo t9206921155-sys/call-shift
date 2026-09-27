@@ -176,6 +176,20 @@ class LogActivity : AppCompatActivity() {
                 Toast.makeText(this, "Добавлено в белый список", Toast.LENGTH_SHORT).show()
             },
         )
+        if (e.strategy == "MESSENGER_DRAFT") {
+            if (fi.callshift.app.domain.ManualReply.valid(e.replyChannel, number, e.replyText)) {
+                actions.add(0, "Открыть ответ: ${fi.callshift.app.domain.ReplyChannel.labels[e.replyChannel]}" to {
+                    startActivity(Intent(this, fi.callshift.app.messaging.MessengerReplyActivity::class.java)
+                        .putExtra("number", number).putExtra("text", e.replyText).putExtra("channel", e.replyChannel))
+                })
+            } else {
+                actions.add(0, "Почему нельзя открыть старый ответ?" to {
+                    AlertDialog.Builder(this).setMessage("В старой версии текст и канал не сохранялись в журнале. Восстановить тот ответ достоверно нельзя. Новые попытки будут доступны здесь.")
+                        .setPositiveButton("Понятно", null).show()
+                    Unit
+                })
+            }
+        }
         e.ruleId?.let { id ->
             actions += "Открыть правило" to {
                 startActivity(Intent(this, RuleEditActivity::class.java).putExtra(RuleEditActivity.EXTRA_RULE_ID, id))

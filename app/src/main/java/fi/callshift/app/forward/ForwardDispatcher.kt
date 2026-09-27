@@ -37,6 +37,8 @@ data class CallEvent(
     val forwardMs: Long,
     val totalMs: Long,
     val eventId: String? = null,
+    val replyChannel: String? = null,
+    val replyText: String? = null,
 )
 
 /**
