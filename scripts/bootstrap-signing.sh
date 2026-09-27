@@ -26,6 +26,10 @@ keytool -exportcert -rfc -keystore "$key" -storepass:env CALLSHIFT_STORE_PASSWOR
 openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000 -md sha256 \
   -in "$key" -pass env:CALLSHIFT_STORE_PASSWORD | base64 -w0 > signing-recovery/CALLSHIFT_SIGNING_KEY.txt
 printf '\n' >> signing-recovery/CALLSHIFT_SIGNING_KEY.txt
+# Verify recovery before uploading anything or signing an APK. Never print bytes.
+base64 -d signing-recovery/CALLSHIFT_SIGNING_KEY.txt | \
+  openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 \
+    -pass env:CALLSHIFT_STORE_PASSWORD | cmp - "$key"
 cat > signing-recovery/READ-ME.txt <<'TEXT'
 This archive contains an ENCRYPTED private signing-key backup, not a plaintext key.
 The password is CALLSHIFT_STORE_PASSWORD, which you saved separately.
