@@ -8,7 +8,7 @@ class MaxUiPolicyTest {
     @Test fun strictPhoneIdentityNotDisplayNames() {
         assertEquals("+79991234567", MaxUiPolicy.phone("8 (999) 123-45-67"))
         assertEquals("+79991234567", MaxUiPolicy.phone("+7 999 123 45 67"))
-        for (s in listOf("Рабочий", "Позвони +79991234567", "112", "79991234567", "+79991234567 / +78881234567")) assertNull(s, MaxUiPolicy.phone(s))
+        for (s in listOf("Рабочий", "Позвони +79991234567", "112", "+79991234567 / +78881234567")) assertNull(s, MaxUiPolicy.phone(s))
     }
     @Test fun onlyFullyVerifiedStatePasses() {
         assertNull(MaxUiPolicy.block(ok))

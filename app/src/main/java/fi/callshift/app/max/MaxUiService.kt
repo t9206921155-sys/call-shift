@@ -8,17 +8,20 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo as Node
 import fi.callshift.app.CallShiftApp
 import fi.callshift.app.domain.MaxUiPolicy
+import fi.callshift.app.domain.MaxSearchPolicy
 import fi.callshift.app.forward.CallEvent
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 
-/** Deterministic, opt-in UI interaction. Never searches chats or clicks coordinates. */
+/** Opt-in bounded phone search and UI interaction. Never matches names or clicks coordinates. */
 class MaxUiService : AccessibilityService() {
     private val main = Handler(Looper.getMainLooper())
     private val store by lazy { MaxUiStore(this) }
     private val app by lazy { CallShiftApp.from(this) }
-    private data class Pending(val event: CallEvent, val number: String, val text: String, val dry: Boolean, var edited: Boolean = false)
+    private data class Pending(val event: CallEvent, val number: String, val text: String, val dry: Boolean,
+        var edited: Boolean = false, var searchClicked: Boolean = false, var query: String? = null,
+        var queryAt: Long = 0, var queryIndex: Int = 0, var selectedAt: Long? = null)
     private var pending: Pending? = null
     private var busy = false
     private val tick = Runnable { step() }
@@ -84,9 +87,11 @@ class MaxUiService : AccessibilityService() {
         if (!store.enabled || !unlocked() || store.version != version() || store.header.isEmpty() || store.input.isEmpty()) {
             log(event, "BLOCKED", "MAX UI: включите проверку, настройте профиль и разблокируйте экран"); return
         }
-        pending = Pending(event, number, text, !store.live)
+        val canonical = MaxUiPolicy.phone(number)
+        if (canonical == null) { log(event, "BLOCKED", "Номер звонящего некорректен"); return }
+        pending = Pending(event, canonical, text, !store.live)
         log(event, "UI_PENDING", "Ожидаем проверку открытого чата MAX. Отправка не подтверждена")
-        main.postDelayed(timeout, 15_000)
+        main.postDelayed(timeout, 30_000)
         try {
             val launch = packageManager.getLaunchIntentForPackage(MaxUiPolicy.PACKAGE) ?: error("MAX отсутствует")
             startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -99,11 +104,23 @@ class MaxUiService : AccessibilityService() {
         try {
             val root = rootInActiveWindow ?: return
             if (root.packageName?.toString() != MaxUiPolicy.PACKAGE) return // timeout, not another application
+            if (!store.enabled || !unlocked() || !app.settings.masterEnabled || store.version != version()) {
+                finish("BLOCKED", "MAX: режим выключен, экран заблокирован или версия интерфейса изменилась"); return
+            }
+            if (!p.dry && !store.live) { finish("BLOCKED", "Реальная отправка выключена"); return }
             val all = nodes(root)
             val h = all.filter { it.viewIdResourceName == store.header && header(it) }
             val inputs = all.filter { it.viewIdResourceName == store.input && it.isEditable && it.isEnabled && it.isVisibleToUser && !it.isPassword }
             val input = inputs.singleOrNull()
             val draft = input?.text?.toString().orEmpty()
+            if (!p.edited) {
+                val correctChat = h.size == 1 && MaxSearchPolicy.equivalent(h.single().text?.toString(), p.number)
+                if (!correctChat || (p.query != null && p.selectedAt == null) || searchFields(all).isNotEmpty()) {
+                    if (draft.isNotEmpty()) { finish("BLOCKED", "В открытом чате есть черновик — поиск не запускается"); return }
+                    search(p, root, all)
+                    return
+                }
+            }
             val reason = MaxUiPolicy.block(MaxUiPolicy.Check(store.enabled, unlocked(), root.packageName.toString(),
                 store.version == version(), h.size, h.singleOrNull()?.text?.toString()?.let(MaxUiPolicy::phone), p.number,
                 inputs.size, if (p.edited && draft == p.text) "" else draft))
@@ -127,7 +144,7 @@ class MaxUiService : AccessibilityService() {
                         val ns = nodes(fresh)
                         val recipient = ns.filter { it.viewIdResourceName == store.header && header(it) }.singleOrNull()
                         val field = ns.filter { it.viewIdResourceName == store.input && it.isVisibleToUser && it.isEnabled && it.isEditable && !it.isPassword }.singleOrNull()
-                        if (MaxUiPolicy.phone(recipient?.text?.toString().orEmpty()) != p.number || field == null || !field.text.isNullOrEmpty()) {
+                        if (!MaxSearchPolicy.equivalent(recipient?.text?.toString(), p.number) || field == null || !field.text.isNullOrEmpty()) {
                             finish("BLOCKED", "Получатель или черновик изменился до ввода"); return@withContext
                         }
                         val args = Bundle().apply { putCharSequence(Node.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, p.text) }
@@ -154,6 +171,89 @@ class MaxUiService : AccessibilityService() {
             log(p.event, "UI_UNKNOWN", if (clicked) "Нажата кнопка MAX. Отправка и доставка НЕ подтверждены; повторов нет"
                 else "Результат нажатия MAX неизвестен. Проверьте чат вручную; повторов нет")
         } catch (_: Exception) { finish("UI_UNKNOWN", "Сценарий MAX остановлен с неопределённым результатом. Проверьте чат; повторов нет") }
+    }
+    private fun searchFields(all: List<Node>) = all.filter {
+        it.isVisibleToUser && it.isEnabled && it.isEditable && !it.isPassword &&
+            it.viewIdResourceName != store.input &&
+            (MaxSearchPolicy.isSearchLabel(it.hintText?.toString()) ||
+                MaxSearchPolicy.isSearchLabel(it.contentDescription?.toString()))
+    }
+    private fun collection(n: Node): Boolean = n.isScrollable || n.collectionInfo != null ||
+        listOf("RecyclerView", "ListView", "ScrollView").any { n.className?.toString()?.contains(it) == true }
+    /** Clickable result row must be inside a list, not a phone echoed in the search field. */
+    private fun resultRow(phone: Node): Node? {
+        if (!phone.isVisibleToUser || phone.isEditable || phone.isPassword) return null
+        var current: Node? = phone
+        var clickable: Node? = null
+        repeat(12) {
+            val n = current ?: return null
+            if (collection(n)) return clickable
+            if (n.isClickable && n.isVisibleToUser && n.isEnabled && !n.isEditable) clickable = n
+            current = n.parent
+        }
+        return null
+    }
+    private fun search(p: Pending, root: Node, all: List<Node>) {
+        val now = SystemClock.elapsedRealtime()
+        fun waitForUi() { main.removeCallbacks(tick); main.postDelayed(tick, 500) }
+        if (p.selectedAt != null) {
+            if (now - p.selectedAt!! < 1800) waitForUi()
+            else finish("BLOCKED", "Результат открыт, но номер в шапке чата не подтверждён. По имени отправлять нельзя")
+            return
+        }
+        val fields = searchFields(all)
+        if (fields.size > 1) { finish("BLOCKED", "Несколько полей поиска MAX — выбор остановлен"); return }
+        val field = fields.singleOrNull()
+        if (field == null) {
+            if (p.query != null) { finish("BLOCKED", "Экран поиска изменился без выбора результата"); return }
+            if (p.searchClicked) { waitForUi(); return }
+            val buttons = all.filter {
+                val rect = android.graphics.Rect().also { b -> it.getBoundsInScreen(b) }
+                it.isVisibleToUser && it.isEnabled && it.isClickable && !it.isEditable && !it.isPassword &&
+                    rect.bottom <= resources.displayMetrics.heightPixels / 3 &&
+                    (MaxSearchPolicy.isSearchLabel(it.contentDescription?.toString()) || MaxSearchPolicy.isSearchLabel(it.text?.toString()))
+            }
+            val button = buttons.singleOrNull()
+            if (button == null) { finish("BLOCKED", "Кнопка поиска MAX не определена однозначно. Требуется поддержка этого интерфейса"); return }
+            p.searchClicked = true
+            if (!button.performAction(Node.ACTION_CLICK)) { finish("BLOCKED", "MAX не принял открытие поиска"); return }
+            waitForUi(); return
+        }
+        val queryText = field.text?.toString().orEmpty()
+        val queries = MaxSearchPolicy.queries(p.number)
+        if (p.query == null) {
+            if (queryText.isNotEmpty()) { finish("BLOCKED", "В поиске уже введён текст. Он не будет заменён автоматически"); return }
+            p.query = queries.first()
+            p.queryAt = now
+            val args = Bundle().apply { putCharSequence(Node.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, p.query) }
+            if (!field.performAction(Node.ACTION_SET_TEXT, args)) { finish("BLOCKED", "MAX не принял номер для поиска"); return }
+            waitForUi(); return
+        }
+        if (queryText != p.query) { finish("BLOCKED", "Поисковый запрос изменился — сценарий остановлен"); return }
+        if (now - p.queryAt < 700) { waitForUi(); return }
+        val rows = all.filter {
+            !it.isEditable && !it.isPassword && it.isVisibleToUser && MaxSearchPolicy.equivalent(it.text?.toString(), p.number)
+        }.mapNotNull(::resultRow).distinct()
+        if (rows.size > 1) { finish("BLOCKED", "MAX показывает несколько результатов с этим номером — выбор неоднозначен"); return }
+        val row = rows.singleOrNull()
+        if (row != null) {
+            // Root, query and row must still be active. The opened chat is verified again.
+            if (!root.refresh() || rootInActiveWindow?.windowId != root.windowId || !field.refresh() || field.text?.toString() != p.query || !row.refresh()) {
+                finish("BLOCKED", "Результаты поиска изменились до выбора"); return
+            }
+            p.selectedAt = now
+            if (!row.performAction(Node.ACTION_CLICK)) { finish("BLOCKED", "MAX не открыл результат поиска"); return }
+            waitForUi(); return
+        }
+        if (now - p.queryAt < 4000) { waitForUi(); return }
+        if (p.queryIndex + 1 < queries.size) {
+            p.queryIndex++
+            p.query = queries[p.queryIndex]
+            p.queryAt = now
+            val args = Bundle().apply { putCharSequence(Node.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, p.query) }
+            if (!field.performAction(Node.ACTION_SET_TEXT, args)) { finish("BLOCKED", "MAX не принял другой формат номера"); return }
+            waitForUi()
+        } else finish("BLOCKED", "MAX не показал единственный результат с полным номером. Проверены эквивалентные форматы; по имени не выбираем")
     }
     private fun finish(result: String, message: String) {
         val p = pending

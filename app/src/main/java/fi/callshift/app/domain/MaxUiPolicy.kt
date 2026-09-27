@@ -6,9 +6,13 @@ object MaxUiPolicy {
     const val PACKAGE = "ru.oneme.app"
     fun phone(raw: String): String? {
         if (raw.isBlank() || raw.any { it !in "+0123456789 ()-.\u00a0" }) return null
+        val trimmed = raw.trim()
+        if (trimmed.count { it == '+' } > 1 || ('+' in trimmed && !trimmed.startsWith('+'))) return null
         val digits = raw.filter { it in '0'..'9' }
-        val canonical = if (digits.length == 11 && digits.startsWith("8")) "+7" + digits.drop(1)
-            else if (raw.trimStart().startsWith("+")) "+$digits" else return null
+        val canonical = if (trimmed.startsWith("+")) "+$digits"
+            else if (digits.length == 11 && digits.startsWith("8")) "+7" + digits.drop(1)
+            else if (digits.length == 11 && digits.startsWith("7")) "+$digits"
+            else return null
         return canonical.takeIf(ReplyChannel::isPhoneAddress)
     }
     data class Check(val enabled: Boolean, val unlocked: Boolean, val packageName: String,
@@ -19,7 +23,7 @@ object MaxUiPolicy {
         !c.unlocked -> "Экран выключен или заблокирован"
         c.packageName != PACKAGE -> "На экране не MAX"
         !c.versionMatches -> "MAX обновился или профиль интерфейса не настроен"
-        c.headerCount != 1 || c.headerPhone == null || c.headerPhone != c.expectedPhone -> "Номер в шапке чата не совпал. По имени получателя не выбираем"
+        c.headerCount != 1 || c.headerPhone == null || !MaxSearchPolicy.equivalent(c.headerPhone, c.expectedPhone) -> "Номер в шапке чата не совпал. По имени получателя не выбираем"
         c.inputCount != 1 -> "Поле сообщения не определено однозначно"
         c.draft.isNotEmpty() -> "В чате уже есть черновик — он не будет заменён"
         else -> null
