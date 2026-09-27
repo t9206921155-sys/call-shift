@@ -91,7 +91,7 @@ class MaxUiService : AccessibilityService() {
         val all = nodes(root)
         val headers = all.filter { header(it) && !it.viewIdResourceName.isNullOrBlank() }
         val h = headers.filter { MaxUiPolicy.phone(it.text.toString()) != null }.singleOrNull()
-            ?: headers.filter { it.viewIdResourceName.substringAfterLast('/').contains("title", true) }.singleOrNull()
+            ?: headers.filter { MaxProfilePolicy.titleId(it.viewIdResourceName) }.singleOrNull()
             ?: headers.singleOrNull() ?: return
         val input = all.filter { it.isVisibleToUser && it.isEnabled && it.isEditable && !it.isPassword && !it.viewIdResourceName.isNullOrBlank() }.singleOrNull() ?: return
         candidate = Profile(h.viewIdResourceName, input.viewIdResourceName, version(), MaxUiPolicy.phone(h.text.toString()) ?: "имя (не экспортируется)", SystemClock.elapsedRealtime())
@@ -246,6 +246,8 @@ class MaxUiService : AccessibilityService() {
         }
         return false to false
     }
+    private fun backWithinMax(): Boolean = unlocked() &&
+        rootInActiveWindow?.packageName?.toString() == MaxUiPolicy.PACKAGE && performGlobalAction(GLOBAL_ACTION_BACK)
     private fun handleProfile(p: Pending, root: Node, all: List<Node>, title: Node?, input: Node?): Boolean {
         val visit = p.profile ?: return false
         if (visit.returnedAt != null) return false
@@ -257,7 +259,7 @@ class MaxUiService : AccessibilityService() {
             if (!found) { main.postDelayed(tick, 400); return true }
             visit.verified = matches
             visit.returning = true
-            if (!performGlobalAction(GLOBAL_ACTION_BACK)) { finish("BLOCKED", "Не удалось вернуться из карточки"); return true }
+            if (!backWithinMax()) { finish("BLOCKED", "Не удалось вернуться из карточки"); return true }
             main.postDelayed(tick, 500); return true
         }
         trace(MaxUiDiagnostics.Stage.PROFILE_RETURN, all)
@@ -274,7 +276,7 @@ class MaxUiService : AccessibilityService() {
         p.skipCurrentProfile = true
         if (p.query != null && p.selectedAt != null) {
             p.returningSearch = true
-            if (!performGlobalAction(GLOBAL_ACTION_BACK)) { finish("BLOCKED", "Не удалось вернуться к поиску после несовпадения номера"); return true }
+            if (!backWithinMax()) { finish("BLOCKED", "Не удалось вернуться к поиску после несовпадения номера"); return true }
             main.postDelayed(tick, 500); return true
         }
         return false

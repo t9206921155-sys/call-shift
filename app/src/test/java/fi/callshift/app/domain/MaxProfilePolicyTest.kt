@@ -4,6 +4,11 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class MaxProfilePolicyTest {
+    @Test fun statusSubtitleIsNotMainTitle() {
+        assertTrue(MaxProfilePolicy.titleId("ru.oneme.app:id/toolbar_title"))
+        assertFalse(MaxProfilePolicy.titleId("ru.oneme.app:id/toolbar_subtitle"))
+    }
+
     @Test fun namedProfileUsesPhoneFieldNotDisplayName() {
         assertEquals("+79991234567", MaxProfilePolicy.verifiedPhone("Номер телефона", listOf("Номер телефона", "+7 999 123-45-67"), "89991234567"))
         assertEquals("+79991234567", MaxProfilePolicy.verifiedPhone("Phone number", listOf("8 (999) 123-45-67"), "+79991234567"))
