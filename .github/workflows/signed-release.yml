@@ -1,5 +1,5 @@
 name: Publish signed CallShift 0.8.6-max-picker
-# Foreground chooser window inspection, text-free refusal diagnostics and safe caption/icon rows.
+# Foreground chooser inspection, text-free diagnostics and a fresh window check before a single click.
 on:
   push:
     branches: [arena/01a0d923-call-shift]

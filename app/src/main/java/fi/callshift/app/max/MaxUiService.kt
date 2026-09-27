@@ -360,10 +360,17 @@ class MaxUiService : AccessibilityService() {
         if (target == null || !MaxRoutePolicy.matches(expected, actual.picker, target)) {
             finish("BLOCKED", "MAX: системное окно выбора изменилось. Повторите изучение окна и настройку маршрута SIM"); return false
         }
+        val button = actual.buttons[target]
+        val fresh = pickerRoot()
+        if (!unlocked() || !store.enabled || !app.settings.masterEnabled || fresh == null ||
+            fresh.windowId != root.windowId || fresh.packageName?.toString() != root.packageName?.toString() ||
+            button == null || !button.refresh() || !button.isVisibleToUser || !button.isEnabled || !button.isClickable) {
+            finish("BLOCKED", "MAX: системное окно выбора изменилось. Повторите изучение окна и настройку маршрута SIM"); return false
+        }
         trace(MaxUiDiagnostics.Stage.ROUTE_PICK)
         // Mark BEFORE action: uncertain result must never lead to a second click.
         p.routeClickedAt = now
-        if (actual.buttons[target]?.performAction(Node.ACTION_CLICK) != true) {
+        if (!button.performAction(Node.ACTION_CLICK)) {
             finish("BLOCKED", "MAX: система не приняла выбор аккаунта; повторного нажатия не будет"); return false
         }
         return waitUi()
