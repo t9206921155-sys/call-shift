@@ -13,3 +13,8 @@ keystore.properties
 
 # Резервная копия релизного ключа (ТЗ A-9): НЕ коммитить
 keys/
+
+# Signing recovery/private material
+signing-recovery/
+*.p12
+*.pfx

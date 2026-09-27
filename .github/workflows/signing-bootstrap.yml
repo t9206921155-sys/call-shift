@@ -1,0 +1,73 @@
+name: Create permanent signing key
+on:
+  push:
+    branches: [arena/01a0d923-call-shift]
+    paths: [.github/workflows/signing-bootstrap.yml, scripts/bootstrap-signing.sh]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: callshift-signing-bootstrap
+  cancel-in-progress: false
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Refuse to replace an existing signing identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          count=$(gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" --jq '.artifacts[] | select(.name == "CallShift-encrypted-key-backup") | .id' | wc -l)
+          test "$count" -eq 0 || { echo 'A key backup already exists. Restore it; do not generate a replacement.'; exit 1; }
+      - name: Generate key and encrypted recovery file
+        env:
+          CALLSHIFT_STORE_PASSWORD: ${{ secrets.CALLSHIFT_STORE_PASSWORD }}
+        run: bash scripts/bootstrap-signing.sh
+      # Only strongly encrypted ciphertext and the PUBLIC certificate are uploaded.
+      # Plain PKCS12 never leaves the runner temporary directory.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CallShift-encrypted-key-backup
+          path: signing-recovery/
+          retention-days: 90
+          if-no-files-found: error
+      - name: Test and build signed APK
+        env:
+          CALLSHIFT_STORE_PASSWORD: ${{ secrets.CALLSHIFT_STORE_PASSWORD }}
+          CALLSHIFT_KEY_PASSWORD: ${{ secrets.CALLSHIFT_STORE_PASSWORD }}
+          CALLSHIFT_KEY_ALIAS: callshift
+          CALLSHIFT_KEYSTORE: ${{ runner.temp }}/callshift-signing.p12
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:testStandardDebugUnitTest :app:assembleStandardRelease -PrequireReleaseSigning=true -PversionCode=28 -PversionName=0.7.3 --no-daemon
+      - name: Verify signature and matching certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          signer=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          apk=app/build/outputs/apk/standard/release/app-standard-release.apk
+          "$signer" verify --verbose --print-certs "$apk" | tee signing-verification.txt
+          expected=$(openssl x509 -in signing-recovery/certificate.pem -outform DER | sha256sum | cut -d' ' -f1)
+          grep -Fi "certificate SHA-256 digest: $expected" signing-verification.txt
+          sha256sum "$apk" > APK-SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CallShift-signed-release-apk
+          path: |
+            app/build/outputs/apk/standard/release/*.apk
+            signing-verification.txt
+            APK-SHA256.txt
+          if-no-files-found: error
+      - name: Remove private material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/callshift-signing.p12"
