@@ -70,6 +70,10 @@ class MaxUiService : AccessibilityService() {
         main.post(probeTick)
     }
     private fun captureState(issue: MaxProfileCapture.Issue) {
+        // Returning to CallShift must not hide the last concrete refusal from MAX.
+        if (issue == MaxProfileCapture.Issue.OTHER_APP && captureIssue !in listOf(
+                MaxProfileCapture.Issue.NOT_STARTED, MaxProfileCapture.Issue.WAITING,
+                MaxProfileCapture.Issue.NO_ROOT, MaxProfileCapture.Issue.OTHER_APP)) return
         captureIssue = issue
         diagnostics.recordCapture(issue, version(), unlocked(), connected)
     }
@@ -448,7 +452,7 @@ class MaxUiService : AccessibilityService() {
     companion object {
         val diagnostics = MaxUiDiagnostics { SystemClock.elapsedRealtime() }
         @Volatile private var instance: MaxUiService? = null
-        @Volatile var captureIssue = MaxProfileCapture.Issue.WAITING
+        @Volatile var captureIssue = MaxProfileCapture.Issue.NOT_STARTED
             private set
         @Volatile var probeUntil = 0L
             private set

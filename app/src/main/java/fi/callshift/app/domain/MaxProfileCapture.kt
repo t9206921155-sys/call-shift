@@ -3,6 +3,7 @@ package fi.callshift.app.domain
 /** Explains refusal without exposing UI text or weakening recipient checks. */
 object MaxProfileCapture {
     enum class Issue(val explanation: String) {
+        NOT_STARTED("Нажмите «Проверить интерфейс MAX», затем откройте переписку с полем сообщения"),
         WAITING("Проверка запущена. Откройте в MAX сам чат с полем сообщения"),
         SERVICE_UNAVAILABLE("Служба CallShift — MAX не подключена. Проверьте специальные возможности Android"),
         NO_ROOT("Android пока не передал активное окно"),

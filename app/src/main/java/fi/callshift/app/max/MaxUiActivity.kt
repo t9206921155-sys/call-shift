@@ -86,7 +86,8 @@ class MaxUiActivity : AppCompatActivity() {
             toast("Реальная отправка выключена. Сделайте тестовый звонок с правилом MAX UI; номер может вводиться только в поиск.")
         }
         button("Посмотреть / скопировать отчёт") {
-            val report = MaxUiService.diagnostics.report(android.os.Build.VERSION.SDK_INT, fi.callshift.app.BuildConfig.VERSION_NAME)
+            val report = MaxUiService.diagnostics.report(android.os.Build.VERSION.SDK_INT, fi.callshift.app.BuildConfig.VERSION_NAME) +
+                "\nService connected now=${MaxUiService.connected}; staged sample available=${MaxUiService.usableCandidate(this) != null}\n"
             val view = android.widget.TextView(this).apply { text = report; setPadding(24, 16, 24, 16); setTextIsSelectable(true) }
             val scroll = android.widget.ScrollView(this).apply { addView(view) }
             AlertDialog.Builder(this).setTitle("Диагностика MAX").setView(scroll)

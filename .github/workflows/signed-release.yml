@@ -1,5 +1,5 @@
 name: Publish signed CallShift 0.8.4-max-setup
-# Includes profile setup, passive polling and capture-refusal diagnostics.
+# Includes profile setup, passive polling and preserved capture-refusal diagnostics.
 on:
   push:
     branches: [arena/01a0d923-call-shift]
