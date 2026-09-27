@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 # Never enable shell tracing here. Passwords enter only through Actions Secrets.
 set -euo pipefail
+trap 'echo "::error::Signing bootstrap failed at line $LINENO. No release was published."' ERR
 umask 077
 : "${RUNNER_TEMP:?Run inside GitHub Actions}"
-: "${CALLSHIFT_STORE_PASSWORD:?Add CALLSHIFT_STORE_PASSWORD in Actions Secrets}"
+if [ -z "${CALLSHIFT_STORE_PASSWORD:-}" ]; then
+  echo '::error::CALLSHIFT_STORE_PASSWORD is unavailable. Add it as a Repository secret, not a Variable or Environment secret.'
+  exit 1
+fi
 if [ "${#CALLSHIFT_STORE_PASSWORD}" -lt 32 ]; then
-  echo 'Use a randomly generated password of at least 32 characters.' >&2
+  echo '::error::CALLSHIFT_STORE_PASSWORD is too short. Use a randomly generated password of at least 32 characters.' >&2
   exit 1
 fi
 key="$RUNNER_TEMP/callshift-signing.p12"
