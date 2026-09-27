@@ -7,6 +7,7 @@ import android.os.*
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo as Node
 import fi.callshift.app.CallShiftApp
+import fi.callshift.app.domain.MaxUiDiagnostics
 import fi.callshift.app.domain.MaxUiPolicy
 import fi.callshift.app.domain.MaxSearchPolicy
 import fi.callshift.app.forward.CallEvent
@@ -43,6 +44,7 @@ class MaxUiService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.packageName?.toString() != MaxUiPolicy.PACKAGE) return
         if (pending == null && SystemClock.elapsedRealtime() < probeUntil) capture()
+        if (pending == null && diagnostics.active()) trace(MaxUiDiagnostics.Stage.OBSERVE)
         if (pending != null && !busy) { main.removeCallbacks(tick); main.postDelayed(tick, 300) }
     }
     private fun unlocked() = getSystemService(PowerManager::class.java).isInteractive &&
@@ -83,13 +85,14 @@ class MaxUiService : AccessibilityService() {
         candidate = Profile(h.viewIdResourceName, input.viewIdResourceName, version(), MaxUiPolicy.phone(h.text.toString())!!, SystemClock.elapsedRealtime())
     }
     private fun begin(event: CallEvent, number: String, text: String) {
+        trace(MaxUiDiagnostics.Stage.START)
         if (pending != null) { log(event, "BLOCKED", "MAX уже занят другой попыткой; очередь и повтор отключены"); return }
         if (!store.enabled || !unlocked() || store.version != version() || store.header.isEmpty() || store.input.isEmpty()) {
             log(event, "BLOCKED", "MAX UI: включите проверку, настройте профиль и разблокируйте экран"); return
         }
         val canonical = MaxUiPolicy.phone(number)
         if (canonical == null) { log(event, "BLOCKED", "Номер звонящего некорректен"); return }
-        pending = Pending(event, canonical, text, !store.live)
+        pending = Pending(event, canonical, text, !store.live || diagnostics.active())
         log(event, "UI_PENDING", "Ожидаем проверку открытого чата MAX. Отправка не подтверждена")
         main.postDelayed(timeout, 30_000)
         try {
@@ -109,6 +112,7 @@ class MaxUiService : AccessibilityService() {
             }
             if (!p.dry && !store.live) { finish("BLOCKED", "Реальная отправка выключена"); return }
             val all = nodes(root)
+            trace(MaxUiDiagnostics.Stage.CHAT, all)
             val h = all.filter { it.viewIdResourceName == store.header && header(it) }
             val inputs = all.filter { it.viewIdResourceName == store.input && it.isEditable && it.isEnabled && it.isVisibleToUser && !it.isPassword }
             val input = inputs.singleOrNull()
@@ -128,6 +132,7 @@ class MaxUiService : AccessibilityService() {
             if (p.dry) { finish("UI_CHECKED", "Проверка: номер в шапке и пустое поле совпали. Текст не введён, кнопка не нажата; работа кнопки отправки ещё не проверена"); return }
             if (!store.live || !app.settings.masterEnabled) { finish("BLOCKED", "Разрешение отправки или главный переключатель выключены"); return }
             if (!p.edited) {
+                trace(MaxUiDiagnostics.Stage.INPUT, all)
                 busy = true
                 app.appScope.launch {
                     val reserved = runCatching { store.reserve() }.getOrDefault(false)
@@ -164,6 +169,7 @@ class MaxUiService : AccessibilityService() {
                     label in listOf("отправить", "отправить сообщение", "send", "send message") && !it.viewIdResourceName.isNullOrBlank()
             }.singleOrNull()
             if (send == null) { finish("BLOCKED", "Кнопка отправки не определена однозначно. Черновик оставлен в MAX"); return }
+            trace(MaxUiDiagnostics.Stage.CLICK, all)
             // Remove pending BEFORE clicking: no event, timeout or reconnection can retry.
             pending = null; main.removeCallbacks(tick); main.removeCallbacks(timeout)
             log(p.event, "UI_UNKNOWN", "Передано управление кнопке MAX. Результат неизвестен; повторов нет")
@@ -194,6 +200,7 @@ class MaxUiService : AccessibilityService() {
         return null
     }
     private fun search(p: Pending, root: Node, all: List<Node>) {
+        trace(if (p.selectedAt != null) MaxUiDiagnostics.Stage.VERIFY else if (p.query != null) MaxUiDiagnostics.Stage.RESULTS else MaxUiDiagnostics.Stage.SEARCH, all)
         val now = SystemClock.elapsedRealtime()
         fun waitForUi() { main.removeCallbacks(tick); main.postDelayed(tick, 500) }
         if (p.selectedAt != null) {
@@ -256,20 +263,47 @@ class MaxUiService : AccessibilityService() {
         } else finish("BLOCKED", "MAX не показал единственный результат с полным номером. Проверены эквивалентные форматы; по имени не выбираем")
     }
     private fun finish(result: String, message: String) {
+        trace(if (result == "UI_CHECKED") MaxUiDiagnostics.Stage.DRY_CHECK else MaxUiDiagnostics.Stage.STOP, outcome = result)
         val p = pending
         pending = null; busy = false
         main.removeCallbacks(tick); main.removeCallbacks(timeout)
         if (p != null) log(p.event, result, message)
     }
     private fun log(event: CallEvent, result: String, message: String) {
+        if (result == "BLOCKED") trace(MaxUiDiagnostics.Stage.STOP, outcome = result)
         logs.trySend(event.copy(result = result, errorMessage = message, errorCode = if (result == "BLOCKED") "max_ui_blocked" else null))
+    }
+    private fun trace(stage: MaxUiDiagnostics.Stage, source: List<Node>? = null, outcome: String = "") {
+        if (!diagnostics.active()) return
+        runCatching {
+            val root = rootInActiveWindow
+            // Do not inspect or export another app, even on a failure callback.
+            val ui = if (root?.packageName?.toString() == MaxUiPolicy.PACKAGE && unlocked()) source ?: nodes(root) else emptyList()
+            val safe = ui.map { n ->
+                val rect = android.graphics.Rect().also { n.getBoundsInScreen(it) }
+                val kind = if (n.isPassword) MaxUiDiagnostics.Label.PASSWORD else
+                    MaxUiDiagnostics.label(false, n.text?.toString(), n.contentDescription?.toString(), n.hintText?.toString())
+                MaxUiDiagnostics.Node(n.isVisibleToUser, n.isEditable, n.isClickable, n.isEnabled,
+                    !n.viewIdResourceName.isNullOrBlank(), rect.bottom <= resources.displayMetrics.heightPixels / 3, kind)
+            }
+            diagnostics.record(stage, version(), unlocked(), store.header.isNotEmpty() && store.input.isNotEmpty() && store.version == version(), safe, outcome)
+        }
     }
     data class Profile(val header: String, val input: String, val version: Long, val phone: String, val at: Long)
     companion object {
+        val diagnostics = MaxUiDiagnostics { SystemClock.elapsedRealtime() }
         @Volatile private var instance: MaxUiService? = null
         @Volatile var probeUntil = 0L
         @Volatile var candidate: Profile? = null
         val connected get() = instance != null
+        fun collectDiagnostics(forCall: Boolean) {
+            val service = instance ?: return
+            service.main.post {
+                service.stop("Остановлено для безопасной диагностики")
+                diagnostics.start(if (forCall) 180_000 else 60_000)
+                service.store.modes(forCall, false)
+            }
+        }
         fun stopNow() { instance?.main?.post { instance?.stop("Остановлено пользователем") } }
         suspend fun submit(context: android.content.Context, event: CallEvent, number: String, text: String) = withContext(Dispatchers.Main) {
             val service = instance
