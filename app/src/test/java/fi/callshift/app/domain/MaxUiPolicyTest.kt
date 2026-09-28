@@ -9,7 +9,18 @@ class MaxUiPolicyTest {
         assertEquals("", MaxUiPolicy.editableText("Сообщение", "Сообщение", true))
         assertEquals("Сообщение", MaxUiPolicy.editableText("Сообщение", "Сообщение", false))
         assertEquals("Черновик", MaxUiPolicy.editableText("Черновик", "Сообщение", true))
-        assertEquals("Сообщение", MaxUiPolicy.editableText("Сообщение", null, true))
+        assertEquals("", MaxUiPolicy.editableText("Сообщение", null, true))
+        assertEquals("", MaxUiPolicy.editableText("Message", "", true))
+        assertEquals("Сообщение", MaxUiPolicy.editableText("Сообщение", null, false))
+        assertEquals("Любой настоящий текст", MaxUiPolicy.editableText("Любой настоящий текст", null, false))
+    }
+    @Test fun editorReportContainsOnlyFlagsAndResets() {
+        val d = MaxUiDiagnostics { 100 }
+        d.start(1000)
+        d.editorCheck(true, false, false, true, false, false, true)
+        assertTrue(d.report(36, "0.8.12").contains("interpretedEmpty)=1,0,0,1,0,0,1"))
+        d.clear()
+        assertTrue(d.report(36, "0.8.12").contains("interpretedEmpty)=NOT_CHECKED"))
     }
     @Test fun strictPhoneIdentityNotDisplayNames() {
         assertEquals("+79991234567", MaxUiPolicy.phone("8 (999) 123-45-67"))

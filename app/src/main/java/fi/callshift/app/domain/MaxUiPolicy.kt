@@ -4,9 +4,10 @@ package fi.callshift.app.domain
 object MaxUiPolicy {
     const val CHANNEL = "MAX_UI"
     const val PACKAGE = "ru.oneme.app"
-    /** Only an explicit Android hint flag AND exact hint equality can mean empty text. */
+    /** Android can mark text as a hint without separately exposing hintText.
+     * A missing flag never permits guessing from words; conflicting exposed text is preserved. */
     fun editableText(text: String?, hint: String?, showingHint: Boolean): String =
-        if (showingHint && !hint.isNullOrEmpty() && text == hint) "" else text.orEmpty()
+        if (showingHint && (hint.isNullOrEmpty() || text == hint)) "" else text.orEmpty()
     fun phone(raw: String): String? {
         if (raw.isBlank() || raw.any { it !in "+0123456789 ()-.\u00a0" }) return null
         val trimmed = raw.trim()

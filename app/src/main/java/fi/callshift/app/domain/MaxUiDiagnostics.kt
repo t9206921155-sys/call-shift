@@ -9,6 +9,12 @@ class MaxUiDiagnostics(private val now: () -> Long) {
     data class Frame(val stage: Stage, val version: Long, val unlocked: Boolean, val profile: Boolean,
         val counts: List<Int>, val outcome: String)
     private var until = 0L
+    private var editor: List<Int>? = null
+    @Synchronized fun editorCheck(hasText: Boolean, hasHint: Boolean, equal: Boolean,
+        showingHint: Boolean, focused: Boolean, hasSelection: Boolean, interpretedEmpty: Boolean) {
+        if (active()) editor = listOf(hasText, hasHint, equal, showingHint, focused, hasSelection, interpretedEmpty)
+            .map { if (it) 1 else 0 }
+    }
     private var opener: List<Int>? = null
     private var globalSearch: List<Int>? = null
     @Synchronized fun globalSearchCheck(editables: Int, fields: Int, section: Boolean, confirmed: Boolean) {
@@ -66,9 +72,9 @@ class MaxUiDiagnostics(private val now: () -> Long) {
         connectedAtCapture = connected
         record(Stage.PROBE, version, unlocked, false, outcome = "")
     }
-    @Synchronized fun start(milliseconds: Long) { frames.clear(); pickerFrames.clear(); opener = null; globalSearch = null; lastStop = "NONE"; lastCapture = null; connectedAtCapture = null; until = now() + milliseconds.coerceIn(1, 180_000) }
+    @Synchronized fun start(milliseconds: Long) { frames.clear(); pickerFrames.clear(); opener = null; globalSearch = null; editor = null; lastStop = "NONE"; lastCapture = null; connectedAtCapture = null; until = now() + milliseconds.coerceIn(1, 180_000) }
     @Synchronized fun active(): Boolean = now() < until
-    @Synchronized fun clear() { frames.clear(); pickerFrames.clear(); opener = null; globalSearch = null; lastStop = "NONE"; lastCapture = null; connectedAtCapture = null; until = 0L }
+    @Synchronized fun clear() { frames.clear(); pickerFrames.clear(); opener = null; globalSearch = null; editor = null; lastStop = "NONE"; lastCapture = null; connectedAtCapture = null; until = 0L }
     @Synchronized fun record(stage: Stage, version: Long, unlocked: Boolean, profile: Boolean,
         nodes: List<Node> = emptyList(), outcome: String = "") {
         if (!active()) return
@@ -83,11 +89,12 @@ class MaxUiDiagnostics(private val now: () -> Long) {
         frames.addLast(frame)
     }
     @Synchronized fun report(api: Int, appVersion: String): String = buildString {
-        appendLine("CallShift MAX diagnostic v7")
+        appendLine("CallShift MAX diagnostic v8")
         // Version string restricted too: callers cannot accidentally export arbitrary strings here.
         appendLine("Android API=$api; app=${appVersion.takeIf { it.matches(Regex("[0-9][0-9A-Za-z.-]{0,60}")) } ?: "unknown"}")
         appendLine("Capture active=${active()}; frames=${frames.size}")
         appendLine("Stop reason=$lastStop")
+        appendLine("Editor flags (hasText,hasHint,textEqualsHint,showingHint,focused,hasSelection,interpretedEmpty)=${editor?.joinToString(",") ?: "NOT_CHECKED"}")
         appendLine("Global search (editables,globalFields,section,confirmed)=${globalSearch?.joinToString(",") ?: "NOT_CHECKED"}")
         appendLine("Profile opener (titleClickable,titleClickAction,semanticButtons,targetFound)=${opener?.joinToString(",") ?: "NOT_CHECKED"}")
         appendLine("Profile capture=${lastCapture?.name ?: "NOT_STARTED"}; serviceConnected=${connectedAtCapture ?: "unknown"}")

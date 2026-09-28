@@ -138,8 +138,17 @@ class MaxUiService : AccessibilityService() {
         if (pending == null && diagnostics.active()) trace(MaxUiDiagnostics.Stage.OBSERVE)
         if (pending != null && !busy) { main.removeCallbacks(tick); main.postDelayed(tick, 300) }
     }
-    private fun editableText(n: Node?): String = MaxUiPolicy.editableText(
-        n?.text?.toString(), n?.hintText?.toString(), n?.isShowingHintText == true)
+    private fun editableText(n: Node?): String {
+        val text = n?.text?.toString()
+        val hint = n?.hintText?.toString()
+        val value = MaxUiPolicy.editableText(text, hint, n?.isShowingHintText == true)
+        if (n != null && n.isEditable && n.viewIdResourceName == store.input) {
+            diagnostics.editorCheck(!text.isNullOrEmpty(), !hint.isNullOrEmpty(),
+                !text.isNullOrEmpty() && text == hint, n.isShowingHintText, n.isFocused,
+                n.textSelectionStart >= 0 || n.textSelectionEnd >= 0, value.isEmpty())
+        }
+        return value
+    }
     private fun unlocked() = getSystemService(PowerManager::class.java).isInteractive &&
         !getSystemService(KeyguardManager::class.java).isKeyguardLocked
     private fun version(): Long = runCatching { packageManager.getPackageInfo(MaxUiPolicy.PACKAGE, 0).longVersionCode }.getOrDefault(-1)
@@ -278,7 +287,7 @@ class MaxUiService : AccessibilityService() {
             }
             if (!p.edited && input != null && h.size == 1 && searchFields(all).isEmpty() &&
                 MaxUiPolicy.phone(h.single().text.toString()) == null && !p.skipCurrentProfile && p.profile == null) {
-                if (draft.isNotEmpty()) { finish("BLOCKED", "В чате есть черновик — карточка не открывается"); return }
+                if (draft.isNotEmpty()) { finish("BLOCKED", "В чате есть черновик или MAX не обозначил подсказку как подсказку. Поле не изменено; смотрите Editor flags в отчёте"); return }
                 openProfile(p, root, h.single(), input)
                 return
             }
