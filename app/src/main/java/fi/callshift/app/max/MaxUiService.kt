@@ -70,6 +70,7 @@ class MaxUiService : AccessibilityService() {
         var listBackAt: Long? = null, var globalSearchConfirmed: Boolean = false,
         var edited: Boolean = false, var searchClicked: Boolean = false, var query: String? = null,
         var queryAt: Long = 0, var queryIndex: Int = 0, var selectedAt: Long? = null,
+        var findByPhoneAt: Long? = null,
         val contactName: String? = null, val triedRows: MutableSet<Node> = mutableSetOf(),
         var inspectedNames: Int = 0, var inspectedTotal: Int = 0,
         var profile: ProfileVisit? = null, var skipCurrentProfile: Boolean = false, var returningSearch: Boolean = false)
@@ -602,6 +603,61 @@ class MaxUiService : AccessibilityService() {
         }
         return null
     }
+    /** Explicit phone lookup action, not a call button and not a search result. */
+    private fun findByPhoneButtons(root: Node, all: List<Node>): Pair<Boolean, List<Node>> {
+        val labels = all.filter { it.isVisibleToUser && !it.isEditable && !it.isPassword &&
+            MaxSearchPolicy.isFindByPhoneAction(it.text?.toString(), it.contentDescription?.toString()) }
+        val buttons = mutableListOf<Node>()
+        for (label in labels) {
+            var current: Node? = label
+            var button: Node? = null
+            for (i in 0..3) {
+                val n = current ?: break
+                if (n == root || collection(n) || n.isEditable || n.isPassword) break
+                if (profileClickable(n)) { button = n; break }
+                current = n.parent
+            }
+            val target = button ?: return true to emptyList()
+            // Do not click a broad container that contains another active control.
+            if (nodes(target).any { it != target && profileClickable(it) }) return true to emptyList()
+            buttons += target
+        }
+        return labels.isNotEmpty() to buttons.distinct()
+    }
+    private fun findByPhone(p: Pending, root: Node, all: List<Node>, field: Node): Boolean {
+        if (!MaxSearchPolicy.canFindByPhone(editableText(field), p.query, p.number, p.findByPhoneAt != null)) return false
+        val (present, buttons) = findByPhoneButtons(root, all)
+        if (!present) return false
+        val button = buttons.singleOrNull()
+        if (button == null || p.inspectedTotal >= 3) {
+            finish("BLOCKED", "MAX: действие «Найти по номеру» неоднозначно или исчерпан лимит кандидатов"); return true
+        }
+        val fresh = rootInActiveWindow
+        if (!unlocked() || !store.enabled || !app.settings.masterEnabled || fresh == null ||
+            fresh.packageName?.toString() != MaxUiPolicy.PACKAGE || fresh.windowId != root.windowId) {
+            finish("BLOCKED", "MAX: экран изменился до поиска по номеру"); return true
+        }
+        val ns = nodes(fresh)
+        val freshField = searchFields(ns).singleOrNull()
+        if (ns.any { it.isVisibleToUser && it.isPassword } ||
+            ns.count { it.isVisibleToUser && it.isEditable } != 1 || freshField != field ||
+            !MaxSearchPolicy.canFindByPhone(freshField?.let(::editableText), p.query, p.number, false) ||
+            findByPhoneButtons(fresh, ns).second.singleOrNull() != button || !button.refresh() || !profileClickable(button)) {
+            finish("BLOCKED", "MAX: запрос или кнопка изменились до поиска по номеру"); return true
+        }
+        // Reserve BEFORE action. Never click again after a failure or unknown transition.
+        val now = SystemClock.elapsedRealtime()
+        p.findByPhoneAt = now
+        p.selectedAt = now
+        p.inspectedTotal++
+        p.skipCurrentProfile = false
+        trace(MaxUiDiagnostics.Stage.FIND_BY_PHONE, ns)
+        if (!button.performAction(Node.ACTION_CLICK)) {
+            finish("BLOCKED", "MAX не принял «Найти по номеру». Повторного нажатия не будет"); return true
+        }
+        main.removeCallbacks(tick); main.postDelayed(tick, 500)
+        return true
+    }
     private fun search(p: Pending, root: Node, all: List<Node>) {
         trace(if (p.selectedAt != null) MaxUiDiagnostics.Stage.VERIFY else if (p.query != null) MaxUiDiagnostics.Stage.RESULTS else MaxUiDiagnostics.Stage.SEARCH, all)
         val now = SystemClock.elapsedRealtime()
@@ -612,7 +668,8 @@ class MaxUiService : AccessibilityService() {
             else { finish("BLOCKED", "MAX: общий список чатов не подтверждён. Поиск внутри переписки не запускается"); return }
         }
         if (p.selectedAt != null) {
-            if (now - p.selectedAt!! < 1800) waitForUi()
+            val waitMs = if (p.findByPhoneAt == p.selectedAt) 6000 else 1800
+            if (now - p.selectedAt!! < waitMs) waitForUi()
             else finish("BLOCKED", "Результат открыт, но номер в шапке чата не подтверждён. По имени отправлять нельзя")
             return
         }
@@ -646,6 +703,7 @@ class MaxUiService : AccessibilityService() {
         }
         if (queryText != p.query) { finish("BLOCKED", "Поисковый запрос изменился — сценарий остановлен"); return }
         if (now - p.queryAt < 700) { waitForUi(); return }
+        if (findByPhone(p, root, all, field)) return
         val rows = all.filter {
             !it.isEditable && !it.isPassword && it.isVisibleToUser &&
                 (MaxSearchPolicy.equivalent(it.text?.toString(), p.number) ||

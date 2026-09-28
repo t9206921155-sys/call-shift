@@ -2,7 +2,7 @@ package fi.callshift.app.domain
 
 /** Memory-only bounded report. Raw UI strings, resource IDs and phone values never enter frames. */
 class MaxUiDiagnostics(private val now: () -> Long) {
-    enum class Stage { GLOBAL_SEARCH, CHAT_LIST_BACK, CHAT_LIST, ROUTE_WAIT, ROUTE_PICK, ROUTE_READY, PROBE, OBSERVE, START, CHAT, SEARCH, RESULTS, VERIFY, PROFILE_OPEN, PROFILE_CHECK, PROFILE_RETURN, DRY_CHECK, INPUT, CLICK, STOP }
+    enum class Stage { FIND_BY_PHONE, GLOBAL_SEARCH, CHAT_LIST_BACK, CHAT_LIST, ROUTE_WAIT, ROUTE_PICK, ROUTE_READY, PROBE, OBSERVE, START, CHAT, SEARCH, RESULTS, VERIFY, PROFILE_OPEN, PROFILE_CHECK, PROFILE_RETURN, DRY_CHECK, INPUT, CLICK, STOP }
     enum class Label { EMPTY, PHONE, SEARCH, SEND, REDACTED, PASSWORD, PHONE_FIELD }
     data class Node(val visible: Boolean, val editable: Boolean, val clickable: Boolean,
         val enabled: Boolean, val hasId: Boolean, val top: Boolean, val label: Label)
@@ -24,6 +24,9 @@ class MaxUiDiagnostics(private val now: () -> Long) {
         if (!active()) return
         // Map app-owned messages to a closed code set; never retain the supplied text.
         lastStop = when {
+            message.startsWith("MAX: действие «Найти по номеру»") -> "PHONE_LOOKUP_AMBIGUOUS"
+            message.startsWith("MAX: экран изменился до поиска по номеру") || message.startsWith("MAX: запрос или кнопка изменились до поиска по номеру") -> "PHONE_LOOKUP_CHANGED"
+            message.startsWith("MAX не принял «Найти по номеру»") -> "PHONE_LOOKUP_CLICK_FAILED"
             message.startsWith("MAX: экран пароля") -> "APP_PASSWORD_FIELD"
             message.startsWith("MAX: после возврата общий список") || message.startsWith("MAX: общий список чатов") -> "CHAT_LIST_UNCONFIRMED"
             message.startsWith("MAX: исходный чат изменился") -> "CHAT_CHANGED_BEFORE_BACK"

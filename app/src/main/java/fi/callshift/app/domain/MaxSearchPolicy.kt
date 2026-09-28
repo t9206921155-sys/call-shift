@@ -14,6 +14,14 @@ object MaxSearchPolicy {
     }
     private fun label(value: String?): String = value.orEmpty().trim()
         .replace(Regex("[\\s\u00a0]+"), " ").lowercase(java.util.Locale.ROOT)
+    fun isFindByPhoneLabel(value: String?): Boolean = label(value) in
+        setOf("найти по номеру", "find by phone number", "find by number", "search by phone number")
+    fun isFindByPhoneAction(text: String?, description: String?): Boolean {
+        val values = listOfNotNull(text, description).filter { it.isNotBlank() }
+        return values.isNotEmpty() && values.all(::isFindByPhoneLabel)
+    }
+    fun canFindByPhone(query: String?, expectedQuery: String?, recipient: String, alreadyClicked: Boolean): Boolean =
+        !alreadyClicked && query != null && query == expectedQuery && equivalent(query, recipient)
     fun isGlobalSearchLabel(value: String?): Boolean = label(value) in
         setOf("люди, чаты и сообщения", "people, chats and messages", "people, chats, and messages")
     fun isGlobalSearchSection(value: String?): Boolean = label(value) in
