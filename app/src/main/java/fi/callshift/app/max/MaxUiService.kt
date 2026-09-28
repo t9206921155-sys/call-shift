@@ -502,7 +502,7 @@ class MaxUiService : AccessibilityService() {
         gestureTraining = false; gestureReadyAt = 0L; gestureReadyPoint = null; gestureEventPending = false; gestureEventAt = -1L
         cardSnapshot = null; cardTrial = null; cardProof.reset(); replayNode = null; replayEventExpected = false
         val finalState = if (state in setOf(MaxCardLearningPolicy.Status.STOPPED, MaxCardLearningPolicy.Status.TIMEOUT) &&
-            cardLearningStatus == MaxCardLearningPolicy.Status.NO_TARGETS) MaxCardLearningPolicy.Status.NO_TARGETS else state
+            cardLearningStatus in setOf(MaxCardLearningPolicy.Status.NO_TARGETS, MaxCardLearningPolicy.Status.GESTURE_AREA_BLOCKED)) cardLearningStatus else state
         learningState(finalState)
         runCatching { store.cardOutcome(finalState) }
         runCatching { store.saveReport(diagnostics, MaxUiStore.ReportKind.LEARNING, durable = true) }
@@ -615,7 +615,7 @@ class MaxUiService : AccessibilityService() {
                 SystemClock.uptimeMillis(), gestureEventAt, event.eventTime, cardSnapshot?.window ?: -1, event.windowId)) {
             gestureEventPending = false; return // injected tap acknowledgement, source is deliberately not needed
         }
-        if (status == MaxCardLearningPolicy.Status.WAIT_CHAT || status == MaxCardLearningPolicy.Status.NO_TARGETS) return
+        if (status in setOf(MaxCardLearningPolicy.Status.WAIT_CHAT, MaxCardLearningPolicy.Status.NO_TARGETS, MaxCardLearningPolicy.Status.GESTURE_AREA_BLOCKED)) return
         val source = event.source
         if (status in setOf(MaxCardLearningPolicy.Status.REPLAY, MaxCardLearningPolicy.Status.FINAL_RETURN) && replayEventExpected &&
             (source != null && source == replayNode || source == null && replayNode?.let {
@@ -662,7 +662,7 @@ class MaxUiService : AccessibilityService() {
     }
     private fun cardLearningStep() {
         val status = cardLearningStatus
-        val observing = status in setOf(MaxCardLearningPolicy.Status.WAIT_CHAT, MaxCardLearningPolicy.Status.WAIT_TAP, MaxCardLearningPolicy.Status.NO_TARGETS)
+        val observing = status in setOf(MaxCardLearningPolicy.Status.WAIT_CHAT, MaxCardLearningPolicy.Status.WAIT_TAP, MaxCardLearningPolicy.Status.NO_TARGETS, MaxCardLearningPolicy.Status.GESTURE_AREA_BLOCKED)
         if (!observing && SystemClock.elapsedRealtime() - cardPhaseAt > 6000) {
             endCardLearning(if (status in setOf(MaxCardLearningPolicy.Status.WAIT_CARD, MaxCardLearningPolicy.Status.REPLAY))
                 MaxCardLearningPolicy.Status.CARD_UNVERIFIED else MaxCardLearningPolicy.Status.RETURN_UNVERIFIED); return
@@ -684,7 +684,7 @@ class MaxUiService : AccessibilityService() {
             }
             if (gestureTraining) {
                 val tap = titleTap(root)
-                if (tap == null) { gestureReadyAt = 0L; learningState(MaxCardLearningPolicy.Status.NO_TARGETS); return }
+                if (tap == null) { gestureReadyAt = 0L; learningState(MaxCardLearningPolicy.Status.GESTURE_AREA_BLOCKED); return }
                 val previous = cardSnapshot
                 val now = SystemClock.elapsedRealtime()
                 if (previous == null || previous.title != title || previous.editor != editor || previous.window != root.windowId ||

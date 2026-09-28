@@ -1,5 +1,5 @@
 name: Publish signed CallShift 0.8.19-max-title-gesture
-# Verify consented title gestures; reject transformed and secondary-display coordinates.
+# Verify consented title gestures and distinguish blocked geometry from unsupported actions.
 on:
   push:
     branches: [arena/01a0d923-call-shift]
