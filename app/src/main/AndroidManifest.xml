@@ -67,6 +67,7 @@
 
         <activity android:name=".max.MaxRoutesActivity" android:exported="false" />
         <activity android:name=".ui.ReplyTestActivity" android:exported="false" />
+        <activity android:name=".max.MaxSimpleActivity" android:exported="false" />
         <activity android:name=".max.MaxUiActivity" android:exported="false" />
         <service android:name=".max.MaxUiService" android:label="CallShift — MAX (эксперимент)"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:exported="true">

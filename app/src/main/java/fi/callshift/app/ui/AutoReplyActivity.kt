@@ -62,8 +62,8 @@ class AutoReplyActivity : AppCompatActivity() {
             setOnClickListener { startActivity(Intent(this@AutoReplyActivity, fi.callshift.app.telegram.TelegramAccountActivity::class.java)) }
         })
         ui.add(MaterialButton(this).apply {
-            text = "Проверить каналы / тестовый ответ"
-            setOnClickListener { startActivity(Intent(this@AutoReplyActivity, ReplyTestActivity::class.java)) }
+            text = "Настройка и проверка MAX"
+            setOnClickListener { startActivity(Intent(this@AutoReplyActivity, fi.callshift.app.max.MaxSimpleActivity::class.java)) }
         })
         ui.header("Канал ответа звонящему")
         replyEditor = ReplyOptionsEditor(this, ui.root)

@@ -231,11 +231,11 @@
                 android:text="Последний звонок: пока нет записей" />
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnReplyTest" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:text="Проверить каналы / тестовый ответ"
+                android:layout_height="wrap_content" android:visibility="gone" android:text="Проверить каналы / тестовый ответ"
                 style="@style/Widget.CallShift.MainAction" />
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnMaxUi" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:text="MAX: эксперимент"
+                android:layout_height="wrap_content" android:text="Автоответ MAX"
                 style="@style/Widget.CallShift.MainAction" />
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnSmsSafety"

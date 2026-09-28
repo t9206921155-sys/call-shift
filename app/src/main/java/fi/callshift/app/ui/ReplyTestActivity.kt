@@ -64,7 +64,7 @@ class ReplyTestActivity : AppCompatActivity() {
             if (needed.isEmpty()) { loadAccounts(); refresh() } else permission.launch(needed.toTypedArray())
         }
         button("Настроить SIM → основной MAX / копия") { startActivity(Intent(this, MaxRoutesActivity::class.java)) }
-        button("Настройки автоматизации MAX") { startActivity(Intent(this, MaxUiActivity::class.java)) }
+        button("Настройки автоматизации MAX") { startActivity(Intent(this, MaxSimpleActivity::class.java)) }
         button("Настройки аккаунта Telegram") { startActivity(Intent(this, fi.callshift.app.telegram.TelegramAccountActivity::class.java)) }
         readiness = ui.hint("")
         button("Проверить настройки всех каналов — без отправки") { loadAccounts(); refresh() }
