@@ -3,19 +3,20 @@ package fi.callshift.app.domain
 object MaxCardLearningPolicy {
     @kotlinx.serialization.Serializable
     data class Rule(val version: Long, val header: String, val input: String,
-        val targetId: String, val targetClass: String, val shape: String)
+        val targetId: String, val targetClass: String, val shape: String, val gesture: Boolean = false)
     enum class Status(val explanation: String) {
         IDLE("Обучение открытия карточки ещё не запускалось"),
         WAIT_CHAT("Откройте личный чат с пустым полем сообщения, подождите 3 секунды"),
         WAIT_TAP("Шапка распознана. Нажмите имя или аватар ОДИН раз"),
-        WAIT_CARD("Проверяем, что ручное нажатие открыло карточку с телефоном"),
+        WAIT_CARD("Проверяем, что нажатие открыло карточку с телефоном"),
         RETURNING("Возвращаемся в исходный чат для проверки действия"),
         REPLAY("Проверяем одно автоматическое открытие карточки — без сообщения"),
         FINAL_RETURN("Возвращаемся после проверочного открытия"),
         SAVED("Действие открытия карточки проверено и сохранено. Теперь запустите тест без сообщения"),
+        GESTURE_UNAVAILABLE("Android не подключил управление касаниями. Выключите и снова включите службу CallShift — MAX в специальных возможностях"),
         NO_SERVICE("Служба MAX не подключена"),
         NO_LAYOUT("Сначала нужен сохранённый профиль чата для текущей версии MAX"),
-        NO_TARGETS("У элементов шапки нет уникальных resource ID или действия нажатия. Обучение для этого экрана недоступно"),
+        NO_TARGETS("Не найден безопасный элемент шапки: действие или распознанная область имени недоступны. Настройка не сохранена"),
         SOURCE_MISSING("Android не передал источник ручного нажатия. По координатам не нажимаем"),
         SOURCE_REJECTED("Нажатие не соответствует одному из сохранённых элементов шапки. Повторите обучение без других действий"),
         EXTRA_CLICK("Дополнительное нажатие во время проверки: обучение остановлено"),

@@ -208,7 +208,7 @@ class MaxSimpleActivity : AppCompatActivity() {
             MaxSetupPolicy.Step.RUNNING -> "Выполняется сценарий MAX. Ничего не нажимайте в нём. Результат появится после завершения."
             MaxSetupPolicy.Step.MASTER -> "Главный переключатель CallShift выключен. Включение запустит все ваши активные правила, не только MAX."
             MaxSetupPolicy.Step.UNAVAILABLE -> "MAX пока не удалось настроить на этом устройстве. Автоматическая отправка не готова. Работающие SMS можно продолжать использовать; повторять тот же тест не нужно."
-            MaxSetupPolicy.Step.CARD -> "Не удалось открыть карточку контакта. Следующий шаг — настроить одно нажатие."
+            MaxSetupPolicy.Step.CARD -> "Обычное нажатие недоступно. Можно проверить другой способ: касание распознанной области имени, без источника ручного события."
             MaxSetupPolicy.Step.ENABLE -> "Получатель и пустое поле проверены. Нажатие отправки и доставка этим тестом не проверялись."
             MaxSetupPolicy.Step.LIVE -> if (prefs.contains("simple_send:$id")) MaxTestSessionPolicy.result(sendEvent?.result, sendEvent?.errorMessage) +
                 "\nДля проверки звонком используйте существующее правило с каналом «MAX — эксперимент UI» и этой SIM. Итог — в журнале."
@@ -229,8 +229,8 @@ class MaxSimpleActivity : AppCompatActivity() {
             MaxSetupPolicy.Step.LAYOUT -> confirm("Настроить экран чата", "Откройте выбранную копию MAX и любую личную переписку с пустым полем сообщения. Подождите 3 секунды и вернитесь сюда. Настройка сохранится сама; ничего не отправляется.") {
                 if (MaxUiService.startProfileProbe()) launchMax("layout") else message(MaxUiService.captureIssue.explanation)
             }
-            MaxSetupPolicy.Step.CARD -> confirm("Настроить нажатие", "В MAX откройте личный чат, подождите 3 секунды и ОДИН раз нажмите имя или аватар. Дальше не нажимайте ничего: CallShift проверит карточку, вернётся, повторит открытие один раз и снова вернётся. После этого вернитесь сюда. Сохраняется элемент интерфейса, не контакт. Сообщений не будет.") {
-                if (MaxUiService.startCardTraining()) launchMax("card") else message(MaxUiService.cardLearningStatus.explanation)
+            MaxSetupPolicy.Step.CARD -> confirm("Разрешить касание имени?", "Это другой способ: Android имитирует касание в центре распознанного имени контакта. Источник ручного нажатия не нужен. Координаты не сохраняются — область определяется заново.\n\nОткройте нужную копию MAX и личный чат с пустым полем. Дальше НЕ нажимайте имя сами: CallShift дважды проверит открытие карточки и возврат, затем постарается сам вернуть этот экран с результатом.\n\nСохраняется способ открытия, не контакт. Во время настройки сообщения не отправляются. Разрешаете такой способ?", "Разрешить и проверить") {
+                if (MaxUiService.startCardTraining(gesture = true)) launchMax("card") else message(MaxUiService.cardLearningStatus.explanation)
             }
             MaxSetupPolicy.Step.ENABLE -> confirm("Разрешить реальные ответы?", "Разрешение включается для MAX в целом. Отправитель выбирается по SIM звонка, а текст — по вашим существующим правилам. Проверка не доказывает доставку. Главный переключатель и правила должны быть включены; они не меняются автоматически.") {
                 val id = account(); val route = id?.let { routes.routes()[it] }

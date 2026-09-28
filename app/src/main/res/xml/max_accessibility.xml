@@ -6,5 +6,6 @@
     android:packageNames="ru.oneme.app"
     android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows"
     android:canRetrieveWindowContent="true"
+    android:canPerformGestures="true"
     android:description="@string/max_accessibility_description"
     android:settingsActivity="fi.callshift.app.max.MaxUiActivity" />

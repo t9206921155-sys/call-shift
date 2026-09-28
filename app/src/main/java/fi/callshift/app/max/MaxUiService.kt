@@ -22,7 +22,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 
-/** Opt-in bounded phone search and UI interaction. Never matches names or clicks coordinates. */
+/** Opt-in bounded UI interaction. Recipient identity is a phone, never a display name.
+ * A separately consented title gesture resolves fresh bounds; no screen coordinates are stored. */
 class MaxUiService : AccessibilityService() {
     private val main = Handler(Looper.getMainLooper())
     private val store by lazy { MaxUiStore(this) }
@@ -473,6 +474,13 @@ class MaxUiService : AccessibilityService() {
     private data class CardSnapshot(val at: Long, val window: Int, val title: Node, val editor: Node,
         val caption: String, val targets: Map<Node, MaxCardLearningPolicy.Rule>)
     private var cardUntil = 0L
+    private var gestureTraining = false
+    private var gestureReadyAt = 0L
+    private var gestureReadyPoint: fi.callshift.app.domain.MaxHeaderGesturePolicy.Point? = null
+    private var gestureEventAt = -1L
+    private var gestureEventPending = false
+    private var cardGeneration = 0L
+    private var headerGestureBusy = false
     private var cardPhaseAt = 0L
     private var cardSnapshot: CardSnapshot? = null
     private var cardTrial: MaxCardLearningPolicy.Rule? = null
@@ -488,7 +496,10 @@ class MaxUiService : AccessibilityService() {
     }
     private fun endCardLearning(state: MaxCardLearningPolicy.Status = MaxCardLearningPolicy.Status.STOPPED) {
         if (cardUntil == 0L) return
-        cardUntil = 0L; main.removeCallbacks(cardTick)
+        val returnToSetup = gestureTraining && state != MaxCardLearningPolicy.Status.STOPPED && unlocked() &&
+            rootInActiveWindow?.packageName?.toString() == MaxUiPolicy.PACKAGE
+        cardUntil = 0L; cardGeneration++; main.removeCallbacks(cardTick)
+        gestureTraining = false; gestureReadyAt = 0L; gestureReadyPoint = null; gestureEventPending = false; gestureEventAt = -1L
         cardSnapshot = null; cardTrial = null; cardProof.reset(); replayNode = null; replayEventExpected = false
         val finalState = if (state in setOf(MaxCardLearningPolicy.Status.STOPPED, MaxCardLearningPolicy.Status.TIMEOUT) &&
             cardLearningStatus == MaxCardLearningPolicy.Status.NO_TARGETS) MaxCardLearningPolicy.Status.NO_TARGETS else state
@@ -497,6 +508,10 @@ class MaxUiService : AccessibilityService() {
         runCatching { store.saveReport(diagnostics, MaxUiStore.ReportKind.LEARNING, durable = true) }
         if (finalState != MaxCardLearningPolicy.Status.STOPPED)
             android.widget.Toast.makeText(this, finalState.explanation, android.widget.Toast.LENGTH_LONG).show()
+        if (returnToSetup) runCatching {
+            startActivity(Intent(this, MaxSimpleActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+        }
     }
     private fun cardToolbar(title: Node): Node? {
         var current = title.parent
@@ -508,15 +523,18 @@ class MaxUiService : AccessibilityService() {
         }
         return null
     }
+    private fun toolbarShape(ns: List<Node>): String {
+        val shapeSource = ns.map {
+            "${it.className}|${it.viewIdResourceName}|${it.childCount}|${it.isClickable}|${it.actionList.any { a -> a.id == Node.ACTION_CLICK }}"
+        }.sorted().joinToString("\n")
+        return java.security.MessageDigest.getInstance("SHA-256").digest(shapeSource.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it.toInt() and 255) }
+    }
     private fun cardRules(title: Node): Map<Node, MaxCardLearningPolicy.Rule> {
         val bar = cardToolbar(title) ?: return emptyMap()
         val ns = nodes(bar)
         if (ns.size >= 120) return emptyMap()
-        val shapeSource = ns.map {
-            "${it.className}|${it.viewIdResourceName}|${it.childCount}|${it.isClickable}|${it.actionList.any { a -> a.id == Node.ACTION_CLICK }}"
-        }.sorted().joinToString("\n")
-        val shape = java.security.MessageDigest.getInstance("SHA-256").digest(shapeSource.toByteArray(Charsets.UTF_8))
-            .joinToString("") { "%02x".format(it.toInt() and 255) }
+        val shape = toolbarShape(ns)
         return ns.filter { n ->
             val id = n.viewIdResourceName.orEmpty()
             profileClickable(n) && !collection(n) && under(n, bar) &&
@@ -526,11 +544,67 @@ class MaxUiService : AccessibilityService() {
         }.associateWith { n -> MaxCardLearningPolicy.Rule(version(), store.header, store.input,
             n.viewIdResourceName, n.className?.toString().orEmpty(), shape) }
     }
+    private fun titleGestureRule(title: Node): MaxCardLearningPolicy.Rule? {
+        if (!header(title) || !title.isEnabled || title.viewIdResourceName != store.header) return null
+        val bar = cardToolbar(title) ?: return null
+        val ns = nodes(bar)
+        if (ns.size >= 120 || ns.count { it.viewIdResourceName == store.header } != 1) return null
+        return MaxCardLearningPolicy.Rule(version(), store.header, store.input, store.header,
+            title.className?.toString().orEmpty(), toolbarShape(ns), gesture = true)
+    }
     private fun learnedCardButton(title: Node, rule: MaxCardLearningPolicy.Rule): Node? =
-        cardRules(title).entries.filter { MaxCardLearningPolicy.matches(rule, it.value) }.singleOrNull()?.key
+        if (rule.gesture) titleGestureRule(title)?.takeIf { MaxCardLearningPolicy.matches(rule, it) }?.let { title }
+        else cardRules(title).entries.filter { MaxCardLearningPolicy.matches(rule, it.value) }.singleOrNull()?.key
+
+    private data class HeaderTap(val title: Node, val editor: Node, val rule: MaxCardLearningPolicy.Rule,
+        val window: Int, val point: fi.callshift.app.domain.MaxHeaderGesturePolicy.Point)
+    private fun titleTap(root: Node): HeaderTap? {
+        if (!unlocked() || store.version != version() || root.packageName?.toString() != MaxUiPolicy.PACKAGE) return null
+        val all = nodes(root)
+        if (all.size >= 600 || all.any { it.isVisibleToUser && it.isPassword } || all.count { it.isVisibleToUser && it.isEditable } != 1) return null
+        val title = all.filter { it.viewIdResourceName == store.header && header(it) }.singleOrNull() ?: return null
+        val editor = all.filter { it.viewIdResourceName == store.input && it.isVisibleToUser && it.isEnabled && it.isEditable && !it.isPassword }.singleOrNull() ?: return null
+        if (editableText(editor).isNotEmpty()) return null
+        val rule = titleGestureRule(title) ?: return null
+        val foreground = windows.singleOrNull { it.id == root.windowId && it.isFocused &&
+            it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION } ?: return null
+        fun rect(r: android.graphics.Rect) = fi.callshift.app.domain.MaxHeaderGesturePolicy.Rect(r.left, r.top, r.right, r.bottom)
+        fun bounds(n: Node) = rect(android.graphics.Rect().also { n.getBoundsInScreen(it) })
+        val obstacles = all.filter { n -> n != title && n.isVisibleToUser && n.isEnabled &&
+            (n.isClickable || n.actionList.any { it.id == Node.ACTION_CLICK }) &&
+            (!under(title, n) || Regex("(^|_)(call|video|back|more|menu|delete|block)(_|$)")
+                .containsMatchIn(n.viewIdResourceName.orEmpty().substringAfter('/').lowercase(java.util.Locale.ROOT))) }.map(::bounds) +
+            windows.filter { it.id != foreground.id && it.layer >= foreground.layer }
+                .map { w -> rect(android.graphics.Rect().also { w.getBoundsInScreen(it) }) }
+        val point = fi.callshift.app.domain.MaxHeaderGesturePolicy.point(bounds(title),
+            rect(android.graphics.Rect().also { foreground.getBoundsInScreen(it) }), resources.displayMetrics.density, obstacles) ?: return null
+        return HeaderTap(title, editor, rule, root.windowId, point)
+    }
+    private fun tapTitle(rule: MaxCardLearningPolicy.Rule, window: Int, title: Node, editor: Node, failure: () -> Unit): Boolean {
+        if (!rule.gesture || headerGestureBusy) return false
+        val fresh = rootInActiveWindow ?: return false
+        val tap = titleTap(fresh) ?: return false
+        if (tap.window != window || tap.title != title || tap.editor != editor || !MaxCardLearningPolicy.matches(rule, tap.rule)) return false
+        val path = android.graphics.Path().apply { moveTo(tap.point.x, tap.point.y) }
+        val gesture = android.accessibilityservice.GestureDescription.Builder().addStroke(
+            android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 60)).build()
+        headerGestureBusy = true
+        val submitted = runCatching { dispatchGesture(gesture, object : AccessibilityService.GestureResultCallback() {
+            override fun onCompleted(description: android.accessibilityservice.GestureDescription) { headerGestureBusy = false }
+            override fun onCancelled(description: android.accessibilityservice.GestureDescription) {
+                headerGestureBusy = false; failure()
+            }
+        }, main) }.getOrDefault(false)
+        if (!submitted) headerGestureBusy = false
+        return submitted
+    }
     private fun learnCardClick(event: AccessibilityEvent) {
         if (cardUntil == 0L || event.eventType != AccessibilityEvent.TYPE_VIEW_CLICKED) return
         val status = cardLearningStatus
+        if (gestureTraining && gestureEventPending && fi.callshift.app.domain.MaxHeaderGesturePolicy.expectedEvent(
+                SystemClock.uptimeMillis(), gestureEventAt, event.eventTime, cardSnapshot?.window ?: -1, event.windowId)) {
+            gestureEventPending = false; return // injected tap acknowledgement, source is deliberately not needed
+        }
         if (status == MaxCardLearningPolicy.Status.WAIT_CHAT || status == MaxCardLearningPolicy.Status.NO_TARGETS) return
         val source = event.source
         if (status in setOf(MaxCardLearningPolicy.Status.REPLAY, MaxCardLearningPolicy.Status.FINAL_RETURN) && replayEventExpected &&
@@ -596,7 +670,27 @@ class MaxUiService : AccessibilityService() {
                 // pre-click snapshot briefly, never infer the action from the new screen.
                 val cached = cardSnapshot
                 if (cached != null && MaxCardLearningPolicy.fresh(SystemClock.elapsedRealtime(), cached.at)) return
-                cardSnapshot = null; learningState(MaxCardLearningPolicy.Status.WAIT_CHAT); return
+                cardSnapshot = null; gestureReadyAt = 0L; learningState(MaxCardLearningPolicy.Status.WAIT_CHAT); return
+            }
+            if (gestureTraining) {
+                val tap = titleTap(root)
+                if (tap == null) { gestureReadyAt = 0L; learningState(MaxCardLearningPolicy.Status.NO_TARGETS); return }
+                val previous = cardSnapshot
+                val now = SystemClock.elapsedRealtime()
+                if (previous == null || previous.title != title || previous.editor != editor || previous.window != root.windowId ||
+                    previous.caption != title.text.toString() || cardTrial != tap.rule || gestureReadyPoint != tap.point) gestureReadyAt = now
+                gestureReadyPoint = tap.point
+                cardTrial = tap.rule
+                cardSnapshot = CardSnapshot(now, root.windowId, title, editor, title.text.toString(), emptyMap())
+                if (gestureReadyAt == 0L) gestureReadyAt = now
+                if (now - gestureReadyAt < 1000) return
+                gestureEventPending = true; gestureEventAt = SystemClock.uptimeMillis()
+                val generation = cardGeneration
+                learningState(MaxCardLearningPolicy.Status.WAIT_CARD)
+                if (!tapTitle(tap.rule, root.windowId, title, editor) {
+                        if (cardGeneration == generation && cardUntil != 0L) endCardLearning(MaxCardLearningPolicy.Status.REPLAY_FAILED)
+                    }) endCardLearning(MaxCardLearningPolicy.Status.REPLAY_FAILED)
+                return
             }
             val targets = cardRules(title)
             cardSnapshot = CardSnapshot(SystemClock.elapsedRealtime(), root.windowId, title, editor, title.text.toString(), targets)
@@ -632,15 +726,20 @@ class MaxUiService : AccessibilityService() {
         } else if (status == MaxCardLearningPolicy.Status.RETURNING) {
             val fresh = rootInActiveWindow
             if (!unlocked() || fresh == null || fresh.packageName?.toString() != MaxUiPolicy.PACKAGE || fresh.windowId != original.window ||
-                !target.refresh() || !profileClickable(target) || !editor.refresh() || editableText(editor).isNotEmpty()) {
+                !target.refresh() || (!rule.gesture && !profileClickable(target)) || !editor.refresh() || editableText(editor).isNotEmpty()) {
                 endCardLearning(MaxCardLearningPolicy.Status.RETURN_UNVERIFIED); return
             }
             if (!cardProof.returned() || !cardProof.claimReplay()) {
                 endCardLearning(MaxCardLearningPolicy.Status.REPLAY_FAILED); return
             }
-            replayNode = target; replayEventExpected = true
+            replayNode = target; replayEventExpected = !rule.gesture
+            gestureEventPending = rule.gesture; gestureEventAt = SystemClock.uptimeMillis()
+            val generation = cardGeneration
             learningState(MaxCardLearningPolicy.Status.REPLAY)
-            if (!target.performAction(Node.ACTION_CLICK)) endCardLearning(MaxCardLearningPolicy.Status.REPLAY_FAILED)
+            val accepted = if (rule.gesture) tapTitle(rule, original.window, title, editor) {
+                if (cardGeneration == generation && cardUntil != 0L) endCardLearning(MaxCardLearningPolicy.Status.REPLAY_FAILED)
+            } else target.performAction(Node.ACTION_CLICK)
+            if (!accepted) endCardLearning(MaxCardLearningPolicy.Status.REPLAY_FAILED)
         }
     }
     private fun profileButton(root: Node, title: Node): Node? {
@@ -681,6 +780,7 @@ class MaxUiService : AccessibilityService() {
         return byId
     }
     private fun openProfile(p: Pending, root: Node, title: Node, input: Node) {
+        val rule = store.learnedCard()
         val button = profileButton(root, title)
         if (button == null) {
             // An unverified current chat need not be the recipient. Try global lookup once;
@@ -696,12 +796,15 @@ class MaxUiService : AccessibilityService() {
             nodes(fresh).any { it.isVisibleToUser && it.isPassword } ||
             !title.refresh() || !header(title) || title.viewIdResourceName != store.header ||
             !input.refresh() || !input.isVisibleToUser || !input.isEditable || input.isPassword || editableText(input).isNotEmpty() ||
-            !button.refresh() || !profileClickable(button) || profileButton(fresh, title) != button) {
+            !button.refresh() || (rule?.gesture != true && !profileClickable(button)) || profileButton(fresh, title) != button) {
             finish("BLOCKED", "Экран изменился до открытия карточки MAX; нажатия не было"); return
         }
         p.profile = ProfileVisit(title, input, title.text.toString(), root.windowId, SystemClock.elapsedRealtime())
         trace(MaxUiDiagnostics.Stage.PROFILE_OPEN)
-        if (!button.performAction(Node.ACTION_CLICK)) { finish("BLOCKED", "MAX не открыл карточку контакта"); return }
+        val accepted = if (rule?.gesture == true) tapTitle(rule, root.windowId, title, input) {
+            if (pending === p) finish("BLOCKED", "Android отменил касание заголовка MAX. Повтора не будет")
+        } else button.performAction(Node.ACTION_CLICK)
+        if (!accepted) { finish("BLOCKED", "MAX не открыл карточку контакта: действие недоступно или область имени перекрыта"); return }
         // Do not try another button after an uncertain result. Phone proof is still mandatory.
         main.postDelayed(tick, 500)
     }
@@ -1034,8 +1137,10 @@ class MaxUiService : AccessibilityService() {
     data class Profile(val header: String, val input: String, val version: Long, val phone: String, val at: Long)
     companion object {
         fun report(context: android.content.Context): String {
-            val saved = MaxUiStore(context).savedReport()
-            val current = diagnostics.report(android.os.Build.VERSION.SDK_INT, fi.callshift.app.BuildConfig.VERSION_NAME)
+            val uiStore = MaxUiStore(context)
+            val saved = uiStore.savedReport()
+            val current = diagnostics.report(android.os.Build.VERSION.SDK_INT, fi.callshift.app.BuildConfig.VERSION_NAME) +
+                "\nLearned card method=" + (uiStore.learnedCard()?.let { if (it.gesture) "ANCHORED_TITLE_GESTURE" else "NODE_ACTION" } ?: "NONE")
             return if (saved == null) current else "$saved\n\nCurrent in-memory capture (may be a different operation):\n$current"
         }
         val diagnostics = MaxUiDiagnostics { SystemClock.elapsedRealtime() }
@@ -1049,18 +1154,23 @@ class MaxUiService : AccessibilityService() {
         @Volatile var cardLearningStatus = MaxCardLearningPolicy.Status.IDLE
             private set
         fun endCardTraining() { instance?.endCardLearning() }
-        fun startCardTraining(): Boolean {
+        fun startCardTraining(gesture: Boolean = false): Boolean {
             val service = instance
             if (service == null) { cardLearningStatus = MaxCardLearningPolicy.Status.NO_SERVICE; return false }
             check(Looper.myLooper() == Looper.getMainLooper())
             return runCatching {
                 service.stop("Остановлено для обучения открытию карточки")
                 diagnostics.start(60_000)
+                if (gesture && service.serviceInfo.capabilities and android.accessibilityservice.AccessibilityServiceInfo.CAPABILITY_CAN_PERFORM_GESTURES == 0) {
+                    service.learningState(MaxCardLearningPolicy.Status.GESTURE_UNAVAILABLE)
+                    return@runCatching false
+                }
                 if (service.store.header.isEmpty() || service.store.input.isEmpty() || service.store.version != service.version()) {
                     service.learningState(MaxCardLearningPolicy.Status.NO_LAYOUT)
                     false
                 } else {
                     service.cardProof.reset()
+                    service.cardGeneration++; service.gestureTraining = gesture; service.gestureReadyAt = 0L
                     service.store.cardOutcome(MaxCardLearningPolicy.Status.WAIT_CHAT)
                     service.cardUntil = SystemClock.elapsedRealtime() + 60_000
                     service.learningState(MaxCardLearningPolicy.Status.WAIT_CHAT)
