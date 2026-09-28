@@ -476,7 +476,7 @@ class MaxUiService : AccessibilityService() {
     private var cardPhaseAt = 0L
     private var cardSnapshot: CardSnapshot? = null
     private var cardTrial: MaxCardLearningPolicy.Rule? = null
-    private var cardPhone: String? = null // proof during training only; never persisted/exported
+    private val cardProof = fi.callshift.app.domain.MaxCardReplayProof()
     private var replayNode: Node? = null
     private var replayEventExpected = false
     private fun learningState(state: MaxCardLearningPolicy.Status) {
@@ -489,7 +489,7 @@ class MaxUiService : AccessibilityService() {
     private fun endCardLearning(state: MaxCardLearningPolicy.Status = MaxCardLearningPolicy.Status.STOPPED) {
         if (cardUntil == 0L) return
         cardUntil = 0L; main.removeCallbacks(cardTick)
-        cardSnapshot = null; cardTrial = null; cardPhone = null; replayNode = null; replayEventExpected = false
+        cardSnapshot = null; cardTrial = null; cardProof.reset(); replayNode = null; replayEventExpected = false
         val finalState = if (state in setOf(MaxCardLearningPolicy.Status.STOPPED, MaxCardLearningPolicy.Status.TIMEOUT) &&
             cardLearningStatus == MaxCardLearningPolicy.Status.NO_TARGETS) MaxCardLearningPolicy.Status.NO_TARGETS else state
         learningState(finalState)
@@ -605,12 +605,12 @@ class MaxUiService : AccessibilityService() {
         }
         if (status == MaxCardLearningPolicy.Status.WAIT_CARD || status == MaxCardLearningPolicy.Status.REPLAY) {
             if (all.any { it.isVisibleToUser && it.isEditable }) return
-            val phone = all.filter { it.isVisibleToUser && !it.isPassword }.mapNotNull { MaxUiPolicy.phone(it.text?.toString().orEmpty()) }.distinct().singleOrNull() ?: return
-            if (!profileField(all, phone).second) return
-            if (status == MaxCardLearningPolicy.Status.REPLAY && cardPhone != phone) {
-                endCardLearning(MaxCardLearningPolicy.Status.CARD_UNVERIFIED); return
-            }
-            cardPhone = phone
+            // Use exactly the same labelled section as normal recipient verification.
+            // A phone elsewhere in the profile is neither evidence nor a reason to reject this field.
+            val phone = readProfilePhone(all).phone ?: return
+            val accepted = if (status == MaxCardLearningPolicy.Status.WAIT_CARD) cardProof.manualCard(phone)
+                else cardProof.replayCard(phone)
+            if (!accepted) { endCardLearning(MaxCardLearningPolicy.Status.CARD_UNVERIFIED); return }
             learningState(if (status == MaxCardLearningPolicy.Status.WAIT_CARD) MaxCardLearningPolicy.Status.RETURNING else MaxCardLearningPolicy.Status.FINAL_RETURN)
             if (!backWithinMax()) endCardLearning(MaxCardLearningPolicy.Status.RETURN_UNVERIFIED)
             return
@@ -624,6 +624,9 @@ class MaxUiService : AccessibilityService() {
         val rule = cardTrial ?: run { endCardLearning(MaxCardLearningPolicy.Status.ERROR); return }
         val target = learnedCardButton(title, rule) ?: run { endCardLearning(MaxCardLearningPolicy.Status.SOURCE_REJECTED); return }
         if (status == MaxCardLearningPolicy.Status.FINAL_RETURN) {
+            if (!cardProof.returned() || !cardProof.canSave()) {
+                endCardLearning(MaxCardLearningPolicy.Status.RETURN_UNVERIFIED); return
+            }
             store.learnCard(rule)
             endCardLearning(MaxCardLearningPolicy.Status.SAVED)
         } else if (status == MaxCardLearningPolicy.Status.RETURNING) {
@@ -631,6 +634,9 @@ class MaxUiService : AccessibilityService() {
             if (!unlocked() || fresh == null || fresh.packageName?.toString() != MaxUiPolicy.PACKAGE || fresh.windowId != original.window ||
                 !target.refresh() || !profileClickable(target) || !editor.refresh() || editableText(editor).isNotEmpty()) {
                 endCardLearning(MaxCardLearningPolicy.Status.RETURN_UNVERIFIED); return
+            }
+            if (!cardProof.returned() || !cardProof.claimReplay()) {
+                endCardLearning(MaxCardLearningPolicy.Status.REPLAY_FAILED); return
             }
             replayNode = target; replayEventExpected = true
             learningState(MaxCardLearningPolicy.Status.REPLAY)
@@ -701,21 +707,25 @@ class MaxUiService : AccessibilityService() {
     }
     /** A labelled phone field must belong to a small non-editable section, not chat history. */
     private fun profileField(all: List<Node>, expected: String): Pair<Boolean, Boolean> {
+        val field = readProfilePhone(all)
+        return field.found to MaxSearchPolicy.equivalent(field.phone, expected)
+    }
+    private fun readProfilePhone(all: List<Node>): MaxProfilePolicy.PhoneField {
         val labels = all.filter { it.isVisibleToUser && !it.isEditable && !it.isPassword && MaxProfilePolicy.phoneLabel(it.text?.toString()) }
-        if (labels.size != 1) return false to false
+        if (labels.size != 1) return MaxProfilePolicy.PhoneField(false, null)
         val label = labels.single()
         var section = label.parent
         repeat(3) {
-            val parent = section ?: return false to false
+            val parent = section ?: return MaxProfilePolicy.PhoneField(false, null)
             val fields = nodes(parent)
-            if (fields.size > 18 || fields.any { it.isEditable } || collection(parent)) return false to false
+            if (fields.size > 18 || fields.any { it.isEditable } || collection(parent)) return MaxProfilePolicy.PhoneField(false, null)
             val visible = fields.filter { it.isVisibleToUser && !it.isPassword }
             val values = visible.mapNotNull { it.text?.toString() }
-            val phones = values.mapNotNull(MaxUiPolicy::phone).distinct()
-            if (phones.isNotEmpty()) return true to (MaxProfilePolicy.verifiedPhone(label.text?.toString(), values, expected) != null)
+            val field = MaxProfilePolicy.readPhoneField(label.text?.toString(), values)
+            if (field.found) return field
             section = parent.parent
         }
-        return false to false
+        return MaxProfilePolicy.PhoneField(false, null)
     }
     private fun keyboardVisible() = windows.any {
         it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD
@@ -1050,6 +1060,7 @@ class MaxUiService : AccessibilityService() {
                     service.learningState(MaxCardLearningPolicy.Status.NO_LAYOUT)
                     false
                 } else {
+                    service.cardProof.reset()
                     service.store.cardOutcome(MaxCardLearningPolicy.Status.WAIT_CHAT)
                     service.cardUntil = SystemClock.elapsedRealtime() + 60_000
                     service.learningState(MaxCardLearningPolicy.Status.WAIT_CHAT)
