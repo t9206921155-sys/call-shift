@@ -180,7 +180,7 @@ class TelegramAccountClient(private val app: CallShiftApp) {
 
     /** No importContacts, guessed usernames, UI clicks, SMS fallback or automatic retries. */
     suspend fun reply(ctx: CallContext, decision: Decision, text: String) {
-        val event = CallEvent(System.currentTimeMillis(), ctx.direction.name, ctx.e164,
+        val event = CallEvent(System.currentTimeMillis(), fi.callshift.app.domain.ReplyTestPolicy.eventDirection(decision.reason, ctx.direction.name), ctx.e164,
             app.normalizer.mask(ctx.e164), ctx.phoneAccount?.label ?: "—", decision.ruleId, decision.ruleName,
             "TELEGRAM_REPLY", ctx.e164, "TG_LOOKUP", null, null, decision.reason,
             decision.engineMs, 0, decision.engineMs, UUID.randomUUID().toString())

@@ -222,7 +222,7 @@ class SmsAutoReplier(
     }
 
     private fun event(ctx: CallContext, d: Decision, result: String, code: String?, msg: String) = CallEvent(
-        ts = System.currentTimeMillis(), direction = ctx.direction.name,
+        ts = System.currentTimeMillis(), direction = fi.callshift.app.domain.ReplyTestPolicy.eventDirection(d.reason, ctx.direction.name),
         numberE164 = ctx.e164, numberMasked = normalizer.mask(ctx.e164 ?: ctx.rawHandle),
         sim = ctx.phoneAccount?.label?.takeIf { it.isNotBlank() } ?: ctx.phoneAccount?.id ?: "—",
         ruleId = d.ruleId, ruleName = d.ruleName,

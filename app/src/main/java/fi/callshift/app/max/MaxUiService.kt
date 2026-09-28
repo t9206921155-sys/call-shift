@@ -699,6 +699,7 @@ class MaxUiService : AccessibilityService() {
             private set
         @Volatile var candidate: Profile? = null
         val connected get() = instance != null
+        val running get() = instance?.pending != null
         @Volatile var pickerCandidate: MaxRoutePolicy.Picker? = null
             private set
         @Volatile var pickerStatus = "Окно выбора ещё не изучено"

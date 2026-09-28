@@ -61,6 +61,10 @@ class AutoReplyActivity : AppCompatActivity() {
             text = "Подключить Telegram для автоотправки"
             setOnClickListener { startActivity(Intent(this@AutoReplyActivity, fi.callshift.app.telegram.TelegramAccountActivity::class.java)) }
         })
+        ui.add(MaterialButton(this).apply {
+            text = "Проверить каналы / тестовый ответ"
+            setOnClickListener { startActivity(Intent(this@AutoReplyActivity, ReplyTestActivity::class.java)) }
+        })
         ui.header("Канал ответа звонящему")
         replyEditor = ReplyOptionsEditor(this, ui.root)
         replyEditor.set(s.replyChannel, s.replyChannels, s.replyCooldownMinutes)
