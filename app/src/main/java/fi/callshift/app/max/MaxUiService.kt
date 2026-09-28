@@ -69,6 +69,7 @@ class MaxUiService : AccessibilityService() {
         val started: Long = SystemClock.elapsedRealtime(), var routeClickedAt: Long? = null,
         var routeReady: Boolean = false,
         var listBackAt: Long? = null, var globalSearchConfirmed: Boolean = false,
+        var keyboardReturn: ProfileVisit? = null,
         var edited: Boolean = false, var searchClicked: Boolean = false, var query: String? = null,
         var queryAt: Long = 0, var queryIndex: Int = 0, var selectedAt: Long? = null,
         var findByPhoneAt: Long? = null,
@@ -283,6 +284,17 @@ class MaxUiService : AccessibilityService() {
                 trace(MaxUiDiagnostics.Stage.CHAT_LIST, all)
                 if (chatList(all) || openGlobalSearch(all)) p.globalSearchConfirmed = true
                 else {
+                    val keyboard = p.keyboardReturn
+                    if (keyboard != null && fi.callshift.app.domain.MaxTransitionPolicy.keyboardReturn(
+                            true, keyboardVisible(), SystemClock.elapsedRealtime() - p.listBackAt!!,
+                            root.windowId == keyboard.window, h.singleOrNull() == keyboard.title && input == keyboard.editor,
+                            h.singleOrNull()?.text?.toString() == keyboard.caption,
+                            all.count { it.isVisibleToUser && it.isEditable }, draft.isEmpty(),
+                            all.any { it.isVisibleToUser && it.isPassword })) {
+                        p.keyboardReturn = null // consume before action; at most one additional Back
+                        if (!backWithinMax()) { finish("BLOCKED", "MAX: не удалось выйти из чата после закрытия клавиатуры"); return }
+                        main.postDelayed(tick, 400); return
+                    }
                     if (SystemClock.elapsedRealtime() - p.listBackAt!! >= 4000) {
                         finish("BLOCKED", "MAX: после возврата общий список чатов не подтверждён. Поиск внутри переписки не запускается")
                     } else main.postDelayed(tick, 400)
@@ -343,16 +355,27 @@ class MaxUiService : AccessibilityService() {
                 return
             }
             if (draft != p.text) { finish("BLOCKED", "Текст изменился; отправка остановлена"); return }
-            val inputBounds = android.graphics.Rect().also { input!!.getBoundsInScreen(it) }
-            val send = all.filter {
-                val label = it.contentDescription?.toString()?.trim()?.lowercase().orEmpty().ifEmpty { it.text?.toString()?.trim()?.lowercase().orEmpty() }
-                val bounds = android.graphics.Rect().also { b -> it.getBoundsInScreen(b) }
-                kotlin.math.abs(bounds.centerY() - inputBounds.centerY()) <= (96 * resources.displayMetrics.density).toInt() &&
-                    profileClickable(it) &&
-                    label in listOf("отправить", "отправить сообщение", "send", "send message") && !it.viewIdResourceName.isNullOrBlank()
-            }.singleOrNull()
+            val send = sendButton(all, input!!)
             if (send == null) { finish("BLOCKED", "Кнопка отправки не определена однозначно. Черновик оставлен в MAX"); return }
-            trace(MaxUiDiagnostics.Stage.CLICK, all)
+            // Android can replace nodes after text input or while the keyboard opens.
+            // Re-read recipient, draft, sender configuration and the exact action BEFORE clicking.
+            val fresh = rootInActiveWindow
+            val ns = fresh?.let(::nodes).orEmpty()
+            val titles = ns.filter { it.viewIdResourceName == store.header && header(it) }
+            val editors = ns.filter { it.isVisibleToUser && it.isEnabled && it.isEditable && !it.isPassword && it.viewIdResourceName == store.input }
+            val field = editors.singleOrNull()
+            val sameButton = field != null && send.refresh() && profileClickable(send) && sendButton(ns, field) == send
+            val finalCheck = fi.callshift.app.domain.MaxTransitionPolicy.FinalClick(
+                store.enabled && store.live && app.settings.masterEnabled, unlocked(),
+                fresh?.packageName?.toString() == MaxUiPolicy.PACKAGE && fresh.windowId == root.windowId,
+                routes.routes()[p.accountId] == p.route && p.accountId in app.telecom.phoneAccounts().keys,
+                store.version == version(), p.number, checkedRecipient(p, titles.singleOrNull(), field),
+                p.text, editableText(field), titles.size, editors.size,
+                ns.count { it.isVisibleToUser && it.isEditable }, ns.any { it.isVisibleToUser && it.isPassword }, sameButton)
+            if (!fi.callshift.app.domain.MaxTransitionPolicy.canClick(finalCheck)) {
+                finish("BLOCKED", "MAX: перед отправкой изменились получатель, текст, кнопка или настройки. Нажатия не было; проверьте черновик"); return
+            }
+            trace(MaxUiDiagnostics.Stage.CLICK, ns)
             // Remove pending BEFORE clicking: no event, timeout or reconnection can retry.
             pending = null; main.removeCallbacks(tick); main.removeCallbacks(timeout)
             log(p.event, "UI_UNKNOWN", "Передано управление кнопке MAX. Результат неизвестен; повторов нет")
@@ -360,6 +383,17 @@ class MaxUiService : AccessibilityService() {
             log(p.event, "UI_UNKNOWN", if (clicked) "Нажата кнопка MAX. Отправка и доставка НЕ подтверждены; повторов нет"
                 else "Результат нажатия MAX неизвестен. Проверьте чат вручную; повторов нет")
         } catch (_: Exception) { finish("UI_UNKNOWN", "Сценарий MAX остановлен с неопределённым результатом. Проверьте чат; повторов нет") }
+    }
+    private fun sendButton(all: List<Node>, input: Node): Node? {
+        val inputBounds = android.graphics.Rect().also { input.getBoundsInScreen(it) }
+        return all.filter {
+            val label = it.contentDescription?.toString()?.trim()?.lowercase(java.util.Locale.ROOT).orEmpty()
+                .ifEmpty { it.text?.toString()?.trim()?.lowercase(java.util.Locale.ROOT).orEmpty() }
+            val bounds = android.graphics.Rect().also { b -> it.getBoundsInScreen(b) }
+            kotlin.math.abs(bounds.centerY() - inputBounds.centerY()) <= (96 * resources.displayMetrics.density).toInt() &&
+                profileClickable(it) && label in listOf("отправить", "отправить сообщение", "send", "send message") &&
+                !it.viewIdResourceName.isNullOrBlank()
+        }.singleOrNull()
     }
     /** One fresh, explicitly learned system choice per call. Never click twice or use list order. */
     private fun routeReady(p: Pending, root: Node): Boolean {
@@ -675,6 +709,9 @@ class MaxUiService : AccessibilityService() {
         }
         return false to false
     }
+    private fun keyboardVisible() = windows.any {
+        it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD
+    }
     private fun backWithinMax(): Boolean = unlocked() &&
         rootInActiveWindow?.packageName?.toString() == MaxUiPolicy.PACKAGE && performGlobalAction(GLOBAL_ACTION_BACK)
     private fun handleProfile(p: Pending, root: Node, all: List<Node>, title: Node?, input: Node?): Boolean {
@@ -764,7 +801,11 @@ class MaxUiService : AccessibilityService() {
             input.viewIdResourceName != store.input || editableText(input).isNotEmpty()) {
             finish("BLOCKED", "MAX: исходный чат изменился или содержит черновик; возврата не было"); return
         }
-        p.listBackAt = SystemClock.elapsedRealtime() // one attempt even if Android reports failure
+        if (nodes(fresh).count { it.isVisibleToUser && it.isEditable } != 1) {
+            finish("BLOCKED", "MAX: перед выходом из чата обнаружено другое поле ввода"); return
+        }
+        p.keyboardReturn = if (keyboardVisible()) ProfileVisit(title, input, title.text.toString(), root.windowId, SystemClock.elapsedRealtime()) else null
+        p.listBackAt = SystemClock.elapsedRealtime() // one navigation attempt; a proven IME dismissal is separate
         p.profile = null
         p.skipCurrentProfile = true
         trace(MaxUiDiagnostics.Stage.CHAT_LIST_BACK)

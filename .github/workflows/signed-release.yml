@@ -1,4 +1,4 @@
-name: Publish signed CallShift 0.8.15-max-flow
+name: Publish signed CallShift 0.8.16-max-transitions
 # Explicit channel tests preserve uncertain state across Activity recreation and never auto-retry.
 on:
   push:
@@ -26,7 +26,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test "$(gh release view v0.8.15-max-flow --json isDraft --jq '.isDraft')" = true || { echo '::error::Refusing to replace a published release.'; exit 1; }
+          test "$(gh release view v0.8.16-max-transitions --json isDraft --jq '.isDraft')" = true || { echo '::error::Refusing to replace a published release.'; exit 1; }
       - name: Download the original signed APK as identity reference
         uses: actions/download-artifact@v4
         with:
@@ -47,7 +47,7 @@ jobs:
           CALLSHIFT_KEYSTORE: ${{ runner.temp }}/callshift-signing.p12
         run: |
           chmod +x gradlew
-          ./gradlew :app:testStandardDebugUnitTest :app:assembleStandardRelease -PrequireReleaseSigning=true -PversionCode=47 -PversionName=0.8.15-max-flow --no-daemon
+          ./gradlew :app:testStandardDebugUnitTest :app:assembleStandardRelease -PrequireReleaseSigning=true -PversionCode=48 -PversionName=0.8.16-max-transitions --no-daemon
       - name: Verify original and new APK signatures against restored certificate
         shell: bash
         run: |
@@ -59,16 +59,16 @@ jobs:
           "$signer" verify --verbose --print-certs "${originals[0]}" > "$RUNNER_TEMP/original-signature.txt"
           grep -Fi "certificate SHA-256 digest: $expected" "$RUNNER_TEMP/original-signature.txt"
           mkdir -p release-public
-          cp app/build/outputs/apk/standard/release/app-standard-release.apk release-public/CallShift-0.8.15-max-flow.apk
+          cp app/build/outputs/apk/standard/release/app-standard-release.apk release-public/CallShift-0.8.16-max-transitions.apk
           cp "$RUNNER_TEMP/callshift-certificate.pem" release-public/certificate.pem
-          "$signer" verify --verbose --print-certs release-public/CallShift-0.8.15-max-flow.apk > release-public/signature-verification.txt
+          "$signer" verify --verbose --print-certs release-public/CallShift-0.8.16-max-transitions.apk > release-public/signature-verification.txt
           grep -Fi "certificate SHA-256 digest: $expected" release-public/signature-verification.txt
-          (cd release-public && sha256sum CallShift-0.8.15-max-flow.apk > SHA256SUMS.txt)
+          (cd release-public && sha256sum CallShift-0.8.16-max-transitions.apk > SHA256SUMS.txt)
           echo "Certificate SHA-256: $expected" >> "$GITHUB_STEP_SUMMARY"
       - name: Retain only public release files
         uses: actions/upload-artifact@v4
         with:
-          name: CallShift-0.8.15-max-flow-verified-release
+          name: CallShift-0.8.16-max-transitions-verified-release
           path: release-public/
           if-no-files-found: error
       - name: Upload APK and publish the existing draft
@@ -77,9 +77,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(gh release view v0.8.15-max-flow --json isDraft --jq '.isDraft')" = true
-          gh release upload v0.8.15-max-flow release-public/CallShift-0.8.15-max-flow.apk release-public/certificate.pem release-public/signature-verification.txt release-public/SHA256SUMS.txt --clobber
-          gh release edit v0.8.15-max-flow --target "$GITHUB_SHA" --title 'CallShift 0.8.15-max-flow' --notes-file docs/RELEASE_MAX_FLOW.md --draft=false --prerelease --latest=false
+          test "$(gh release view v0.8.16-max-transitions --json isDraft --jq '.isDraft')" = true
+          gh release upload v0.8.16-max-transitions release-public/CallShift-0.8.16-max-transitions.apk release-public/certificate.pem release-public/signature-verification.txt release-public/SHA256SUMS.txt --clobber
+          gh release edit v0.8.16-max-transitions --target "$GITHUB_SHA" --title 'CallShift 0.8.16-max-transitions' --notes-file docs/RELEASE_MAX_TRANSITIONS.md --draft=false --prerelease --latest=false
       - name: Remove private material
         if: always()
         run: rm -f "$RUNNER_TEMP/callshift-signing.p12"
