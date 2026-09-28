@@ -58,6 +58,25 @@ class MaxUiActivity : AppCompatActivity() {
                 }.setNegativeButton("Отмена", null).show()
         }
         ui.hint("Проверка именованного контакта: открыть карточку → найти подпись «Номер телефона» и номер рядом → сверить +7/8 → вернуться в тот же чат. Если MAX пересоздал экран или номер не виден, сценарий остановится. До первого успешного проверочного звонка не включайте реальную отправку.")
+        ui.header("Обучение открытию карточки")
+        button("Обучить открытие карточки — без сообщения") {
+            AlertDialog.Builder(this).setTitle("Одно ручное открытие карточки")
+                .setMessage("На 60 секунд отправка выключается. Откройте нужную копию MAX и личный чат с пустым полем сообщения. Подождите 3 секунды, затем ОДИН раз нажмите имя или аватар для открытия карточки. Больше ничего не нажимайте.\n\nCallShift проверит поле телефона, сам вернётся в чат, один раз проверит автоматическое нажатие и снова вернётся. Сохранит только ID/класс элемента и структуру панели для этой версии MAX — не имя, номер или переписку. Во время проверки номер используется только в памяти. Если источник нажатия или кнопка недоступны Android, обучение остановится. После завершения вернитесь сюда и посмотрите статус. Это не привязка контакта к чату.")
+                .setPositiveButton("Начать обучение") { _, _ ->
+                    if (!MaxUiService.startCardTraining()) { toast(MaxUiService.cardLearningStatus.explanation); refresh(); return@setPositiveButton }
+                    val launch = packageManager.getLaunchIntentForPackage(MaxUiPolicy.PACKAGE)
+                    if (launch == null) { MaxUiService.endCardTraining(); toast("MAX не найден") }
+                    else runCatching { startActivity(launch) }.onFailure { MaxUiService.endCardTraining(); toast("Не удалось открыть MAX") }
+                }.setNegativeButton("Отмена", null).show()
+        }
+        button("Забыть обученное открытие карточки") {
+            AlertDialog.Builder(this).setMessage("Удалить только обученное действие? Маршруты SIM и профиль чата останутся. Реальная отправка выключится.")
+                .setPositiveButton("Удалить") { _, _ ->
+                    MaxUiService.stopNow()
+                    runCatching { store.forgetCard() }.onFailure { toast("Не удалось удалить") }
+                    refresh()
+                }.setNegativeButton("Отмена", null).show()
+        }
         button("Включить поиск и проверку — БЕЗ отправки") {
             runCatching { store.modes(true, false) }.onFailure { toast("Ошибка сохранения") }; refresh()
         }
@@ -106,11 +125,12 @@ class MaxUiActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         MaxUiService.endProfileProbe()
+        MaxUiService.endCardTraining()
         if (::status.isInitialized) refresh()
     }
     private fun refresh() {
         val c = MaxUiService.usableCandidate(this)
-        status.text = "Служба: ${if (MaxUiService.connected) "подключена" else "не подключена"}\nРежим: ${if (!store.enabled) "выключен" else if (store.live) "реальная отправка" else "проверка без отправки"}\nПрофиль MAX: ${store.version}\nПоследний образец: ${c?.phone ?: "нет"}\n${if (c != null) "Образец найден — нажмите «Сохранить»" else MaxUiService.captureIssue.explanation}"
+        status.text = "Обучение карточки: ${MaxUiService.cardLearningStatus.explanation}\nСохранённое действие карточки: ${if (store.learnedCard() != null) "есть" else "нет"}\nСлужба: ${if (MaxUiService.connected) "подключена" else "не подключена"}\nРежим: ${if (!store.enabled) "выключен" else if (store.live) "реальная отправка" else "проверка без отправки"}\nПрофиль MAX: ${store.version}\nПоследний образец: ${c?.phone ?: "нет"}\n${if (c != null) "Образец найден — нажмите «Сохранить»" else MaxUiService.captureIssue.explanation}"
     }
     private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_LONG).show()
 }

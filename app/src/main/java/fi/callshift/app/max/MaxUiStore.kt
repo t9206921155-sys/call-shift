@@ -13,9 +13,16 @@ class MaxUiStore(context: Context) {
     val header get() = p.getString("header", "").orEmpty()
     val input get() = p.getString("input", "").orEmpty()
     val version get() = p.getLong("version", -1)
+    fun learnedCard(): fi.callshift.app.domain.MaxCardLearningPolicy.Rule? = runCatching {
+        p.getString("learned_card", null)?.let { Json.decodeFromString<fi.callshift.app.domain.MaxCardLearningPolicy.Rule>(it) }
+    }.getOrNull()
+    fun learnCard(rule: fi.callshift.app.domain.MaxCardLearningPolicy.Rule) {
+        check(p.edit().putString("learned_card", Json.encodeToString(rule)).putBoolean("live", false).commit())
+    }
+    fun forgetCard() { check(p.edit().remove("learned_card").putBoolean("live", false).commit()) }
     fun modes(enabled: Boolean, live: Boolean) { check(p.edit().putBoolean("enabled", enabled).putBoolean("live", live).commit()) }
     fun profile(header: String, input: String, version: Long) {
-        check(p.edit().putString("header", header).putString("input", input).putLong("version", version)
+        check(p.edit().putString("header", header).putString("input", input).putLong("version", version).remove("learned_card")
             .putBoolean("live", false).commit())
     }
     // Temporary interface metadata only: survives process recreation, never stores contact text.

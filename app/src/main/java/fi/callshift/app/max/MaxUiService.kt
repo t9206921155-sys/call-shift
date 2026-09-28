@@ -12,6 +12,7 @@ import fi.callshift.app.domain.MaxPickerInspection
 import fi.callshift.app.domain.MaxRoutePolicy
 import fi.callshift.app.domain.MaxUiPolicy
 import fi.callshift.app.domain.MaxProfileActionPolicy
+import fi.callshift.app.domain.MaxCardLearningPolicy
 import fi.callshift.app.domain.MaxProfileCapture
 import fi.callshift.app.domain.MaxProfilePolicy
 import fi.callshift.app.domain.MaxChatListPolicy
@@ -107,6 +108,7 @@ class MaxUiService : AccessibilityService() {
     fun stop(reason: String) {
         endProbe()
         endPicker()
+        endCardLearning()
         finish("BLOCKED", reason)
         runCatching { store.modes(false, false) }
     }
@@ -131,6 +133,8 @@ class MaxUiService : AccessibilityService() {
     }
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.packageName?.toString() != MaxUiPolicy.PACKAGE) return
+        if (cardUntil != 0L) runCatching { learnCardClick(event) }
+            .onFailure { endCardLearning(MaxCardLearningPolicy.Status.ERROR) }
         if (pending?.profile?.returnedAt != null && event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
             finish("BLOCKED", "Действие пользователя изменило проверенный экран; отправка остановлена"); return
         }
@@ -429,10 +433,159 @@ class MaxUiService : AccessibilityService() {
         }
         return false
     }
+    private data class CardSnapshot(val at: Long, val window: Int, val title: Node, val editor: Node,
+        val caption: String, val targets: Map<Node, MaxCardLearningPolicy.Rule>)
+    private var cardUntil = 0L
+    private var cardPhaseAt = 0L
+    private var cardSnapshot: CardSnapshot? = null
+    private var cardTrial: MaxCardLearningPolicy.Rule? = null
+    private var cardPhone: String? = null // proof during training only; never persisted/exported
+    private var replayNode: Node? = null
+    private var replayEventExpected = false
+    private fun learningState(state: MaxCardLearningPolicy.Status) {
+        cardLearningStatus = state
+        diagnostics.cardLearning(state)
+        cardPhaseAt = SystemClock.elapsedRealtime()
+    }
+    private fun endCardLearning(state: MaxCardLearningPolicy.Status = MaxCardLearningPolicy.Status.STOPPED) {
+        if (cardUntil == 0L) return
+        cardUntil = 0L; main.removeCallbacks(cardTick)
+        cardSnapshot = null; cardTrial = null; cardPhone = null; replayNode = null; replayEventExpected = false
+        val finalState = if (state in setOf(MaxCardLearningPolicy.Status.STOPPED, MaxCardLearningPolicy.Status.TIMEOUT) &&
+            cardLearningStatus == MaxCardLearningPolicy.Status.NO_TARGETS) MaxCardLearningPolicy.Status.NO_TARGETS else state
+        learningState(finalState)
+        if (finalState != MaxCardLearningPolicy.Status.STOPPED)
+            android.widget.Toast.makeText(this, finalState.explanation, android.widget.Toast.LENGTH_LONG).show()
+    }
+    private fun cardToolbar(title: Node): Node? {
+        var current = title.parent
+        repeat(20) {
+            val n = current ?: return null
+            if (collection(n)) return null
+            if (toolbar(n)) return n
+            current = n.parent
+        }
+        return null
+    }
+    private fun cardRules(title: Node): Map<Node, MaxCardLearningPolicy.Rule> {
+        val bar = cardToolbar(title) ?: return emptyMap()
+        val ns = nodes(bar)
+        if (ns.size >= 120) return emptyMap()
+        val shapeSource = ns.map {
+            "${it.className}|${it.viewIdResourceName}|${it.childCount}|${it.isClickable}|${it.actionList.any { a -> a.id == Node.ACTION_CLICK }}"
+        }.sorted().joinToString("\n")
+        val shape = java.security.MessageDigest.getInstance("SHA-256").digest(shapeSource.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it.toInt() and 255) }
+        return ns.filter { n ->
+            val id = n.viewIdResourceName.orEmpty()
+            profileClickable(n) && !collection(n) && under(n, bar) &&
+                id.startsWith(MaxUiPolicy.PACKAGE + ":id/") &&
+                !Regex("(^|_)(call|video|back|more|menu)(_|$)").containsMatchIn(id.substringAfter('/').lowercase(java.util.Locale.ROOT)) &&
+                ns.count { it.viewIdResourceName == id } == 1
+        }.associateWith { n -> MaxCardLearningPolicy.Rule(version(), store.header, store.input,
+            n.viewIdResourceName, n.className?.toString().orEmpty(), shape) }
+    }
+    private fun learnedCardButton(title: Node, rule: MaxCardLearningPolicy.Rule): Node? =
+        cardRules(title).entries.filter { MaxCardLearningPolicy.matches(rule, it.value) }.singleOrNull()?.key
+    private fun learnCardClick(event: AccessibilityEvent) {
+        if (cardUntil == 0L || event.eventType != AccessibilityEvent.TYPE_VIEW_CLICKED) return
+        val status = cardLearningStatus
+        if (status == MaxCardLearningPolicy.Status.WAIT_CHAT || status == MaxCardLearningPolicy.Status.NO_TARGETS) return
+        val source = event.source
+        if (status in setOf(MaxCardLearningPolicy.Status.REPLAY, MaxCardLearningPolicy.Status.FINAL_RETURN) && replayEventExpected && source != null && source == replayNode) {
+            replayEventExpected = false; return
+        }
+        if (status != MaxCardLearningPolicy.Status.WAIT_TAP) {
+            endCardLearning(MaxCardLearningPolicy.Status.EXTRA_CLICK); return
+        }
+        if (source == null) { endCardLearning(MaxCardLearningPolicy.Status.SOURCE_MISSING); return }
+        val cached = cardSnapshot
+        val selected = cached?.targets?.get(source)
+        if (cached == null || selected == null || source.windowId != cached.window ||
+            !MaxCardLearningPolicy.fresh(SystemClock.elapsedRealtime(), cached.at)) {
+            endCardLearning(MaxCardLearningPolicy.Status.SOURCE_REJECTED); return
+        }
+        cardTrial = selected
+        learningState(MaxCardLearningPolicy.Status.WAIT_CARD)
+    }
+    private val cardTick = object : Runnable {
+        override fun run() {
+            if (cardUntil == 0L) return
+            if (SystemClock.elapsedRealtime() >= cardUntil) { endCardLearning(MaxCardLearningPolicy.Status.TIMEOUT); return }
+            runCatching { cardLearningStep() }.onFailure { endCardLearning(MaxCardLearningPolicy.Status.ERROR) }
+            if (cardUntil != 0L) main.postDelayed(this, 250)
+        }
+    }
+    private fun cardLearningStep() {
+        val status = cardLearningStatus
+        val observing = status in setOf(MaxCardLearningPolicy.Status.WAIT_CHAT, MaxCardLearningPolicy.Status.WAIT_TAP, MaxCardLearningPolicy.Status.NO_TARGETS)
+        if (!observing && SystemClock.elapsedRealtime() - cardPhaseAt > 6000) {
+            endCardLearning(if (status in setOf(MaxCardLearningPolicy.Status.WAIT_CARD, MaxCardLearningPolicy.Status.REPLAY))
+                MaxCardLearningPolicy.Status.CARD_UNVERIFIED else MaxCardLearningPolicy.Status.RETURN_UNVERIFIED); return
+        }
+        if (!unlocked() || store.version != version()) { endCardLearning(MaxCardLearningPolicy.Status.STOPPED); return }
+        val root = rootInActiveWindow ?: return
+        if (root.packageName?.toString() != MaxUiPolicy.PACKAGE) return
+        val all = nodes(root)
+        if (all.any { it.isVisibleToUser && it.isPassword }) { endCardLearning(MaxCardLearningPolicy.Status.STOPPED); return }
+        val title = all.filter { it.viewIdResourceName == store.header && header(it) }.singleOrNull()
+        val editor = all.filter { it.isVisibleToUser && it.isEnabled && it.isEditable && it.viewIdResourceName == store.input }.singleOrNull()
+        if (observing) {
+            if (title == null || editor == null || editableText(editor).isNotEmpty() || all.count { it.isVisibleToUser && it.isEditable } != 1) {
+                // Window-content events can arrive before the click event. Retain the
+                // pre-click snapshot briefly, never infer the action from the new screen.
+                val cached = cardSnapshot
+                if (cached != null && MaxCardLearningPolicy.fresh(SystemClock.elapsedRealtime(), cached.at)) return
+                cardSnapshot = null; learningState(MaxCardLearningPolicy.Status.WAIT_CHAT); return
+            }
+            val targets = cardRules(title)
+            cardSnapshot = CardSnapshot(SystemClock.elapsedRealtime(), root.windowId, title, editor, title.text.toString(), targets)
+            learningState(if (targets.isEmpty()) MaxCardLearningPolicy.Status.NO_TARGETS else MaxCardLearningPolicy.Status.WAIT_TAP)
+            return
+        }
+        if (status == MaxCardLearningPolicy.Status.WAIT_CARD || status == MaxCardLearningPolicy.Status.REPLAY) {
+            if (all.any { it.isVisibleToUser && it.isEditable }) return
+            val phone = all.filter { it.isVisibleToUser && !it.isPassword }.mapNotNull { MaxUiPolicy.phone(it.text?.toString().orEmpty()) }.distinct().singleOrNull() ?: return
+            if (!profileField(all, phone).second) return
+            if (status == MaxCardLearningPolicy.Status.REPLAY && cardPhone != phone) {
+                endCardLearning(MaxCardLearningPolicy.Status.CARD_UNVERIFIED); return
+            }
+            cardPhone = phone
+            learningState(if (status == MaxCardLearningPolicy.Status.WAIT_CARD) MaxCardLearningPolicy.Status.RETURNING else MaxCardLearningPolicy.Status.FINAL_RETURN)
+            if (!backWithinMax()) endCardLearning(MaxCardLearningPolicy.Status.RETURN_UNVERIFIED)
+            return
+        }
+        val original = cardSnapshot ?: run { endCardLearning(MaxCardLearningPolicy.Status.ERROR); return }
+        if (title == null || editor == null) return
+        if (root.windowId != original.window || title != original.title || editor != original.editor ||
+            title.text?.toString() != original.caption || editableText(editor).isNotEmpty() || all.count { it.isVisibleToUser && it.isEditable } != 1) {
+            endCardLearning(MaxCardLearningPolicy.Status.RETURN_UNVERIFIED); return
+        }
+        val rule = cardTrial ?: run { endCardLearning(MaxCardLearningPolicy.Status.ERROR); return }
+        val target = learnedCardButton(title, rule) ?: run { endCardLearning(MaxCardLearningPolicy.Status.SOURCE_REJECTED); return }
+        if (status == MaxCardLearningPolicy.Status.FINAL_RETURN) {
+            store.learnCard(rule)
+            endCardLearning(MaxCardLearningPolicy.Status.SAVED)
+        } else if (status == MaxCardLearningPolicy.Status.RETURNING) {
+            val fresh = rootInActiveWindow
+            if (!unlocked() || fresh == null || fresh.packageName?.toString() != MaxUiPolicy.PACKAGE || fresh.windowId != original.window ||
+                !target.refresh() || !profileClickable(target) || !editor.refresh() || editableText(editor).isNotEmpty()) {
+                endCardLearning(MaxCardLearningPolicy.Status.RETURN_UNVERIFIED); return
+            }
+            replayNode = target; replayEventExpected = true
+            learningState(MaxCardLearningPolicy.Status.REPLAY)
+            if (!target.performAction(Node.ACTION_CLICK)) endCardLearning(MaxCardLearningPolicy.Status.REPLAY_FAILED)
+        }
+    }
     private fun profileButton(root: Node, title: Node): Node? {
         fun report(found: Boolean, semantic: Int = 0) = diagnostics.profileOpener(
             title.isClickable, title.actionList.any { it.id == Node.ACTION_CLICK }, semantic, found)
         report(false)
+        store.learnedCard()?.let { rule ->
+            val learned = learnedCardButton(title, rule)
+            report(learned != null)
+            return learned
+        }
         // Prefer the title or a non-collection ancestor. Stop at the toolbar boundary;
         // do not click a whole container with back/call/menu buttons.
         var current: Node? = title
@@ -785,6 +938,31 @@ class MaxUiService : AccessibilityService() {
             private set
         @Volatile var candidate: Profile? = null
         val connected get() = instance != null
+        @Volatile var cardLearningStatus = MaxCardLearningPolicy.Status.IDLE
+            private set
+        fun endCardTraining() { instance?.endCardLearning() }
+        fun startCardTraining(): Boolean {
+            val service = instance
+            if (service == null) { cardLearningStatus = MaxCardLearningPolicy.Status.NO_SERVICE; return false }
+            check(Looper.myLooper() == Looper.getMainLooper())
+            return runCatching {
+                service.stop("Остановлено для обучения открытию карточки")
+                diagnostics.start(60_000)
+                if (service.store.header.isEmpty() || service.store.input.isEmpty() || service.store.version != service.version()) {
+                    service.learningState(MaxCardLearningPolicy.Status.NO_LAYOUT)
+                    false
+                } else {
+                    service.cardUntil = SystemClock.elapsedRealtime() + 60_000
+                    service.learningState(MaxCardLearningPolicy.Status.WAIT_CHAT)
+                    service.main.post(service.cardTick)
+                    true
+                }
+            }.getOrElse {
+                service.endCardLearning(MaxCardLearningPolicy.Status.ERROR)
+                cardLearningStatus = MaxCardLearningPolicy.Status.ERROR
+                false
+            }
+        }
         val running get() = instance?.pending != null
         @Volatile var pickerCandidate: MaxRoutePolicy.Picker? = null
             private set
