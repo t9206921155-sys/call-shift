@@ -70,7 +70,8 @@ class ReplyTestActivity : AppCompatActivity() {
         button("Проверить настройки всех каналов — без отправки") { loadAccounts(); refresh() }
         button("MAX: тест навигации БЕЗ сообщения") { prepare(dryMax = true) }
         button("Тест выбранного канала / подготовить ручной ответ") { prepare(dryMax = false) }
-        result = ui.hint("Тест ещё не запущен. Результат появится здесь и в журнале.")
+        result = ui.hint(if (lastReason == null) "Тест ещё не запущен. Результат появится здесь и в журнале."
+            else "Тест уже был запрошен. Ожидаем данные журнала; не повторяйте при неизвестном результате.")
         button("Открыть подготовленный ручной ответ") {
             val e = lastManual
             if (e == null) { tell("Сначала подготовьте тест ручного канала. Если процесс был закрыт, ответ остаётся в журнале."); return@button }
@@ -152,7 +153,7 @@ class ReplyTestActivity : AppCompatActivity() {
             else -> "Будет запрошена реальная отправка из подключённого личного аккаунта Telegram, независимо от SIM."
         }
         AlertDialog.Builder(this).setTitle("Подтвердите тест")
-            .setMessage("${ReplyChannel.labels[c]}\nSIM: $label\nПолучатель: ${n.e164}\nТекст: $text\n\n$description\nТест не проверяет правила звонков. Автоматических повторов нет.")
+            .setMessage("${ReplyChannel.labels[c]}\nSIM: $label\nПолучатель: ${n.e164}\nТекст: $text\n\n$description\nТест не проверяет правила звонков. Автоматических повторов нет. Повтор при неизвестном результате может создать дубликат.")
             .setPositiveButton("Запустить один раз") { _, _ ->
                 if (submitting) return@setPositiveButton
                 if (c == MaxUiPolicy.CHANNEL && MaxUiService.running) { tell("MAX уже занят другой попыткой; новая не запущена."); return@setPositiveButton }
