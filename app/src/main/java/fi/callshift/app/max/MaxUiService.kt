@@ -492,18 +492,35 @@ class MaxUiService : AccessibilityService() {
         val status = cardLearningStatus
         if (status == MaxCardLearningPolicy.Status.WAIT_CHAT || status == MaxCardLearningPolicy.Status.NO_TARGETS) return
         val source = event.source
-        if (status in setOf(MaxCardLearningPolicy.Status.REPLAY, MaxCardLearningPolicy.Status.FINAL_RETURN) && replayEventExpected && source != null && source == replayNode) {
+        if (status in setOf(MaxCardLearningPolicy.Status.REPLAY, MaxCardLearningPolicy.Status.FINAL_RETURN) && replayEventExpected &&
+            (source != null && source == replayNode || source == null && replayNode?.let {
+                event.windowId == it.windowId && event.className?.toString() == it.className?.toString() &&
+                    MaxCardLearningPolicy.recoverMissingSource(SystemClock.elapsedRealtime(), cardPhaseAt,
+                        it.windowId, event.windowId, event.className?.toString(),
+                        cardSnapshot?.targets?.values.orEmpty()) == cardTrial
+            } == true)) {
             replayEventExpected = false; return
         }
         if (status != MaxCardLearningPolicy.Status.WAIT_TAP) {
             endCardLearning(MaxCardLearningPolicy.Status.EXTRA_CLICK); return
         }
-        if (source == null) { endCardLearning(MaxCardLearningPolicy.Status.SOURCE_MISSING); return }
         val cached = cardSnapshot
-        val selected = cached?.targets?.get(source)
-        if (cached == null || selected == null || source.windowId != cached.window ||
+        val selected = if (source != null) cached?.targets?.get(source) else cached?.let {
+            MaxCardLearningPolicy.recoverMissingSource(SystemClock.elapsedRealtime(), it.at,
+                it.window, event.windowId, event.className?.toString(), it.targets.values)
+        }
+        if (source == null && selected == null) { endCardLearning(MaxCardLearningPolicy.Status.SOURCE_MISSING); return }
+        if (cached == null || selected == null || (source?.windowId ?: event.windowId) != cached.window ||
             !MaxCardLearningPolicy.fresh(SystemClock.elapsedRealtime(), cached.at)) {
             endCardLearning(MaxCardLearningPolicy.Status.SOURCE_REJECTED); return
+        }
+        // With no source node, reject whole toolbar containers and composite
+        // controls: a class/resource hint must not turn into a call/menu click.
+        if (source == null) {
+            val candidate = cached.targets.entries.singleOrNull { it.value == selected }?.key
+            if (candidate == null || toolbar(candidate) || nodes(candidate).any { it != candidate && profileClickable(it) }) {
+                endCardLearning(MaxCardLearningPolicy.Status.SOURCE_REJECTED); return
+            }
         }
         cardTrial = selected
         learningState(MaxCardLearningPolicy.Status.WAIT_CARD)

@@ -26,6 +26,21 @@ object MaxCardLearningPolicy {
         STOPPED("Обучение остановлено; новое действие не сохранено"),
         ERROR("Ошибка обучения; новое действие не сохранено"),
     }
+    /** A missing event node is not permission to try arbitrary toolbar buttons.
+     * Resolve only one candidate of the reported class in the same fresh window.
+     * This is a trial, not saved proof: manual phone card + return + replay still follow.
+     */
+    fun recoverMissingSource(now: Long, snapshotAt: Long, snapshotWindow: Int,
+        eventWindow: Int, eventClass: String?, candidates: Collection<Rule>): Rule? {
+        if (!fresh(now, snapshotAt) || snapshotWindow < 0 || eventWindow != snapshotWindow || eventClass.isNullOrBlank()) return null
+        // First require uniqueness across ALL candidates of that class. Never choose
+        // a convenient avatar while another indistinguishable button is present.
+        val candidate = candidates.filter { it.targetClass == eventClass && matches(it, it) }.singleOrNull() ?: return null
+        val id = candidate.targetId
+        val semantic = id == candidate.header || Regex("(^|_)(avatar|profile|userpic)(_|$)")
+            .containsMatchIn(id.substringAfter('/').lowercase(java.util.Locale.ROOT))
+        return candidate.takeIf { semantic && id.startsWith(MaxUiPolicy.PACKAGE + ":id/") }
+    }
     fun matches(saved: Rule, actual: Rule): Boolean = saved.version >= 0 &&
         saved.targetId.isNotBlank() && saved.targetClass.isNotBlank() && saved.shape.isNotBlank() && saved == actual
     fun fresh(now: Long, snapshotAt: Long): Boolean = now >= snapshotAt && now - snapshotAt <= 1500
