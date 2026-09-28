@@ -2,7 +2,7 @@ package fi.callshift.app.domain
 
 /** Memory-only bounded report. Raw UI strings, resource IDs and phone values never enter frames. */
 class MaxUiDiagnostics(private val now: () -> Long) {
-    enum class Stage { ROUTE_WAIT, ROUTE_PICK, ROUTE_READY, PROBE, OBSERVE, START, CHAT, SEARCH, RESULTS, VERIFY, PROFILE_OPEN, PROFILE_CHECK, PROFILE_RETURN, DRY_CHECK, INPUT, CLICK, STOP }
+    enum class Stage { CHAT_LIST_BACK, CHAT_LIST, ROUTE_WAIT, ROUTE_PICK, ROUTE_READY, PROBE, OBSERVE, START, CHAT, SEARCH, RESULTS, VERIFY, PROFILE_OPEN, PROFILE_CHECK, PROFILE_RETURN, DRY_CHECK, INPUT, CLICK, STOP }
     enum class Label { EMPTY, PHONE, SEARCH, SEND, REDACTED, PASSWORD, PHONE_FIELD }
     data class Node(val visible: Boolean, val editable: Boolean, val clickable: Boolean,
         val enabled: Boolean, val hasId: Boolean, val top: Boolean, val label: Label)
@@ -19,6 +19,10 @@ class MaxUiDiagnostics(private val now: () -> Long) {
         if (!active()) return
         // Map app-owned messages to a closed code set; never retain the supplied text.
         lastStop = when {
+            message.startsWith("MAX: после возврата общий список") || message.startsWith("MAX: общий список чатов") -> "CHAT_LIST_UNCONFIRMED"
+            message.startsWith("MAX: исходный чат изменился") -> "CHAT_CHANGED_BEFORE_BACK"
+            message.startsWith("MAX: повторный выход") -> "CHAT_LIST_BACK_ALREADY_USED"
+            message.startsWith("MAX: Android не принял возврат") -> "CHAT_LIST_BACK_FAILED"
             message.startsWith("MAX: SIM звонка") -> "SIM_UNKNOWN"
             message.startsWith("MAX: для SIM звонка") -> "ROUTE_MISSING"
             message.startsWith("MAX: сначала нужен успешный") -> "ROUTE_TEST_REQUIRED"

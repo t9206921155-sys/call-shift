@@ -14,6 +14,7 @@ import fi.callshift.app.domain.MaxUiPolicy
 import fi.callshift.app.domain.MaxProfileActionPolicy
 import fi.callshift.app.domain.MaxProfileCapture
 import fi.callshift.app.domain.MaxProfilePolicy
+import fi.callshift.app.domain.MaxChatListPolicy
 import fi.callshift.app.domain.MaxSearchPolicy
 import fi.callshift.app.forward.CallEvent
 import kotlinx.coroutines.launch
@@ -66,6 +67,7 @@ class MaxUiService : AccessibilityService() {
         val accountId: String, val route: MaxRoutePolicy.Route,
         val started: Long = SystemClock.elapsedRealtime(), var routeClickedAt: Long? = null,
         var routeReady: Boolean = false,
+        var listBackAt: Long? = null, var globalSearchConfirmed: Boolean = false,
         var edited: Boolean = false, var searchClicked: Boolean = false, var query: String? = null,
         var queryAt: Long = 0, var queryIndex: Int = 0, var selectedAt: Long? = null,
         val contactName: String? = null, val triedRows: MutableSet<Node> = mutableSetOf(),
@@ -260,6 +262,16 @@ class MaxUiService : AccessibilityService() {
                 }
                 p.returningSearch = false; p.selectedAt = null; p.skipCurrentProfile = false
             }
+            if (p.listBackAt != null && !p.globalSearchConfirmed) {
+                trace(MaxUiDiagnostics.Stage.CHAT_LIST, all)
+                if (chatList(all)) p.globalSearchConfirmed = true
+                else {
+                    if (SystemClock.elapsedRealtime() - p.listBackAt!! >= 4000) {
+                        finish("BLOCKED", "MAX: после возврата общий список чатов не подтверждён. Поиск внутри переписки не запускается")
+                    } else main.postDelayed(tick, 400)
+                    return
+                }
+            }
             if (!p.edited && input != null && h.size == 1 && searchFields(all).isEmpty() &&
                 MaxUiPolicy.phone(h.single().text.toString()) == null && !p.skipCurrentProfile && p.profile == null) {
                 if (draft.isNotEmpty()) { finish("BLOCKED", "В чате есть черновик — карточка не открывается"); return }
@@ -270,7 +282,9 @@ class MaxUiService : AccessibilityService() {
                 val correctChat = h.size == 1 && MaxSearchPolicy.equivalent(checkedRecipient(p, h.singleOrNull(), input), p.number)
                 if (!correctChat || (p.query != null && p.selectedAt == null) || searchFields(all).isNotEmpty()) {
                     if (draft.isNotEmpty()) { finish("BLOCKED", "В открытом чате есть черновик — поиск не запускается"); return }
-                    search(p, root, all)
+                    if (p.query == null && !p.globalSearchConfirmed && input != null && h.size == 1 && searchFields(all).isEmpty()) {
+                        returnToChatList(p, root, h.single(), input)
+                    } else search(p, root, all)
                     return
                 }
             }
@@ -425,6 +439,11 @@ class MaxUiService : AccessibilityService() {
     private fun openProfile(p: Pending, root: Node, title: Node, input: Node) {
         val button = profileButton(root, title)
         if (button == null) {
+            // An unverified current chat need not be the recipient. Try global lookup once;
+            // a candidate opened by that lookup still MUST pass the card phone check.
+            if (p.query == null && p.selectedAt == null && p.listBackAt == null) {
+                returnToChatList(p, root, title, input); return
+            }
             finish("BLOCKED", "Не определено безопасное открытие карточки из заголовка чата: нет однозначного действия заголовка, профиля или аватара"); return
         }
         val fresh = rootInActiveWindow
@@ -494,6 +513,47 @@ class MaxUiService : AccessibilityService() {
         }
         return false
     }
+    private fun chatList(all: List<Node>): Boolean {
+        val visible = all.filter { it.isVisibleToUser && !it.isPassword }
+        val marker = visible.any { node ->
+            if (!MaxChatListPolicy.chatsLabel(node.text?.toString()) &&
+                !MaxChatListPolicy.chatsLabel(node.contentDescription?.toString())) false
+            else {
+                var selected = node.isSelected
+                var parent = node.parent
+                repeat(2) {
+                    val ancestor = parent
+                    if (ancestor != null && !collection(ancestor)) selected = selected || ancestor.isSelected
+                    parent = ancestor?.parent
+                }
+                !node.isEditable && selected
+            }
+        }
+        return MaxChatListPolicy.confirmed(
+            visible.count { it.isEditable && it.viewIdResourceName == store.input },
+            visible.count { MaxProfilePolicy.phoneLabel(it.text?.toString()) },
+            visible.count(::collection), marker,
+            visible.count { it.isEditable }, searchFields(all).size)
+    }
+    private fun returnToChatList(p: Pending, root: Node, title: Node, input: Node) {
+        if (p.listBackAt != null || p.query != null || p.edited || p.selectedAt != null) {
+            finish("BLOCKED", "MAX: повторный выход из чата запрещён"); return
+        }
+        val fresh = rootInActiveWindow
+        if (!store.enabled || !app.settings.masterEnabled || !unlocked() || fresh == null ||
+            fresh.packageName?.toString() != MaxUiPolicy.PACKAGE || fresh.windowId != root.windowId ||
+            !title.refresh() || !header(title) || title.viewIdResourceName != store.header ||
+            !input.refresh() || !input.isEnabled || !input.isVisibleToUser || !input.isEditable || input.isPassword ||
+            input.viewIdResourceName != store.input || editableText(input).isNotEmpty()) {
+            finish("BLOCKED", "MAX: исходный чат изменился или содержит черновик; возврата не было"); return
+        }
+        p.listBackAt = SystemClock.elapsedRealtime() // one attempt even if Android reports failure
+        p.profile = null
+        p.skipCurrentProfile = true
+        trace(MaxUiDiagnostics.Stage.CHAT_LIST_BACK)
+        if (!backWithinMax()) { finish("BLOCKED", "MAX: Android не принял возврат к списку чатов"); return }
+        main.postDelayed(tick, 500)
+    }
     private fun searchFields(all: List<Node>) = all.filter {
         it.isVisibleToUser && it.isEnabled && it.isEditable && !it.isPassword &&
             it.viewIdResourceName != store.input &&
@@ -519,6 +579,10 @@ class MaxUiService : AccessibilityService() {
         trace(if (p.selectedAt != null) MaxUiDiagnostics.Stage.VERIFY else if (p.query != null) MaxUiDiagnostics.Stage.RESULTS else MaxUiDiagnostics.Stage.SEARCH, all)
         val now = SystemClock.elapsedRealtime()
         fun waitForUi() { main.removeCallbacks(tick); main.postDelayed(tick, 500) }
+        if (!p.globalSearchConfirmed) {
+            if (chatList(all)) { p.globalSearchConfirmed = true; trace(MaxUiDiagnostics.Stage.CHAT_LIST, all) }
+            else { finish("BLOCKED", "MAX: общий список чатов не подтверждён. Поиск внутри переписки не запускается"); return }
+        }
         if (p.selectedAt != null) {
             if (now - p.selectedAt!! < 1800) waitForUi()
             else finish("BLOCKED", "Результат открыт, но номер в шапке чата не подтверждён. По имени отправлять нельзя")
