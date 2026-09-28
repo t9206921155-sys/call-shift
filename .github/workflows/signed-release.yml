@@ -1,5 +1,5 @@
 name: Publish signed CallShift 0.8.8-max-navigation
-# Foreground chooser inspection, text-free diagnostics and a fresh window check before a single click.
+# Bounded global chat-list navigation; never navigate through a visible password field.
 on:
   push:
     branches: [arena/01a0d923-call-shift]

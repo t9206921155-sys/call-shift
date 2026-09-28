@@ -19,6 +19,7 @@ class MaxUiDiagnostics(private val now: () -> Long) {
         if (!active()) return
         // Map app-owned messages to a closed code set; never retain the supplied text.
         lastStop = when {
+            message.startsWith("MAX: экран пароля") -> "APP_PASSWORD_FIELD"
             message.startsWith("MAX: после возврата общий список") || message.startsWith("MAX: общий список чатов") -> "CHAT_LIST_UNCONFIRMED"
             message.startsWith("MAX: исходный чат изменился") -> "CHAT_CHANGED_BEFORE_BACK"
             message.startsWith("MAX: повторный выход") -> "CHAT_LIST_BACK_ALREADY_USED"

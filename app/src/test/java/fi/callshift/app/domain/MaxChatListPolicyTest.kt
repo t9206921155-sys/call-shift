@@ -6,6 +6,7 @@ import org.junit.Test
 class MaxChatListPolicyTest {
     @Test fun requiresSelectedChatsAndCollectionWithoutComposerOrCard() {
         assertTrue(MaxChatListPolicy.confirmed(0, 0, 1, true, 0, 0))
+        assertFalse(MaxChatListPolicy.confirmed(0, 0, 1, true, 0, 0, passwords = 1))
         assertTrue(MaxChatListPolicy.confirmed(0, 0, 1, true, 1, 1))
         assertFalse(MaxChatListPolicy.confirmed(1, 0, 1, true, 1, 0))
         assertFalse(MaxChatListPolicy.confirmed(0, 1, 1, true, 0, 0))

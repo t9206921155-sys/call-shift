@@ -4,6 +4,6 @@ package fi.callshift.app.domain
 object MaxChatListPolicy {
     fun chatsLabel(text: String?): Boolean = text?.trim()?.lowercase(java.util.Locale.ROOT) in setOf("чаты", "chats")
     fun confirmed(composers: Int, phoneLabels: Int, visibleCollections: Int, chatsMarker: Boolean,
-        editables: Int, searchFields: Int): Boolean = composers == 0 && phoneLabels == 0 &&
+        editables: Int, searchFields: Int, passwords: Int = 0): Boolean = passwords == 0 && composers == 0 && phoneLabels == 0 &&
         visibleCollections > 0 && chatsMarker && searchFields in 0..1 && editables == searchFields
 }

@@ -250,6 +250,9 @@ class MaxUiService : AccessibilityService() {
                 main.postDelayed(tick, 500); return
             }
             val all = nodes(root)
+            if (all.any { it.isVisibleToUser && it.isPassword }) {
+                finish("BLOCKED", "MAX: экран пароля или защищённое поле; навигация и отправка запрещены"); return
+            }
             trace(MaxUiDiagnostics.Stage.CHAT, all)
             val h = all.filter { it.viewIdResourceName == store.header && header(it) }
             val inputs = all.filter { it.viewIdResourceName == store.input && it.isEditable && it.isEnabled && it.isVisibleToUser && !it.isPassword }
@@ -310,6 +313,9 @@ class MaxUiService : AccessibilityService() {
                             finish("BLOCKED", "Экран изменился до ввода"); return@withContext
                         }
                         val ns = nodes(fresh)
+                        if (ns.any { it.isVisibleToUser && it.isPassword }) {
+                            finish("BLOCKED", "MAX: экран пароля или защищённое поле; навигация и отправка запрещены"); return@withContext
+                        }
                         val recipient = ns.filter { it.viewIdResourceName == store.header && header(it) }.singleOrNull()
                         val field = ns.filter { it.viewIdResourceName == store.input && it.isVisibleToUser && it.isEnabled && it.isEditable && !it.isPassword }.singleOrNull()
                         if (!MaxSearchPolicy.equivalent(checkedRecipient(p, recipient, field), p.number) || field == null || editableText(field).isNotEmpty()) {
@@ -449,6 +455,7 @@ class MaxUiService : AccessibilityService() {
         val fresh = rootInActiveWindow
         if (!unlocked() || !store.enabled || !app.settings.masterEnabled || fresh == null ||
             fresh.packageName?.toString() != MaxUiPolicy.PACKAGE || fresh.windowId != root.windowId ||
+            nodes(fresh).any { it.isVisibleToUser && it.isPassword } ||
             !title.refresh() || !header(title) || title.viewIdResourceName != store.header ||
             !input.refresh() || !input.isVisibleToUser || !input.isEditable || input.isPassword || editableText(input).isNotEmpty() ||
             !button.refresh() || !profileClickable(button) || profileButton(fresh, title) != button) {
@@ -514,7 +521,7 @@ class MaxUiService : AccessibilityService() {
         return false
     }
     private fun chatList(all: List<Node>): Boolean {
-        val visible = all.filter { it.isVisibleToUser && !it.isPassword }
+        val visible = all.filter { it.isVisibleToUser }
         val marker = visible.any { node ->
             if (!MaxChatListPolicy.chatsLabel(node.text?.toString()) &&
                 !MaxChatListPolicy.chatsLabel(node.contentDescription?.toString())) false
@@ -533,7 +540,8 @@ class MaxUiService : AccessibilityService() {
             visible.count { it.isEditable && it.viewIdResourceName == store.input },
             visible.count { MaxProfilePolicy.phoneLabel(it.text?.toString()) },
             visible.count(::collection), marker,
-            visible.count { it.isEditable }, searchFields(all).size)
+            visible.count { it.isEditable }, searchFields(all).size,
+            visible.count { it.isPassword })
     }
     private fun returnToChatList(p: Pending, root: Node, title: Node, input: Node) {
         if (p.listBackAt != null || p.query != null || p.edited || p.selectedAt != null) {
@@ -542,6 +550,7 @@ class MaxUiService : AccessibilityService() {
         val fresh = rootInActiveWindow
         if (!store.enabled || !app.settings.masterEnabled || !unlocked() || fresh == null ||
             fresh.packageName?.toString() != MaxUiPolicy.PACKAGE || fresh.windowId != root.windowId ||
+            nodes(fresh).any { it.isVisibleToUser && it.isPassword } ||
             !title.refresh() || !header(title) || title.viewIdResourceName != store.header ||
             !input.refresh() || !input.isEnabled || !input.isVisibleToUser || !input.isEditable || input.isPassword ||
             input.viewIdResourceName != store.input || editableText(input).isNotEmpty()) {
