@@ -559,6 +559,15 @@ class MaxUiService : AccessibilityService() {
     private data class HeaderTap(val title: Node, val editor: Node, val rule: MaxCardLearningPolicy.Rule,
         val window: Int, val point: fi.callshift.app.domain.MaxHeaderGesturePolicy.Point)
     private fun titleTap(root: Node): HeaderTap? {
+        // Gesture coordinates can be transformed by zoom or touch exploration. Do not
+        // assume their mapping, and never target a secondary display with a default-display tap.
+        val accessibility = getSystemService(android.view.accessibility.AccessibilityManager::class.java)
+        if (accessibility == null || accessibility.isTouchExplorationEnabled) return null
+        val scale = runCatching {
+            if (Build.VERSION.SDK_INT >= 33) magnificationController.magnificationConfig?.scale
+            else magnificationController.scale
+        }.getOrNull()
+        if (scale != 1f) return null
         if (!unlocked() || store.version != version() || root.packageName?.toString() != MaxUiPolicy.PACKAGE) return null
         val all = nodes(root)
         if (all.size >= 600 || all.any { it.isVisibleToUser && it.isPassword } || all.count { it.isVisibleToUser && it.isEditable } != 1) return null
@@ -568,6 +577,7 @@ class MaxUiService : AccessibilityService() {
         val rule = titleGestureRule(title) ?: return null
         val foreground = windows.singleOrNull { it.id == root.windowId && it.isFocused &&
             it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION } ?: return null
+        if (Build.VERSION.SDK_INT >= 30 && foreground.displayId != android.view.Display.DEFAULT_DISPLAY) return null
         fun rect(r: android.graphics.Rect) = fi.callshift.app.domain.MaxHeaderGesturePolicy.Rect(r.left, r.top, r.right, r.bottom)
         fun bounds(n: Node) = rect(android.graphics.Rect().also { n.getBoundsInScreen(it) })
         val obstacles = all.filter { n -> n != title && n.isVisibleToUser && n.isEnabled &&

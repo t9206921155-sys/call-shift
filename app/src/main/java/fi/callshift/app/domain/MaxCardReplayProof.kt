@@ -14,7 +14,7 @@ class MaxCardReplayProof {
         phase = Phase.FIRST_RETURN
         return true
     }
-    /** Call only after window, original node identities, caption and empty editor were checked. */
+    /** Call only after window, structural identity, caption and empty editor were checked. */
     fun returned(): Boolean {
         phase = when (phase) {
             Phase.FIRST_RETURN -> Phase.READY
