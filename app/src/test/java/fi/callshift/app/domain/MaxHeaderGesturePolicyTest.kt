@@ -30,6 +30,8 @@ class MaxHeaderGesturePolicyTest {
     }
     @Test fun injectedAcknowledgementDoesNotNeedManualSourceButIsBounded() {
         assertTrue(MaxHeaderGesturePolicy.expectedEvent(1200, 1000, 1100, 7, 7))
+        // Android may omit both source and windowId. The injected tap still needs phone/return proof.
+        assertTrue(MaxHeaderGesturePolicy.expectedEvent(1200, 1000, 1100, 7, -1))
         assertFalse(MaxHeaderGesturePolicy.expectedEvent(2600, 1000, 1100, 7, 7))
         assertFalse(MaxHeaderGesturePolicy.expectedEvent(1200, 1000, 999, 7, 7))
         assertFalse(MaxHeaderGesturePolicy.expectedEvent(1200, 1000, 1201, 7, 7))
@@ -45,6 +47,19 @@ class MaxHeaderGesturePolicyTest {
         assertTrue(Json.decodeFromString<MaxCardLearningPolicy.Rule>(Json.encodeToString(gesture)).gesture)
         assertFalse(Json.encodeToString(gesture).contains("coordinate"))
         assertFalse(Json.encodeToString(gesture).contains("phone"))
+    }
+    @Test fun calibrationReturnUsesStableStructureNotRecycledNodeIds() {
+        fun matches(window: Boolean = true, title: Boolean = true, editor: Boolean = true,
+            caption: Boolean = true, count: Int = 1, empty: Boolean = true) =
+            MaxCardLearningPolicy.trainingReturn(window, title, editor, caption, count, empty)
+        assertTrue(matches())
+        assertFalse(matches(window = false))
+        assertFalse(matches(title = false))
+        assertFalse(matches(editor = false))
+        assertFalse(matches(caption = false))
+        assertFalse(matches(count = 0))
+        assertFalse(matches(count = 2))
+        assertFalse(matches(empty = false))
     }
     @Test fun twoVerifiedCardsAndReturnsStillRequiredAfterAutomaticFirstTap() {
         val proof = MaxCardReplayProof()

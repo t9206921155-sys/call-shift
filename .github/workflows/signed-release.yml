@@ -1,5 +1,5 @@
 name: Publish signed CallShift 0.8.19-max-title-gesture
-# Persist terminal reports without blocking UI actions on diagnostic disk writes.
+# Verify bounded gesture acknowledgements and recreated calibration views.
 on:
   push:
     branches: [arena/01a0d923-call-shift]

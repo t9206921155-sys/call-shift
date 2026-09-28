@@ -50,6 +50,12 @@ object MaxCardLearningPolicy {
         if (!semantic || !id.startsWith(MaxUiPolicy.PACKAGE + ":id/")) return Recovery(RecoveryReason.UNSAFE_ID)
         return Recovery(RecoveryReason.MATCH, candidate)
     }
+    /** Training proves an action, not the identity of a future message recipient.
+     * Android may recreate the chat views on Back; structural return + second phone
+     * proof are required instead of keeping the old AccessibilityNode object IDs. */
+    fun trainingReturn(sameWindow: Boolean, sameTitleClass: Boolean, sameEditorClass: Boolean,
+        sameCaption: Boolean, editableCount: Int, empty: Boolean): Boolean =
+        sameWindow && sameTitleClass && sameEditorClass && sameCaption && editableCount == 1 && empty
     fun matches(saved: Rule, actual: Rule): Boolean = saved.version >= 0 &&
         saved.targetId.isNotBlank() && saved.targetClass.isNotBlank() && saved.shape.isNotBlank() && saved == actual
     fun fresh(now: Long, snapshotAt: Long): Boolean = now >= snapshotAt && now - snapshotAt <= 1500

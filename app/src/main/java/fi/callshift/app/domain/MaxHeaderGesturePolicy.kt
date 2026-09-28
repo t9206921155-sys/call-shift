@@ -18,5 +18,5 @@ object MaxHeaderGesturePolicy {
     }
     fun expectedEvent(now: Long, issuedAt: Long, eventAt: Long, window: Int, eventWindow: Int): Boolean =
         issuedAt >= 0 && now >= issuedAt && now - issuedAt <= 1500 &&
-            eventAt in issuedAt..now && window >= 0 && eventWindow == window
+            eventAt in issuedAt..now && window >= 0 && (eventWindow == window || eventWindow == -1)
 }

@@ -711,8 +711,9 @@ class MaxUiService : AccessibilityService() {
         }
         val original = cardSnapshot ?: run { endCardLearning(MaxCardLearningPolicy.Status.ERROR); return }
         if (title == null || editor == null) return
-        if (root.windowId != original.window || title != original.title || editor != original.editor ||
-            title.text?.toString() != original.caption || editableText(editor).isNotEmpty() || all.count { it.isVisibleToUser && it.isEditable } != 1) {
+        if (!MaxCardLearningPolicy.trainingReturn(root.windowId == original.window,
+                title.className == original.title.className, editor.className == original.editor.className,
+                title.text?.toString() == original.caption, all.count { it.isVisibleToUser && it.isEditable }, editableText(editor).isEmpty())) {
             endCardLearning(MaxCardLearningPolicy.Status.RETURN_UNVERIFIED); return
         }
         val rule = cardTrial ?: run { endCardLearning(MaxCardLearningPolicy.Status.ERROR); return }
