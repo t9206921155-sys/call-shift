@@ -86,7 +86,7 @@ class MaxSimpleActivity : AppCompatActivity() {
                         2 -> startActivity(Intent(this, MaxUiActivity::class.java))
                         3 -> {
                             getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(
-                                android.content.ClipData.newPlainText("MAX diagnostics", MaxUiService.diagnostics.report(android.os.Build.VERSION.SDK_INT, fi.callshift.app.BuildConfig.VERSION_NAME) + "\nSaved learning=" + store.cardOutcome().name))
+                                android.content.ClipData.newPlainText("MAX diagnostics", MaxUiService.report(this) + "\nSaved learning=" + store.cardOutcome().name))
                             Toast.makeText(this, "Отчёт скопирован", Toast.LENGTH_SHORT).show()
                         }
                         4 -> test(false)

@@ -30,15 +30,24 @@ object MaxCardLearningPolicy {
      * Resolve only one candidate of the reported class in the same fresh window.
      * This is a trial, not saved proof: manual phone card + return + replay still follow.
      */
+    enum class RecoveryReason { STALE, WINDOW_MISMATCH, CLASS_MISSING, NO_CLASS_MATCH, AMBIGUOUS_CLASS, UNSAFE_ID, MATCH }
+    data class Recovery(val reason: RecoveryReason, val rule: Rule? = null)
     fun recoverMissingSource(now: Long, snapshotAt: Long, snapshotWindow: Int,
-        eventWindow: Int, eventClass: String?, candidates: Collection<Rule>): Rule? {
-        if (!fresh(now, snapshotAt) || snapshotWindow < 0 || eventWindow != snapshotWindow || eventClass.isNullOrBlank()) return null
-        // First require uniqueness across ALL candidates of that class. Never choose
-        // a convenient avatar while another indistinguishable button is present.
-        val candidate = candidates.filter { it.targetClass == eventClass && matches(it, it) }.singleOrNull() ?: return null
+        eventWindow: Int, eventClass: String?, candidates: Collection<Rule>): Rule? =
+        recovery(now, snapshotAt, snapshotWindow, eventWindow, eventClass, candidates).rule
+    fun recovery(now: Long, snapshotAt: Long, snapshotWindow: Int,
+        eventWindow: Int, eventClass: String?, candidates: Collection<Rule>): Recovery {
+        if (!fresh(now, snapshotAt)) return Recovery(RecoveryReason.STALE)
+        if (snapshotWindow < 0 || eventWindow != snapshotWindow) return Recovery(RecoveryReason.WINDOW_MISMATCH)
+        if (eventClass.isNullOrBlank()) return Recovery(RecoveryReason.CLASS_MISSING)
+        val matching = candidates.filter { it.targetClass == eventClass && matches(it, it) }
+        if (matching.isEmpty()) return Recovery(RecoveryReason.NO_CLASS_MATCH)
+        if (matching.size != 1) return Recovery(RecoveryReason.AMBIGUOUS_CLASS)
+        val candidate = matching.single()
         val id = candidate.targetId
         val semantic = id == candidate.header || MaxProfileActionPolicy.profileResource(id)
-        return candidate.takeIf { semantic && id.startsWith(MaxUiPolicy.PACKAGE + ":id/") }
+        if (!semantic || !id.startsWith(MaxUiPolicy.PACKAGE + ":id/")) return Recovery(RecoveryReason.UNSAFE_ID)
+        return Recovery(RecoveryReason.MATCH, candidate)
     }
     fun matches(saved: Rule, actual: Rule): Boolean = saved.version >= 0 &&
         saved.targetId.isNotBlank() && saved.targetClass.isNotBlank() && saved.shape.isNotBlank() && saved == actual

@@ -35,7 +35,7 @@ class MaxRoutesActivity : AppCompatActivity() {
         ui.add(MaterialButton(this).apply {
             text = "Показать / скопировать отчёт распознавания"
             setOnClickListener {
-                val report = MaxUiService.diagnostics.report(android.os.Build.VERSION.SDK_INT, fi.callshift.app.BuildConfig.VERSION_NAME) +
+                val report = MaxUiService.report(this@MaxRoutesActivity) +
                     "\nService connected now=${MaxUiService.connected}; picker learned=${MaxUiService.pickerCandidate != null}\n"
                 val textView = android.widget.TextView(this@MaxRoutesActivity).apply {
                     text = report; setPadding(24, 16, 24, 16); setTextIsSelectable(true)

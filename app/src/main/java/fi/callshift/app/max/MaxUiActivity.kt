@@ -81,7 +81,7 @@ class MaxUiActivity : AppCompatActivity() {
             runCatching { store.modes(true, false) }.onFailure { toast("Ошибка сохранения") }; refresh()
         }
         button("Разрешить экспериментальную отправку") {
-            if (MaxUiService.diagnostics.active()) { toast("Сначала завершите диагностику: во время записи отправка запрещена"); return@button }
+            if (MaxUiService.diagnostics.forcesDry()) { toast("Сначала завершите диагностику: во время записи отправка запрещена"); return@button }
             if (!MaxUiService.connected || store.header.isEmpty()) { toast("Сначала подключите службу и сохраните профиль"); return@button }
             AlertDialog.Builder(this).setTitle("Реальная отправка через интерфейс MAX")
                 .setMessage("Сначала выполните проверочный звонок в режиме без отправки и проверьте журнал. При включении CallShift сможет вводить текст и нажимать «Отправить» в проверенном чате. Возможны ошибки интерфейса. Лимит — 5 попыток за последние 24 часа, ошибки не возвращают резерв. Доставка не подтверждается. После переподключения службы отправка снова выключится. Разрешить?")
@@ -109,7 +109,7 @@ class MaxUiActivity : AppCompatActivity() {
             toast("Реальная отправка выключена. Сделайте тестовый звонок с правилом MAX UI; номер может вводиться только в поиск.")
         }
         button("Посмотреть / скопировать отчёт") {
-            val report = MaxUiService.diagnostics.report(android.os.Build.VERSION.SDK_INT, fi.callshift.app.BuildConfig.VERSION_NAME) +
+            val report = MaxUiService.report(this) +
                 "\nService connected now=${MaxUiService.connected}; staged sample available=${MaxUiService.usableCandidate(this) != null}\n"
             val view = android.widget.TextView(this).apply { text = report; setPadding(24, 16, 24, 16); setTextIsSelectable(true) }
             val scroll = android.widget.ScrollView(this).apply { addView(view) }

@@ -80,6 +80,7 @@ class MaxUiService : AccessibilityService() {
         val started: Long, var returning: Boolean = false, var verified: Boolean = false, var returnedAt: Long? = null)
     private var pending: Pending? = null
     private var busy = false
+    private var lastSavedStage: MaxUiDiagnostics.Stage? = null
     private val tick = Runnable { step() }
     private val probeTick = object : Runnable {
         override fun run() {
@@ -214,8 +215,9 @@ class MaxUiService : AccessibilityService() {
         }
     }
     private fun begin(event: CallEvent, number: String, text: String, contactName: String?, accountId: String?) {
-        trace(MaxUiDiagnostics.Stage.START)
         if (pending != null) { log(event, "BLOCKED", "MAX уже занят другой попыткой; очередь и повтор отключены"); return }
+        diagnostics.observe(45_000); lastSavedStage = null
+        trace(MaxUiDiagnostics.Stage.START)
         val startupIssue = when {
             !store.enabled -> "MAX: режим выключен. Включите проверку без отправки"
             !unlocked() -> "MAX: разблокируйте экран"
@@ -227,7 +229,8 @@ class MaxUiService : AccessibilityService() {
         if (startupIssue != null) { log(event, "BLOCKED", startupIssue); return }
         val route = MaxRoutePolicy.resolve(accountId, app.telecom.phoneAccounts().keys, routes.routes())
         if (route == null) { log(event, "BLOCKED", "MAX: для SIM звонка не выбран аккаунт. Откройте «Аккаунт отправителя по SIM»"); return }
-        val dry = !store.live || diagnostics.active()
+        val dry = !store.live || diagnostics.forcesDry()
+        diagnostics.attempt(dry)
         if (!dry && !routes.tested(accountId!!, route)) {
             log(event, "BLOCKED", "MAX: сначала нужен успешный проверочный звонок для маршрута этой SIM"); return
         }
@@ -477,8 +480,10 @@ class MaxUiService : AccessibilityService() {
     private var replayNode: Node? = null
     private var replayEventExpected = false
     private fun learningState(state: MaxCardLearningPolicy.Status) {
+        val changed = cardLearningStatus != state
         cardLearningStatus = state
         diagnostics.cardLearning(state)
+        if (changed) runCatching { store.saveReport(diagnostics, MaxUiStore.ReportKind.LEARNING) }
         cardPhaseAt = SystemClock.elapsedRealtime()
     }
     private fun endCardLearning(state: MaxCardLearningPolicy.Status = MaxCardLearningPolicy.Status.STOPPED) {
@@ -489,6 +494,7 @@ class MaxUiService : AccessibilityService() {
             cardLearningStatus == MaxCardLearningPolicy.Status.NO_TARGETS) MaxCardLearningPolicy.Status.NO_TARGETS else state
         learningState(finalState)
         runCatching { store.cardOutcome(finalState) }
+        runCatching { store.saveReport(diagnostics, MaxUiStore.ReportKind.LEARNING) }
         if (finalState != MaxCardLearningPolicy.Status.STOPPED)
             android.widget.Toast.makeText(this, finalState.explanation, android.widget.Toast.LENGTH_LONG).show()
     }
@@ -541,8 +547,10 @@ class MaxUiService : AccessibilityService() {
         }
         val cached = cardSnapshot
         val selected = if (source != null) cached?.targets?.get(source) else cached?.let {
-            MaxCardLearningPolicy.recoverMissingSource(SystemClock.elapsedRealtime(), it.at,
-                it.window, event.windowId, event.className?.toString(), it.targets.values)
+            MaxCardLearningPolicy.recovery(SystemClock.elapsedRealtime(), it.at,
+                it.window, event.windowId, event.className?.toString(), it.targets.values).also { recovery ->
+                    diagnostics.sourceRecovery(recovery.reason)
+                }.rule
         }
         if (source == null && selected == null) { endCardLearning(MaxCardLearningPolicy.Status.SOURCE_MISSING); return }
         if (cached == null || selected == null || (source?.windowId ?: event.windowId) != cached.window ||
@@ -974,9 +982,15 @@ class MaxUiService : AccessibilityService() {
         if (p != null) log(p.event, result, message)
     }
     private fun log(event: CallEvent, result: String, message: String) {
-        if (result == "BLOCKED") {
+        val ownsCapture = pending == null || pending?.event === event
+        if (ownsCapture && result == "UI_UNKNOWN") trace(MaxUiDiagnostics.Stage.CLICK, outcome = result)
+        if (ownsCapture && result == "BLOCKED") {
             diagnostics.stopReason(message)
             trace(MaxUiDiagnostics.Stage.STOP, outcome = result)
+        }
+        if (result in setOf("UI_PENDING", "UI_CHECKED", "UI_UNKNOWN", "BLOCKED") &&
+            ownsCapture) {
+            runCatching { store.saveReport(diagnostics, MaxUiStore.ReportKind.ATTEMPT) }
         }
         logs.trySend(event.copy(result = result, errorMessage = message, errorCode = if (result == "BLOCKED") "max_ui_blocked" else null))
     }
@@ -994,10 +1008,26 @@ class MaxUiService : AccessibilityService() {
                     !n.viewIdResourceName.isNullOrBlank(), rect.bottom <= resources.displayMetrics.heightPixels / 3, kind)
             }
             diagnostics.record(stage, version(), unlocked(), store.header.isNotEmpty() && store.input.isNotEmpty() && store.version == version(), safe, outcome)
+            // Persist transitions, not every polling frame. Never overwrite a terminal
+            // snapshot with passive observation after returning to CallShift.
+            if (pending != null && stage != lastSavedStage && stage in setOf(
+                    MaxUiDiagnostics.Stage.ROUTE_PICK, MaxUiDiagnostics.Stage.ROUTE_READY,
+                    MaxUiDiagnostics.Stage.PROFILE_OPEN, MaxUiDiagnostics.Stage.PROFILE_CHECK,
+                    MaxUiDiagnostics.Stage.PROFILE_RETURN, MaxUiDiagnostics.Stage.INPUT,
+                    MaxUiDiagnostics.Stage.CLICK, MaxUiDiagnostics.Stage.FIND_BY_PHONE,
+                    MaxUiDiagnostics.Stage.GLOBAL_SEARCH, MaxUiDiagnostics.Stage.CHAT_LIST_BACK)) {
+                store.saveReport(diagnostics, MaxUiStore.ReportKind.ATTEMPT)
+                lastSavedStage = stage
+            }
         }
     }
     data class Profile(val header: String, val input: String, val version: Long, val phone: String, val at: Long)
     companion object {
+        fun report(context: android.content.Context): String {
+            val saved = MaxUiStore(context).savedReport()
+            val current = diagnostics.report(android.os.Build.VERSION.SDK_INT, fi.callshift.app.BuildConfig.VERSION_NAME)
+            return if (saved == null) current else "$saved\n\nCurrent in-memory capture (may be a different operation):\n$current"
+        }
         val diagnostics = MaxUiDiagnostics { SystemClock.elapsedRealtime() }
         @Volatile private var instance: MaxUiService? = null
         @Volatile var captureIssue = MaxProfileCapture.Issue.NOT_STARTED
