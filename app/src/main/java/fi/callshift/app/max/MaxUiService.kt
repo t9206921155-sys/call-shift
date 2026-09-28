@@ -381,7 +381,7 @@ class MaxUiService : AccessibilityService() {
             trace(MaxUiDiagnostics.Stage.CLICK, ns)
             // Remove pending BEFORE clicking: no event, timeout or reconnection can retry.
             pending = null; main.removeCallbacks(tick); main.removeCallbacks(timeout)
-            log(p.event, "UI_UNKNOWN", "Передано управление кнопке MAX. Результат неизвестен; повторов нет")
+            log(p.event, "UI_UNKNOWN", "Передано управление кнопке MAX. Результат неизвестен; повторов нет", durable = false)
             val clicked = send.performAction(Node.ACTION_CLICK)
             log(p.event, "UI_UNKNOWN", if (clicked) "Нажата кнопка MAX. Отправка и доставка НЕ подтверждены; повторов нет"
                 else "Результат нажатия MAX неизвестен. Проверьте чат вручную; повторов нет")
@@ -494,7 +494,7 @@ class MaxUiService : AccessibilityService() {
             cardLearningStatus == MaxCardLearningPolicy.Status.NO_TARGETS) MaxCardLearningPolicy.Status.NO_TARGETS else state
         learningState(finalState)
         runCatching { store.cardOutcome(finalState) }
-        runCatching { store.saveReport(diagnostics, MaxUiStore.ReportKind.LEARNING) }
+        runCatching { store.saveReport(diagnostics, MaxUiStore.ReportKind.LEARNING, durable = true) }
         if (finalState != MaxCardLearningPolicy.Status.STOPPED)
             android.widget.Toast.makeText(this, finalState.explanation, android.widget.Toast.LENGTH_LONG).show()
     }
@@ -981,7 +981,7 @@ class MaxUiService : AccessibilityService() {
         main.removeCallbacks(tick); main.removeCallbacks(timeout)
         if (p != null) log(p.event, result, message)
     }
-    private fun log(event: CallEvent, result: String, message: String) {
+    private fun log(event: CallEvent, result: String, message: String, durable: Boolean = true) {
         val ownsCapture = pending == null || pending?.event === event
         if (ownsCapture && result == "UI_UNKNOWN") trace(MaxUiDiagnostics.Stage.CLICK, outcome = result)
         if (ownsCapture && result == "BLOCKED") {
@@ -990,7 +990,7 @@ class MaxUiService : AccessibilityService() {
         }
         if (result in setOf("UI_PENDING", "UI_CHECKED", "UI_UNKNOWN", "BLOCKED") &&
             ownsCapture) {
-            runCatching { store.saveReport(diagnostics, MaxUiStore.ReportKind.ATTEMPT) }
+            runCatching { store.saveReport(diagnostics, MaxUiStore.ReportKind.ATTEMPT, durable) }
         }
         logs.trySend(event.copy(result = result, errorMessage = message, errorCode = if (result == "BLOCKED") "max_ui_blocked" else null))
     }

@@ -1,5 +1,5 @@
 name: Publish signed CallShift 0.8.17-max-results
-# Explicit channel tests preserve uncertain state across Activity recreation and never auto-retry.
+# Persist terminal reports without blocking UI actions on diagnostic disk writes.
 on:
   push:
     branches: [arena/01a0d923-call-shift]

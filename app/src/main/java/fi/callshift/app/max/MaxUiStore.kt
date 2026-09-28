@@ -9,11 +9,13 @@ import kotlinx.serialization.json.Json
 class MaxUiStore(context: Context) {
     private val p = context.getSharedPreferences("max_ui_v1", Context.MODE_PRIVATE)
     enum class ReportKind { ATTEMPT, LEARNING }
-    fun saveReport(diagnostics: fi.callshift.app.domain.MaxUiDiagnostics, kind: ReportKind) {
+    fun saveReport(diagnostics: fi.callshift.app.domain.MaxUiDiagnostics, kind: ReportKind, durable: Boolean = false) {
         // Only the redacted report generator can supply persisted contents; never caller text.
         val report = diagnostics.report(android.os.Build.VERSION.SDK_INT, fi.callshift.app.BuildConfig.VERSION_NAME)
-        check(p.edit().putString("last_report", report.take(16000))
-            .putLong("last_report_at", System.currentTimeMillis()).putString("last_report_kind", kind.name).commit())
+        val edit = p.edit().putString("last_report", report.take(16000))
+            .putLong("last_report_at", System.currentTimeMillis()).putString("last_report_kind", kind.name)
+        // Never block between validating a UI node and acting on it for diagnostic disk I/O.
+        if (durable) check(edit.commit()) else edit.apply()
     }
     fun savedReport(): String? = p.getString("last_report", null)?.let {
         val kind = runCatching { ReportKind.valueOf(p.getString("last_report_kind", "ATTEMPT")!!) }.getOrDefault(ReportKind.ATTEMPT)
