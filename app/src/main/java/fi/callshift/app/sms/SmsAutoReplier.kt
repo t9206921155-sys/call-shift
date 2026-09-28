@@ -36,6 +36,16 @@ class SmsAutoReplier(
     fun hasPermission(): Boolean =
         appContext.checkSelfPermission(Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED
 
+    /** Read-only UI hint. The dispatcher still checks/reserves under its lock. */
+    fun maxTestWaitMillis(number: String?): Long {
+        if (number == null) return 0
+        val key = fi.callshift.app.domain.SmsSafety.legacyKey(fi.callshift.app.domain.MaxUiPolicy.CHANNEL, number)
+        val last = (listOf(prefs.getLong(key, -1)) + prefs.all.entries
+            .filter { it.key.startsWith("sim:") && it.key.endsWith(":" + key) }
+            .mapNotNull { it.value as? Long }).maxOrNull() ?: -1
+        return fi.callshift.app.domain.MaxTestSessionPolicy.waitMillis(System.currentTimeMillis(), last)
+    }
+
     suspend fun maybeReply(ctx: CallContext, decision: Decision, template: String?) {
         if (template.isNullOrBlank()) return
         val action = decision.matchedAction ?: fi.callshift.app.domain.Action(autoReplySms = template)

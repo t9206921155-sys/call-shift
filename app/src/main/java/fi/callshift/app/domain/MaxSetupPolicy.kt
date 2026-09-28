@@ -7,7 +7,7 @@ object MaxSetupPolicy {
         SERVICE("Подключить управление MAX"), ROUTE("Выбрать обычный MAX или копию"),
         LAYOUT("Настроить экран чата"), RUNNING("Идёт проверка…"),
         MASTER("Включить CallShift"), UNAVAILABLE("Автоответ MAX пока недоступен"), CARD("Настроить открытие карточки"), CHECK("Проверить без отправки"),
-        ENABLE("Разрешить реальные ответы"), LIVE("Повторить проверку без отправки")
+        ENABLE("Разрешить реальные ответы"), LIVE("Отправить тестовое сообщение")
     }
     fun next(phonePermission: Boolean, sim: Boolean, connected: Boolean, route: Boolean,
         layout: Boolean, running: Boolean, cardFailure: Boolean, passed: Boolean, live: Boolean, unavailable: Boolean = false, master: Boolean = true): Step = when {

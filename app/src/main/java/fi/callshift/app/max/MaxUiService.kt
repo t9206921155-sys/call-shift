@@ -348,7 +348,7 @@ class MaxUiService : AccessibilityService() {
                 val label = it.contentDescription?.toString()?.trim()?.lowercase().orEmpty().ifEmpty { it.text?.toString()?.trim()?.lowercase().orEmpty() }
                 val bounds = android.graphics.Rect().also { b -> it.getBoundsInScreen(b) }
                 kotlin.math.abs(bounds.centerY() - inputBounds.centerY()) <= (96 * resources.displayMetrics.density).toInt() &&
-                    it.isVisibleToUser && it.isEnabled && it.isClickable && !it.isEditable && !it.isPassword &&
+                    profileClickable(it) &&
                     label in listOf("отправить", "отправить сообщение", "send", "send message") && !it.viewIdResourceName.isNullOrBlank()
             }.singleOrNull()
             if (send == null) { finish("BLOCKED", "Кнопка отправки не определена однозначно. Черновик оставлен в MAX"); return }
@@ -454,6 +454,7 @@ class MaxUiService : AccessibilityService() {
         val finalState = if (state in setOf(MaxCardLearningPolicy.Status.STOPPED, MaxCardLearningPolicy.Status.TIMEOUT) &&
             cardLearningStatus == MaxCardLearningPolicy.Status.NO_TARGETS) MaxCardLearningPolicy.Status.NO_TARGETS else state
         learningState(finalState)
+        runCatching { store.cardOutcome(finalState) }
         if (finalState != MaxCardLearningPolicy.Status.STOPPED)
             android.widget.Toast.makeText(this, finalState.explanation, android.widget.Toast.LENGTH_LONG).show()
     }
@@ -619,8 +620,17 @@ class MaxUiService : AccessibilityService() {
             profileClickable(it) && under(it, headerBar) }
         val priorities = candidates.map { MaxProfileActionPolicy.priority(it.text?.toString(), it.contentDescription?.toString()) }
         val index = MaxProfileActionPolicy.choose(priorities)
-        report(index != null, priorities.count { it != null })
-        return index?.let(candidates::get)
+        if (index != null) { report(true, priorities.count { it != null }); return candidates[index] }
+        // Do not bypass ambiguous spoken actions using an ID tie-breaker.
+        if (priorities.any { it != null }) { report(false, priorities.count { it != null }); return null }
+        // No manual event is needed for a uniquely identified, semantically explicit
+        // avatar/profile action. The normal phone-card proof still runs afterwards.
+        val byId = cardRules(title).keys.filter { n ->
+            !toolbar(n) && MaxProfileActionPolicy.profileResource(n.viewIdResourceName.orEmpty()) &&
+                nodes(n).none { it != n && profileClickable(it) }
+        }.singleOrNull()
+        report(byId != null)
+        return byId
     }
     private fun openProfile(p: Pending, root: Node, title: Node, input: Node) {
         val button = profileButton(root, title)
@@ -969,6 +979,7 @@ class MaxUiService : AccessibilityService() {
                     service.learningState(MaxCardLearningPolicy.Status.NO_LAYOUT)
                     false
                 } else {
+                    service.store.cardOutcome(MaxCardLearningPolicy.Status.WAIT_CHAT)
                     service.cardUntil = SystemClock.elapsedRealtime() + 60_000
                     service.learningState(MaxCardLearningPolicy.Status.WAIT_CHAT)
                     service.main.post(service.cardTick)

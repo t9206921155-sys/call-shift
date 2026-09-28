@@ -13,6 +13,12 @@ class MaxUiStore(context: Context) {
     val header get() = p.getString("header", "").orEmpty()
     val input get() = p.getString("input", "").orEmpty()
     val version get() = p.getLong("version", -1)
+    fun cardOutcome() = runCatching {
+        fi.callshift.app.domain.MaxCardLearningPolicy.Status.valueOf(p.getString("card_outcome", "IDLE")!!)
+    }.getOrDefault(fi.callshift.app.domain.MaxCardLearningPolicy.Status.IDLE)
+    fun cardOutcome(state: fi.callshift.app.domain.MaxCardLearningPolicy.Status) {
+        check(p.edit().putString("card_outcome", state.name).commit())
+    }
     fun learnedCard(): fi.callshift.app.domain.MaxCardLearningPolicy.Rule? = runCatching {
         p.getString("learned_card", null)?.let { Json.decodeFromString<fi.callshift.app.domain.MaxCardLearningPolicy.Rule>(it) }
     }.getOrNull()

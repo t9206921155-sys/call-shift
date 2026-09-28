@@ -37,8 +37,7 @@ object MaxCardLearningPolicy {
         // a convenient avatar while another indistinguishable button is present.
         val candidate = candidates.filter { it.targetClass == eventClass && matches(it, it) }.singleOrNull() ?: return null
         val id = candidate.targetId
-        val semantic = id == candidate.header || Regex("(^|_)(avatar|profile|userpic)(_|$)")
-            .containsMatchIn(id.substringAfter('/').lowercase(java.util.Locale.ROOT))
+        val semantic = id == candidate.header || MaxProfileActionPolicy.profileResource(id)
         return candidate.takeIf { semantic && id.startsWith(MaxUiPolicy.PACKAGE + ":id/") }
     }
     fun matches(saved: Rule, actual: Rule): Boolean = saved.version >= 0 &&
