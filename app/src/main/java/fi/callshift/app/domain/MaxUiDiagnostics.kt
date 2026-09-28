@@ -2,7 +2,7 @@ package fi.callshift.app.domain
 
 /** Memory-only bounded report. Raw UI strings, resource IDs and phone values never enter frames. */
 class MaxUiDiagnostics(private val now: () -> Long) {
-    enum class Stage { CHAT_LIST_BACK, CHAT_LIST, ROUTE_WAIT, ROUTE_PICK, ROUTE_READY, PROBE, OBSERVE, START, CHAT, SEARCH, RESULTS, VERIFY, PROFILE_OPEN, PROFILE_CHECK, PROFILE_RETURN, DRY_CHECK, INPUT, CLICK, STOP }
+    enum class Stage { GLOBAL_SEARCH, CHAT_LIST_BACK, CHAT_LIST, ROUTE_WAIT, ROUTE_PICK, ROUTE_READY, PROBE, OBSERVE, START, CHAT, SEARCH, RESULTS, VERIFY, PROFILE_OPEN, PROFILE_CHECK, PROFILE_RETURN, DRY_CHECK, INPUT, CLICK, STOP }
     enum class Label { EMPTY, PHONE, SEARCH, SEND, REDACTED, PASSWORD, PHONE_FIELD }
     data class Node(val visible: Boolean, val editable: Boolean, val clickable: Boolean,
         val enabled: Boolean, val hasId: Boolean, val top: Boolean, val label: Label)
@@ -10,6 +10,11 @@ class MaxUiDiagnostics(private val now: () -> Long) {
         val counts: List<Int>, val outcome: String)
     private var until = 0L
     private var opener: List<Int>? = null
+    private var globalSearch: List<Int>? = null
+    @Synchronized fun globalSearchCheck(editables: Int, fields: Int, section: Boolean, confirmed: Boolean) {
+        if (active()) globalSearch = listOf(editables.coerceIn(0, 600), fields.coerceIn(0, 600),
+            if (section) 1 else 0, if (confirmed) 1 else 0)
+    }
     @Synchronized fun profileOpener(clickable: Boolean, declaresClick: Boolean, semantic: Int, found: Boolean) {
         if (active()) opener = listOf(if (clickable) 1 else 0, if (declaresClick) 1 else 0,
             semantic.coerceIn(0, 600), if (found) 1 else 0)
@@ -58,9 +63,9 @@ class MaxUiDiagnostics(private val now: () -> Long) {
         connectedAtCapture = connected
         record(Stage.PROBE, version, unlocked, false, outcome = "")
     }
-    @Synchronized fun start(milliseconds: Long) { frames.clear(); pickerFrames.clear(); opener = null; lastStop = "NONE"; lastCapture = null; connectedAtCapture = null; until = now() + milliseconds.coerceIn(1, 180_000) }
+    @Synchronized fun start(milliseconds: Long) { frames.clear(); pickerFrames.clear(); opener = null; globalSearch = null; lastStop = "NONE"; lastCapture = null; connectedAtCapture = null; until = now() + milliseconds.coerceIn(1, 180_000) }
     @Synchronized fun active(): Boolean = now() < until
-    @Synchronized fun clear() { frames.clear(); pickerFrames.clear(); opener = null; lastStop = "NONE"; lastCapture = null; connectedAtCapture = null; until = 0L }
+    @Synchronized fun clear() { frames.clear(); pickerFrames.clear(); opener = null; globalSearch = null; lastStop = "NONE"; lastCapture = null; connectedAtCapture = null; until = 0L }
     @Synchronized fun record(stage: Stage, version: Long, unlocked: Boolean, profile: Boolean,
         nodes: List<Node> = emptyList(), outcome: String = "") {
         if (!active()) return
@@ -75,11 +80,12 @@ class MaxUiDiagnostics(private val now: () -> Long) {
         frames.addLast(frame)
     }
     @Synchronized fun report(api: Int, appVersion: String): String = buildString {
-        appendLine("CallShift MAX diagnostic v6")
+        appendLine("CallShift MAX diagnostic v7")
         // Version string restricted too: callers cannot accidentally export arbitrary strings here.
         appendLine("Android API=$api; app=${appVersion.takeIf { it.matches(Regex("[0-9][0-9A-Za-z.-]{0,60}")) } ?: "unknown"}")
         appendLine("Capture active=${active()}; frames=${frames.size}")
         appendLine("Stop reason=$lastStop")
+        appendLine("Global search (editables,globalFields,section,confirmed)=${globalSearch?.joinToString(",") ?: "NOT_CHECKED"}")
         appendLine("Profile opener (titleClickable,titleClickAction,semanticButtons,targetFound)=${opener?.joinToString(",") ?: "NOT_CHECKED"}")
         appendLine("Profile capture=${lastCapture?.name ?: "NOT_STARTED"}; serviceConnected=${connectedAtCapture ?: "unknown"}")
         appendLine("No UI text, names, numbers, resource IDs, screenshots or message contents included.")

@@ -267,7 +267,7 @@ class MaxUiService : AccessibilityService() {
             }
             if (p.listBackAt != null && !p.globalSearchConfirmed) {
                 trace(MaxUiDiagnostics.Stage.CHAT_LIST, all)
-                if (chatList(all)) p.globalSearchConfirmed = true
+                if (chatList(all) || openGlobalSearch(all)) p.globalSearchConfirmed = true
                 else {
                     if (SystemClock.elapsedRealtime() - p.listBackAt!! >= 4000) {
                         finish("BLOCKED", "MAX: после возврата общий список чатов не подтверждён. Поиск внутри переписки не запускается")
@@ -543,6 +543,24 @@ class MaxUiService : AccessibilityService() {
             visible.count { it.isEditable }, searchFields(all).size,
             visible.count { it.isPassword })
     }
+    private fun openGlobalSearch(all: List<Node>): Boolean {
+        val visible = all.filter { it.isVisibleToUser }
+        val fields = searchFields(all).filter {
+            val bounds = android.graphics.Rect().also { b -> it.getBoundsInScreen(b) }
+            bounds.top >= 0 && bounds.bottom <= resources.displayMetrics.heightPixels / 3 &&
+                (MaxSearchPolicy.isGlobalSearchLabel(it.hintText?.toString()) ||
+                    MaxSearchPolicy.isGlobalSearchLabel(it.contentDescription?.toString()))
+        }
+        val section = visible.any { !it.isEditable && !it.isPassword &&
+            (MaxSearchPolicy.isGlobalSearchSection(it.text?.toString()) ||
+                MaxSearchPolicy.isGlobalSearchSection(it.contentDescription?.toString())) }
+        val confirmed = MaxChatListPolicy.openSearch(
+            visible.count { it.isEditable && it.viewIdResourceName == store.input },
+            visible.count { MaxProfilePolicy.phoneLabel(it.text?.toString()) },
+            visible.count { it.isEditable }, fields.size, section, visible.count { it.isPassword })
+        diagnostics.globalSearchCheck(visible.count { it.isEditable }, fields.size, section, confirmed)
+        return confirmed
+    }
     private fun returnToChatList(p: Pending, root: Node, title: Node, input: Node) {
         if (p.listBackAt != null || p.query != null || p.edited || p.selectedAt != null) {
             finish("BLOCKED", "MAX: повторный выход из чата запрещён"); return
@@ -590,6 +608,7 @@ class MaxUiService : AccessibilityService() {
         fun waitForUi() { main.removeCallbacks(tick); main.postDelayed(tick, 500) }
         if (!p.globalSearchConfirmed) {
             if (chatList(all)) { p.globalSearchConfirmed = true; trace(MaxUiDiagnostics.Stage.CHAT_LIST, all) }
+            else if (openGlobalSearch(all)) { p.globalSearchConfirmed = true; trace(MaxUiDiagnostics.Stage.GLOBAL_SEARCH, all) }
             else { finish("BLOCKED", "MAX: общий список чатов не подтверждён. Поиск внутри переписки не запускается"); return }
         }
         if (p.selectedAt != null) {

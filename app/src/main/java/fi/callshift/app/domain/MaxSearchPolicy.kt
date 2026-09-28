@@ -12,6 +12,12 @@ object MaxSearchPolicy {
         val b = right?.let(MaxUiPolicy::phone) ?: return false
         return a == b
     }
-    fun isSearchLabel(value: String?): Boolean = value?.trim()?.lowercase(java.util.Locale.ROOT) in
+    private fun label(value: String?): String = value.orEmpty().trim()
+        .replace(Regex("[\\s\u00a0]+"), " ").lowercase(java.util.Locale.ROOT)
+    fun isGlobalSearchLabel(value: String?): Boolean = label(value) in
+        setOf("люди, чаты и сообщения", "people, chats and messages", "people, chats, and messages")
+    fun isGlobalSearchSection(value: String?): Boolean = label(value) in
+        setOf("все контакты", "недавно искали", "all contacts", "recent searches")
+    fun isSearchLabel(value: String?): Boolean = isGlobalSearchLabel(value) || label(value) in
         setOf("поиск", "поиск по чатам", "поиск контактов", "search", "search chats", "search contacts")
 }
