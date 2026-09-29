@@ -216,7 +216,9 @@ class MaxUiService : AccessibilityService() {
         }
     }
     private fun begin(event: CallEvent, number: String, text: String, contactName: String?, accountId: String?) {
-        if (pending != null) { log(event, "BLOCKED", "MAX уже занят другой попыткой; очередь и повтор отключены"); return }
+        if (pending != null || headerGestureBusy || cardUntil != 0L) {
+            log(event, "BLOCKED", "MAX занят сценарием, обучением или незавершённым касанием Android. Очередь и повтор отключены"); return
+        }
         diagnostics.observe(45_000); lastSavedStage = null
         trace(MaxUiDiagnostics.Stage.START)
         val startupIssue = when {
@@ -249,6 +251,12 @@ class MaxUiService : AccessibilityService() {
     private fun step() {
         if (busy) return
         val p = pending ?: return
+        if (headerGestureBusy) {
+            if (gestureFlight.overdue(SystemClock.elapsedRealtime())) {
+                finish("BLOCKED", "Android не подтвердил завершение касания MAX. Продолжения и повтора не будет")
+            } else main.postDelayed(tick, 100)
+            return
+        }
         try {
             if (!store.enabled || !unlocked() || !app.settings.masterEnabled || store.version != version()) {
                 finish("BLOCKED", "MAX: режим выключен, экран заблокирован или версия интерфейса изменилась"); return
@@ -480,7 +488,8 @@ class MaxUiService : AccessibilityService() {
     private var gestureEventAt = -1L
     private var gestureEventPending = false
     private var cardGeneration = 0L
-    private var headerGestureBusy = false
+    private val gestureFlight = fi.callshift.app.domain.MaxGestureFlight()
+    private val headerGestureBusy get() = gestureFlight.busy
     private var cardPhaseAt = 0L
     private var cardSnapshot: CardSnapshot? = null
     private var cardTrial: MaxCardLearningPolicy.Rule? = null
@@ -496,7 +505,7 @@ class MaxUiService : AccessibilityService() {
     }
     private fun endCardLearning(state: MaxCardLearningPolicy.Status = MaxCardLearningPolicy.Status.STOPPED) {
         if (cardUntil == 0L) return
-        val returnToSetup = gestureTraining && state != MaxCardLearningPolicy.Status.STOPPED && unlocked() &&
+        val returnToSetup = gestureTraining && !headerGestureBusy && state != MaxCardLearningPolicy.Status.STOPPED && unlocked() &&
             rootInActiveWindow?.packageName?.toString() == MaxUiPolicy.PACKAGE
         cardUntil = 0L; cardGeneration++; main.removeCallbacks(cardTick)
         gestureTraining = false; gestureReadyAt = 0L; gestureReadyPoint = null; gestureEventPending = false; gestureEventAt = -1L
@@ -598,14 +607,18 @@ class MaxUiService : AccessibilityService() {
         val path = android.graphics.Path().apply { moveTo(tap.point.x, tap.point.y) }
         val gesture = android.accessibilityservice.GestureDescription.Builder().addStroke(
             android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 60)).build()
-        headerGestureBusy = true
+        val token = gestureFlight.begin(SystemClock.elapsedRealtime()) ?: return false
         val submitted = runCatching { dispatchGesture(gesture, object : AccessibilityService.GestureResultCallback() {
-            override fun onCompleted(description: android.accessibilityservice.GestureDescription) { headerGestureBusy = false }
+            override fun onCompleted(description: android.accessibilityservice.GestureDescription) {
+                if (gestureFlight.resolve(token) && pending != null) {
+                    main.removeCallbacks(tick); main.post(tick)
+                }
+            }
             override fun onCancelled(description: android.accessibilityservice.GestureDescription) {
-                headerGestureBusy = false; failure()
+                if (gestureFlight.resolve(token)) failure()
             }
         }, main) }.getOrDefault(false)
-        if (!submitted) headerGestureBusy = false
+        if (!submitted) gestureFlight.resolve(token)
         return submitted
     }
     private fun learnCardClick(event: AccessibilityEvent) {
@@ -661,6 +674,11 @@ class MaxUiService : AccessibilityService() {
         }
     }
     private fun cardLearningStep() {
+        // Never navigate Back or inspect/save the outcome before dispatchGesture completes.
+        if (headerGestureBusy) {
+            if (gestureFlight.overdue(SystemClock.elapsedRealtime())) endCardLearning(MaxCardLearningPolicy.Status.GESTURE_PENDING)
+            return
+        }
         val status = cardLearningStatus
         val observing = status in setOf(MaxCardLearningPolicy.Status.WAIT_CHAT, MaxCardLearningPolicy.Status.WAIT_TAP, MaxCardLearningPolicy.Status.NO_TARGETS, MaxCardLearningPolicy.Status.GESTURE_AREA_BLOCKED)
         if (!observing && SystemClock.elapsedRealtime() - cardPhaseAt > 6000) {
@@ -1167,6 +1185,10 @@ class MaxUiService : AccessibilityService() {
         fun endCardTraining() { instance?.endCardLearning() }
         fun startCardTraining(gesture: Boolean = false): Boolean {
             val service = instance
+            if (service?.headerGestureBusy == true) {
+                cardLearningStatus = MaxCardLearningPolicy.Status.GESTURE_PENDING
+                return false
+            }
             if (service == null) { cardLearningStatus = MaxCardLearningPolicy.Status.NO_SERVICE; return false }
             check(Looper.myLooper() == Looper.getMainLooper())
             return runCatching {
@@ -1194,7 +1216,8 @@ class MaxUiService : AccessibilityService() {
                 false
             }
         }
-        val running get() = instance?.pending != null
+        val running get() = instance?.pending != null || instance?.headerGestureBusy == true
+        val gestureUnresolved get() = instance?.gestureFlight?.overdue(SystemClock.elapsedRealtime()) == true
         @Volatile var pickerCandidate: MaxRoutePolicy.Picker? = null
             private set
         @Volatile var pickerStatus = "Окно выбора ещё не изучено"
@@ -1202,6 +1225,10 @@ class MaxUiService : AccessibilityService() {
         fun endPickerProbe() { instance?.endPicker() }
         fun startPickerProbe(): Boolean {
             val service = instance
+            if (service?.headerGestureBusy == true) {
+                pickerStatus = MaxCardLearningPolicy.Status.GESTURE_PENDING.explanation
+                return false
+            }
             if (service == null) {
                 pickerCandidate = null
                 pickerStatus = MaxPickerInspection.Issue.SERVICE_UNAVAILABLE.explanation
@@ -1222,6 +1249,10 @@ class MaxUiService : AccessibilityService() {
         }
         fun startProfileProbe(): Boolean {
             val service = instance
+            if (service?.headerGestureBusy == true) {
+                captureIssue = MaxProfileCapture.Issue.ACTION_PENDING
+                return false
+            }
             if (service == null) {
                 captureIssue = MaxProfileCapture.Issue.SERVICE_UNAVAILABLE
                 diagnostics.start(60_000)

@@ -205,7 +205,9 @@ class MaxSimpleActivity : AppCompatActivity() {
             MaxSetupPolicy.Step.SERVICE -> "Один раз включите службу «CallShift — MAX» в специальных возможностях Android."
             MaxSetupPolicy.Step.ROUTE -> "Укажите, какой аккаунт MAX относится к этой SIM."
             MaxSetupPolicy.Step.LAYOUT -> "Нужно один раз распознать экран переписки. Приложение подскажет следующий шаг."
-            MaxSetupPolicy.Step.RUNNING -> "Выполняется сценарий MAX. Ничего не нажимайте в нём. Результат появится после завершения."
+            MaxSetupPolicy.Step.RUNNING -> if (MaxUiService.gestureUnresolved)
+                MaxCardLearningPolicy.Status.GESTURE_PENDING.explanation
+                else "Выполняется сценарий MAX. Ничего не нажимайте в нём. Результат появится после завершения."
             MaxSetupPolicy.Step.MASTER -> "Главный переключатель CallShift выключен. Включение запустит все ваши активные правила, не только MAX."
             MaxSetupPolicy.Step.UNAVAILABLE -> "MAX пока не удалось настроить на этом устройстве. Автоматическая отправка не готова. Работающие SMS можно продолжать использовать; повторять тот же тест не нужно."
             MaxSetupPolicy.Step.CARD -> "Обычное нажатие недоступно. Можно проверить другой способ: касание распознанной области имени, без источника ручного события."

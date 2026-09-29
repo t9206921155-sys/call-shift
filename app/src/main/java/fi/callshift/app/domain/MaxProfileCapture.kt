@@ -5,6 +5,7 @@ object MaxProfileCapture {
     enum class Issue(val explanation: String) {
         NOT_STARTED("Нажмите «Проверить интерфейс MAX», затем откройте переписку с полем сообщения"),
         WAITING("Проверка запущена. Откройте в MAX сам чат с полем сообщения"),
+        ACTION_PENDING("Сначала дождитесь завершения касания Android. Если ожидание не заканчивается, переподключите службу CallShift — MAX"),
         SERVICE_UNAVAILABLE("Служба CallShift — MAX не подключена. Проверьте специальные возможности Android"),
         NO_ROOT("Android пока не передал активное окно"),
         OTHER_APP("На экране не MAX. Откройте MAX и нужный чат"),
