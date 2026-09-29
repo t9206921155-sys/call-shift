@@ -80,7 +80,7 @@ class MaxUiService : AccessibilityService() {
         var profile: ProfileVisit? = null, var skipCurrentProfile: Boolean = false, var returningSearch: Boolean = false)
     private data class ProfileVisit(val title: Node, val editor: Node, val caption: String, val window: Int,
         val started: Long, var returning: Boolean = false, var verified: Boolean = false, var returnedAt: Long? = null,
-        val anchor: MaxProfileReturnPolicy.Anchor? = null, val opener: Node? = null, val gesture: Boolean = false,
+        val anchor: MaxProfileReturnPolicy.Anchor? = null, val openerSources: Set<Node> = emptySet(),
         var openedAt: Long = 0, var openerEventPending: Boolean = true, var cardReadAt: Long? = null,
         var returnedTitle: Node? = null, var returnedEditor: Node? = null, var candidateAt: Long = 0,
         var returnIssue: MaxProfileReturnPolicy.Issue? = null)
@@ -150,7 +150,7 @@ class MaxUiService : AccessibilityService() {
                 fi.callshift.app.domain.MaxHeaderGesturePolicy.expectedEvent(SystemClock.uptimeMillis(),
                     visit.openedAt, event.eventTime, visit.window, event.windowId) &&
                 (visit.cardReadAt == null || event.eventTime <= visit.cardReadAt!!) &&
-                (source == null || source == visit.opener || visit.gesture && under(visit.title, source))
+                (source == null || source in visit.openerSources)
             if (owned) visit.openerEventPending = false
             else {
                 finish("BLOCKED", "Постороннее нажатие во время проверки карточки; отправка остановлена"); return
@@ -850,7 +850,7 @@ class MaxUiService : AccessibilityService() {
         val anchor = chatAnchor(title, input)
         if (anchor == null) { finish("BLOCKED", "MAX: структура исходного чата не определена до открытия карточки"); return }
         val visit = ProfileVisit(title, input, title.text.toString(), root.windowId, SystemClock.elapsedRealtime(),
-            anchor = anchor, opener = button, gesture = rule?.gesture == true)
+            anchor = anchor, openerSources = profileEventSources(title, button, rule?.gesture == true))
         p.profile = visit
         trace(MaxUiDiagnostics.Stage.PROFILE_OPEN)
         visit.openedAt = SystemClock.uptimeMillis()
@@ -889,6 +889,20 @@ class MaxUiService : AccessibilityService() {
     }
     private fun backWithinMax(): Boolean = unlocked() &&
         rootInActiveWindow?.packageName?.toString() == MaxUiPolicy.PACKAGE && performGlobalAction(GLOBAL_ACTION_BACK)
+    private fun profileEventSources(title: Node, button: Node, gesture: Boolean): Set<Node> {
+        if (!gesture) return setOf(button)
+        // Snapshot ancestry BEFORE navigation: asking a destroyed title for its parent
+        // after the card opens can misclassify our own delayed gesture as a user click.
+        val result = mutableSetOf<Node>()
+        var current: Node? = title
+        repeat(20) {
+            val n = current ?: return result
+            if (collection(n)) return result
+            result += n
+            current = n.parent
+        }
+        return result
+    }
     private fun chatAnchor(title: Node, input: Node): MaxProfileReturnPolicy.Anchor? {
         val bar = cardToolbar(title) ?: return null
         val ns = nodes(bar)

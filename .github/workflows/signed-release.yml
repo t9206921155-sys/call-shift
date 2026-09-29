@@ -1,5 +1,5 @@
 name: Publish signed CallShift 0.8.21-max-profile-return
-# Verify consented title gestures and distinguish blocked geometry from unsupported actions.
+# Validate profile return and opener event snapshots before publishing.
 on:
   push:
     branches: [arena/01a0d923-call-shift]
