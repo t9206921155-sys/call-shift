@@ -15,6 +15,7 @@ import fi.callshift.app.domain.MaxProfileActionPolicy
 import fi.callshift.app.domain.MaxCardLearningPolicy
 import fi.callshift.app.domain.MaxProfileCapture
 import fi.callshift.app.domain.MaxProfilePolicy
+import fi.callshift.app.domain.MaxProfileReturnPolicy
 import fi.callshift.app.domain.MaxChatListPolicy
 import fi.callshift.app.domain.MaxSearchPolicy
 import fi.callshift.app.forward.CallEvent
@@ -78,7 +79,11 @@ class MaxUiService : AccessibilityService() {
         var inspectedNames: Int = 0, var inspectedTotal: Int = 0,
         var profile: ProfileVisit? = null, var skipCurrentProfile: Boolean = false, var returningSearch: Boolean = false)
     private data class ProfileVisit(val title: Node, val editor: Node, val caption: String, val window: Int,
-        val started: Long, var returning: Boolean = false, var verified: Boolean = false, var returnedAt: Long? = null)
+        val started: Long, var returning: Boolean = false, var verified: Boolean = false, var returnedAt: Long? = null,
+        val anchor: MaxProfileReturnPolicy.Anchor? = null, val opener: Node? = null, val gesture: Boolean = false,
+        var openedAt: Long = 0, var openerEventPending: Boolean = true, var cardReadAt: Long? = null,
+        var returnedTitle: Node? = null, var returnedEditor: Node? = null, var candidateAt: Long = 0,
+        var returnIssue: MaxProfileReturnPolicy.Issue? = null)
     private var pending: Pending? = null
     private var busy = false
     private var lastSavedStage: MaxUiDiagnostics.Stage? = null
@@ -138,8 +143,18 @@ class MaxUiService : AccessibilityService() {
         if (event?.packageName?.toString() != MaxUiPolicy.PACKAGE) return
         if (cardUntil != 0L) runCatching { learnCardClick(event) }
             .onFailure { endCardLearning(MaxCardLearningPolicy.Status.ERROR) }
-        if (pending?.profile?.returnedAt != null && event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
-            finish("BLOCKED", "Действие пользователя изменило проверенный экран; отправка остановлена"); return
+        val visit = pending?.profile
+        if (visit != null && event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+            val source = event.source
+            val owned = visit.openerEventPending &&
+                fi.callshift.app.domain.MaxHeaderGesturePolicy.expectedEvent(SystemClock.uptimeMillis(),
+                    visit.openedAt, event.eventTime, visit.window, event.windowId) &&
+                (visit.cardReadAt == null || event.eventTime <= visit.cardReadAt!!) &&
+                (source == null || source == visit.opener || visit.gesture && under(visit.title, source))
+            if (owned) visit.openerEventPending = false
+            else {
+                finish("BLOCKED", "Постороннее нажатие во время проверки карточки; отправка остановлена"); return
+            }
         }
         // Profile probing polls independently: quiet MAX screens need not emit events.
         if (pending == null && diagnostics.active()) trace(MaxUiDiagnostics.Stage.OBSERVE)
@@ -274,6 +289,7 @@ class MaxUiService : AccessibilityService() {
             }
             if (!routeReady(p, root)) return
             if (root.packageName?.toString() != MaxUiPolicy.PACKAGE) {
+                if (p.profile != null) { finish("BLOCKED", "Окно MAX потеряно во время проверки карточки; отправка остановлена"); return }
                 main.postDelayed(tick, 500); return
             }
             val all = nodes(root)
@@ -461,8 +477,9 @@ class MaxUiService : AccessibilityService() {
         if (direct != null) return direct
         val proof = p.profile ?: return null
         if (!proof.verified || proof.returnedAt == null || SystemClock.elapsedRealtime() - proof.returnedAt!! > 10_000) return null
-        // A matching display name alone is insufficient: return must preserve original node identities.
-        return p.number.takeIf { title != null && title == proof.title && editor == proof.editor &&
+        // Phone proof and the controlled return bind fresh nodes. Never transfer proof
+        // again if those nodes are replaced after validation or after entering text.
+        return p.number.takeIf { title != null && title == proof.returnedTitle && editor == proof.returnedEditor &&
             title.windowId == proof.window && title.text?.toString() == proof.caption }
     }
     private fun profileClickable(n: Node): Boolean = n.isEnabled && n.isVisibleToUser && !n.isEditable && !n.isPassword &&
@@ -599,7 +616,8 @@ class MaxUiService : AccessibilityService() {
             rect(android.graphics.Rect().also { foreground.getBoundsInScreen(it) }), resources.displayMetrics.density, obstacles) ?: return null
         return HeaderTap(title, editor, rule, root.windowId, point)
     }
-    private fun tapTitle(rule: MaxCardLearningPolicy.Rule, window: Int, title: Node, editor: Node, failure: () -> Unit): Boolean {
+    private fun tapTitle(rule: MaxCardLearningPolicy.Rule, window: Int, title: Node, editor: Node,
+        beforeDispatch: () -> Unit = {}, failure: () -> Unit): Boolean {
         if (!rule.gesture || headerGestureBusy) return false
         val fresh = rootInActiveWindow ?: return false
         val tap = titleTap(fresh) ?: return false
@@ -608,6 +626,7 @@ class MaxUiService : AccessibilityService() {
         val gesture = android.accessibilityservice.GestureDescription.Builder().addStroke(
             android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 60)).build()
         val token = gestureFlight.begin(SystemClock.elapsedRealtime()) ?: return false
+        beforeDispatch()
         val submitted = runCatching { dispatchGesture(gesture, object : AccessibilityService.GestureResultCallback() {
             override fun onCompleted(description: android.accessibilityservice.GestureDescription) {
                 if (gestureFlight.resolve(token) && pending != null) {
@@ -828,9 +847,15 @@ class MaxUiService : AccessibilityService() {
             !button.refresh() || (rule?.gesture != true && !profileClickable(button)) || profileButton(fresh, title) != button) {
             finish("BLOCKED", "Экран изменился до открытия карточки MAX; нажатия не было"); return
         }
-        p.profile = ProfileVisit(title, input, title.text.toString(), root.windowId, SystemClock.elapsedRealtime())
+        val anchor = chatAnchor(title, input)
+        if (anchor == null) { finish("BLOCKED", "MAX: структура исходного чата не определена до открытия карточки"); return }
+        val visit = ProfileVisit(title, input, title.text.toString(), root.windowId, SystemClock.elapsedRealtime(),
+            anchor = anchor, opener = button, gesture = rule?.gesture == true)
+        p.profile = visit
         trace(MaxUiDiagnostics.Stage.PROFILE_OPEN)
-        val accepted = if (rule?.gesture == true) tapTitle(rule, root.windowId, title, input) {
+        visit.openedAt = SystemClock.uptimeMillis()
+        val accepted = if (rule?.gesture == true) tapTitle(rule, root.windowId, title, input,
+            beforeDispatch = { visit.openedAt = SystemClock.uptimeMillis() }) {
             if (pending === p) finish("BLOCKED", "Android отменил касание заголовка MAX. Повтора не будет")
         } else button.performAction(Node.ACTION_CLICK)
         if (!accepted) { finish("BLOCKED", "MAX не открыл карточку контакта: действие недоступно или область имени перекрыта"); return }
@@ -864,27 +889,57 @@ class MaxUiService : AccessibilityService() {
     }
     private fun backWithinMax(): Boolean = unlocked() &&
         rootInActiveWindow?.packageName?.toString() == MaxUiPolicy.PACKAGE && performGlobalAction(GLOBAL_ACTION_BACK)
+    private fun chatAnchor(title: Node, input: Node): MaxProfileReturnPolicy.Anchor? {
+        val bar = cardToolbar(title) ?: return null
+        val ns = nodes(bar)
+        if (ns.size >= 120) return null
+        return MaxProfileReturnPolicy.Anchor(title.viewIdResourceName.orEmpty(), input.viewIdResourceName.orEmpty(),
+            title.className?.toString().orEmpty(), input.className?.toString().orEmpty(), toolbarShape(ns))
+    }
     private fun handleProfile(p: Pending, root: Node, all: List<Node>, title: Node?, input: Node?): Boolean {
         val visit = p.profile ?: return false
         if (visit.returnedAt != null) return false
-        if (SystemClock.elapsedRealtime() - visit.started > 6000) { finish("BLOCKED", "Проверка карточки/возврата истекла. Отправки нет"); return true }
+        if (SystemClock.elapsedRealtime() - visit.started > 6000) {
+            finish("BLOCKED", visit.returnIssue?.message ?: "Проверка карточки/возврата истекла. Отправки нет"); return true
+        }
         if (!visit.returning) {
             trace(MaxUiDiagnostics.Stage.PROFILE_CHECK, all)
             if (all.any { it.isVisibleToUser && it.isEditable }) { main.postDelayed(tick, 400); return true }
             val (found, matches) = profileField(all, p.number)
             if (!found) { main.postDelayed(tick, 400); return true }
             visit.verified = matches
+            visit.cardReadAt = SystemClock.uptimeMillis()
             visit.returning = true
             if (!backWithinMax()) { finish("BLOCKED", "Не удалось вернуться из карточки"); return true }
             main.postDelayed(tick, 500); return true
         }
         trace(MaxUiDiagnostics.Stage.PROFILE_RETURN, all)
-        if (title == null || input == null) { main.postDelayed(tick, 400); return true }
-        if (title != visit.title || input != visit.editor || root.windowId != visit.window || title.text?.toString() != visit.caption || editableText(input).isNotEmpty()) {
-            finish("BLOCKED", "После карточки исходный чат не подтверждён или изменён черновик"); return true
+        if (title == null || input == null) {
+            visit.returnedTitle = null; visit.returnedEditor = null; visit.candidateAt = 0
+            visit.returnIssue = MaxProfileReturnPolicy.Issue.LAYOUT
+            main.postDelayed(tick, 300); return true
         }
-        if (visit.verified) {
-            visit.returnedAt = SystemClock.elapsedRealtime()
+        val issue = MaxProfileReturnPolicy.issue(root.windowId == visit.window, title.text?.toString() == visit.caption,
+            visit.anchor, chatAnchor(title, input), all.count { it.isVisibleToUser && it.isEditable }, editableText(input))
+        visit.returnIssue = issue
+        if (issue != null) {
+            visit.returnedTitle = null; visit.returnedEditor = null; visit.candidateAt = 0
+            // Views and hint flags can still be assembling after Back. Wait within
+            // the existing deadline without editing anything; never cross window/name changes.
+            if (issue in setOf(MaxProfileReturnPolicy.Issue.WINDOW, MaxProfileReturnPolicy.Issue.CAPTION))
+                finish("BLOCKED", issue.message)
+            else main.postDelayed(tick, 300)
+            return true
+        }
+        val now = SystemClock.elapsedRealtime()
+        if (visit.returnedTitle != title || visit.returnedEditor != input) {
+            visit.returnedTitle = title; visit.returnedEditor = input; visit.candidateAt = now
+            main.postDelayed(tick, 300); return true
+        }
+        val stable = now - visit.candidateAt >= 300
+        if (!stable) { main.postDelayed(tick, 300); return true }
+        if (MaxProfileReturnPolicy.authorize(visit.verified, issue, stable)) {
+            visit.returnedAt = now
             return false
         }
         // Wrong namesake: never enter message text. Return to the search before another candidate.
