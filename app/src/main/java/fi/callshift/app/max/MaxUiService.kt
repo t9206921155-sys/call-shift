@@ -74,7 +74,7 @@ class MaxUiService : AccessibilityService() {
         var keyboardReturn: ProfileVisit? = null,
         var edited: Boolean = false, var searchClicked: Boolean = false, var query: String? = null,
         var queryAt: Long = 0, var queryIndex: Int = 0, var selectedAt: Long? = null,
-        var findByPhoneAt: Long? = null,
+        var findByPhoneAt: Long? = null, var sendWaitAt: Long? = null,
         val contactName: String? = null, val triedRows: MutableSet<Node> = mutableSetOf(),
         var inspectedNames: Int = 0, var inspectedTotal: Int = 0,
         var profile: ProfileVisit? = null, var skipCurrentProfile: Boolean = false, var returningSearch: Boolean = false)
@@ -383,8 +383,19 @@ class MaxUiService : AccessibilityService() {
                 return
             }
             if (draft != p.text) { finish("BLOCKED", "Текст изменился; отправка остановлена"); return }
-            val send = sendButton(all, input!!)
-            if (send == null) { finish("BLOCKED", "Кнопка отправки не определена однозначно. Черновик оставлен в MAX"); return }
+            val sendCandidates = sendButtons(all, input!!)
+            val send = sendCandidates.singleOrNull()
+            if (send == null) {
+                val now = SystemClock.elapsedRealtime()
+                if (p.sendWaitAt == null) p.sendWaitAt = now
+                if (sendCandidates.isEmpty() && now - p.sendWaitAt!! < 1500) {
+                    main.postDelayed(tick, 250); return // wait for composer animation, never write or click again
+                }
+                finish("BLOCKED", if (sendCandidates.isEmpty())
+                    "MAX не передал доступное действие отправки с однозначной подписью или ID. Черновик оставлен"
+                    else "MAX показал несколько действий отправки. Ничего не нажато; черновик оставлен")
+                return
+            }
             // Android can replace nodes after text input or while the keyboard opens.
             // Re-read recipient, draft, sender configuration and the exact action BEFORE clicking.
             val fresh = rootInActiveWindow
@@ -412,16 +423,54 @@ class MaxUiService : AccessibilityService() {
                 else "Результат нажатия MAX неизвестен. Проверьте чат вручную; повторов нет")
         } catch (_: Exception) { finish("UI_UNKNOWN", "Сценарий MAX остановлен с неопределённым результатом. Проверьте чат; повторов нет") }
     }
-    private fun sendButton(all: List<Node>, input: Node): Node? {
+    private fun sendButton(all: List<Node>, input: Node): Node? = sendButtons(all, input).singleOrNull()
+    private fun sendButtons(all: List<Node>, input: Node): List<Node> {
         val inputBounds = android.graphics.Rect().also { input.getBoundsInScreen(it) }
-        return all.filter {
-            val label = it.contentDescription?.toString()?.trim()?.lowercase(java.util.Locale.ROOT).orEmpty()
-                .ifEmpty { it.text?.toString()?.trim()?.lowercase(java.util.Locale.ROOT).orEmpty() }
-            val bounds = android.graphics.Rect().also { b -> it.getBoundsInScreen(b) }
-            kotlin.math.abs(bounds.centerY() - inputBounds.centerY()) <= (96 * resources.displayMetrics.density).toInt() &&
-                profileClickable(it) && label in listOf("отправить", "отправить сообщение", "send", "send message") &&
-                !it.viewIdResourceName.isNullOrBlank()
-        }.singleOrNull()
+        fun evidence(n: Node) = fi.callshift.app.domain.MaxSendActionPolicy.evidence(
+            n.text?.toString(), n.contentDescription?.toString(), n.viewIdResourceName)
+        fun near(n: Node): Boolean {
+            val bounds = android.graphics.Rect().also { n.getBoundsInScreen(it) }
+            return !bounds.isEmpty && kotlin.math.abs(bounds.centerY() - inputBounds.centerY()) <= (96 * resources.displayMetrics.density).toInt()
+        }
+        fun outsideHistory(node: Node): Boolean {
+            var current: Node? = node
+            repeat(25) {
+                val n = current ?: return true
+                if (collection(n)) return false
+                current = n.parent
+            }
+            return false
+        }
+        val found = mutableSetOf<Node>()
+        for (label in all.filter { it.isVisibleToUser && it.isEnabled && !it.isEditable && !it.isPassword && near(it) && evidence(it) && outsideHistory(it) }) {
+            if (profileClickable(label)) {
+                val descendants = nodes(label).filter { it != label && it.isVisibleToUser }
+                if (descendants.none { it.isEditable || it.isPassword || profileClickable(it) && !evidence(it) }) found += label
+                continue
+            }
+            var parent = label.parent
+            repeat(3) {
+                val node = parent ?: return@repeat
+                if (!node.isVisibleToUser || !node.isEnabled || node.isEditable || node.isPassword || collection(node) || !near(node)) {
+                    parent = null; return@repeat
+                }
+                if (profileClickable(node)) {
+                    val children = nodes(node).filter { it != node && it.isVisibleToUser }
+                    if (fi.callshift.app.domain.MaxSendActionPolicy.wrapperSafe(
+                            children.count { it.isEditable || it.isPassword }, children.count(::profileClickable),
+                            children.count { evidence(it) }) &&
+                        // A labelled conflicting parent must not override its own semantics.
+                        !fi.callshift.app.domain.MaxSendActionPolicy.conflict(node.text?.toString(), node.contentDescription?.toString(), node.viewIdResourceName)) found += node
+                    parent = null
+                } else parent = node.parent
+            }
+        }
+        // Parent and child may both expose the same Send control. Prefer its sole
+        // actionable child, never resolve two sibling send actions by their order.
+        return found.filter { parent ->
+            val actionable = nodes(parent).filter { it != parent && it.isVisibleToUser && profileClickable(it) }
+            !fi.callshift.app.domain.MaxSendActionPolicy.redundantParent(actionable.size, actionable.singleOrNull() in found)
+        }
     }
     /** One fresh, explicitly learned system choice per call. Never click twice or use list order. */
     private fun routeReady(p: Pending, root: Node): Boolean {

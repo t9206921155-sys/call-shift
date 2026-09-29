@@ -64,6 +64,8 @@ class MaxUiDiagnostics(private val now: () -> Long) {
             message.startsWith("MAX: Android не передал окно") -> "NO_ACTIVE_WINDOW"
             message.startsWith("В чате есть черновик") || message.startsWith("В открытом чате есть черновик") -> "DRAFT_NOT_EMPTY"
             message.startsWith("Не определено безопасное открытие карточки") -> "PROFILE_OPEN_UNAVAILABLE"
+            message.startsWith("MAX не передал доступное действие отправки") -> "SEND_ACTION_UNAVAILABLE"
+            message.startsWith("MAX показал несколько действий отправки") -> "SEND_ACTION_AMBIGUOUS"
             message.startsWith("MAX: после карточки изменилось окно") -> "PROFILE_RETURN_WINDOW"
             message.startsWith("MAX: после карточки изменился заголовок") -> "PROFILE_RETURN_CAPTION"
             message.startsWith("MAX: после карточки изменилась структура") -> "PROFILE_RETURN_LAYOUT"
