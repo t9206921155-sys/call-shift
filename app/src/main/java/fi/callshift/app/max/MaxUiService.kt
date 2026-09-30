@@ -585,7 +585,7 @@ class MaxUiService : AccessibilityService() {
                         // The outgoing message itself proves the send tap happened even when
                         // Android handed us no usable click source. Save only an unambiguous
                         // single right-half control of the armed row.
-                        val only = rightSideSingle(snap, all)
+                        val only = rightSideSingle(all)
                         if (only != null) finishTrainingSave(MaxSendTrainingPolicy.Resolution(
                             MaxSendTrainingPolicy.ResolveReason.SOLE_CANDIDATE, only), snap)
                     }
@@ -664,16 +664,21 @@ class MaxUiService : AccessibilityService() {
         sendTrial = trial
         sendState(MaxSendTrainingPolicy.Status.VERIFY)
     }
-    /** With the outgoing message proving the tap, one unambiguous right-half control
-     * of the armed row is the send arrow; anything else stays unidentified. */
-    private fun rightSideSingle(snap: SendSnapshot, all: List<Node>): MaxSendTrainingPolicy.Candidate? {
-        val only = snap.identities.singleOrNull() ?: return null
-        val node = all.filter { n -> n.isVisibleToUser &&
-            MaxSendTrainingPolicy.identityMatches(only.id, only.className, n.viewIdResourceName, n.className?.toString()) }.singleOrNull()
+    /** With the outgoing message proving the tap, the send arrow is the single
+     * actionable control in the RIGHT half of the composer row. The paperclip and
+     * other left-side tools drop out; anything still ambiguous stays unsaved. */
+    private fun rightSideSingle(all: List<Node>): MaxSendTrainingPolicy.Candidate? {
+        val editor = all.filter { it.viewIdResourceName == store.input && it.isVisibleToUser && it.isEnabled && it.isEditable && !it.isPassword }.singleOrNull()
             ?: return null
-        val bounds = android.graphics.Rect().also { node.getBoundsInScreen(it) }
-        if (bounds.isEmpty || bounds.centerX() < resources.displayMetrics.widthPixels / 2) return null
-        return only
+        val half = resources.displayMetrics.widthPixels / 2
+        val right = sendRowButtons(all, editor).filter { n ->
+            fi.callshift.app.domain.MaxSendActionPolicy.conflict(
+                n.text?.toString(), n.contentDescription?.toString(), n.viewIdResourceName).not() &&
+                run { val b = android.graphics.Rect().also { n.getBoundsInScreen(it) }; !b.isEmpty && b.centerX() >= half }
+        }
+        val node = right.filter { m -> right.none { other -> other != m && isNodeAncestor(other, m) } }.singleOrNull()
+            ?: return null
+        return MaxSendTrainingPolicy.Candidate(node.viewIdResourceName.orEmpty(), node.className?.toString().orEmpty(), true)
     }
     /** Clickable controls in the composer row: vertical band only, editor and history excluded. */
     private fun sendRowButtons(all: List<Node>, editor: Node): List<Node> =
@@ -708,9 +713,12 @@ class MaxUiService : AccessibilityService() {
             return !bounds.isEmpty && !inputBounds.isEmpty &&
                 kotlin.math.abs(bounds.centerY() - inputBounds.centerY()) <= (96 * resources.displayMetrics.density).toInt()
         }
+        val half = resources.displayMetrics.widthPixels / 2
         val matches = all.filter { n ->
             n != input && n.isVisibleToUser && n.isEnabled && !n.isEditable && !n.isPassword &&
                 (rule.gesture || profileClickable(n)) && outsideHistoryNode(n) && near(n) &&
+                // Gesture rules were proven on the right-half arrow; resolve them there too.
+                (!rule.gesture || run { val b = android.graphics.Rect().also { n.getBoundsInScreen(it) }; !b.isEmpty && b.centerX() >= half }) &&
                 MaxSendTrainingPolicy.identityMatches(rule.targetId, rule.targetClass, n.viewIdResourceName, n.className?.toString()) &&
                 !fi.callshift.app.domain.MaxSendActionPolicy.conflict(n.text?.toString(), n.contentDescription?.toString(), n.viewIdResourceName)
         }
