@@ -79,17 +79,24 @@ class MaxSimpleActivity : AppCompatActivity() {
         }
         button("Дополнительно") {
             AlertDialog.Builder(this).setTitle("Дополнительно")
-                .setItems(arrayOf("Журнал", "Тесты других каналов", "Технические настройки MAX", "Скопировать технический отчёт", "Начать новую проверку без отправки")) { _, i ->
+                .setItems(arrayOf("Журнал", "Тесты других каналов", "Технические настройки MAX", "Скопировать технический отчёт",
+                    "Начать новую проверку без отправки", "Обучить кнопку отправки MAX")) { _, i ->
                     when (i) {
                         0 -> startActivity(Intent(this, fi.callshift.app.ui.LogActivity::class.java))
                         1 -> startActivity(Intent(this, fi.callshift.app.ui.ReplyTestActivity::class.java))
                         2 -> startActivity(Intent(this, MaxUiActivity::class.java))
                         3 -> {
                             getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(
-                                android.content.ClipData.newPlainText("MAX diagnostics", MaxUiService.report(this) + "\nSaved learning=" + store.cardOutcome().name))
+                                android.content.ClipData.newPlainText("MAX diagnostics", MaxUiService.report(this) +
+                                    "\nSaved learning=" + store.cardOutcome().name + "\nSend learning=" + store.sendOutcome().name))
                             Toast.makeText(this, "Отчёт скопирован", Toast.LENGTH_SHORT).show()
                         }
                         4 -> test(false)
+                        5 -> confirm("Обучить кнопку отправки MAX?",
+                            "Если CallShift не находит синюю стрелку отправки в вашей версии MAX, достаточно один раз показать её.\n\n1. Откройте в MAX любой безопасный чат (например, с самим собой или проверочным номером).\n2. Введите любой короткий текст.\n3. Нажмите синюю стрелку отправки ОДИН раз. Сообщение уйдёт по-настоящему — отправляйте в безопасный чат.\n4. Вернитесь в CallShift.\n\nСохраняется только способ нажатия кнопки — не получатель, не чат и не текст. Ничего автоматически не нажимается, пока обучение не прошло. После обучения запустите «Проверить без отправки», затем тестовую отправку.",
+                            "Начать обучение") {
+                            if (MaxUiService.startSendTraining()) launchMax("send_train") else message(MaxUiService.sendTrainingStatus.explanation)
+                        }
                     }
                 }.show()
         }
@@ -140,6 +147,15 @@ class MaxSimpleActivity : AppCompatActivity() {
                     clearTest(); notice = "Экран чата сохранён. Можно проверить MAX."
                 }.onFailure { notice = "Не удалось сохранить настройку." }
             }
+            "send_train" -> {
+                MaxUiService.endSendTraining()
+                val state = MaxUiService.sendTrainingStatus.let { if (it == MaxSendTrainingPolicy.Status.IDLE) store.sendOutcome() else it }
+                if (state == MaxSendTrainingPolicy.Status.SAVED) {
+                    clearTest(); notice = "Кнопка отправки обучена и сохранена. Теперь нажмите «Проверить без отправки», затем тестовую отправку."
+                } else if (state in setOf(MaxSendTrainingPolicy.Status.WAIT_CHAT, MaxSendTrainingPolicy.Status.WAIT_TAP, MaxSendTrainingPolicy.Status.VERIFY)) {
+                    notice = state.explanation
+                } else notice = state.explanation + "\nНичего не сохранено. Обучение можно повторить."
+            }
             "card" -> {
                 MaxUiService.endCardTraining()
                 val state = MaxUiService.cardLearningStatus.let { if (it == MaxCardLearningPolicy.Status.IDLE) store.cardOutcome() else it }
@@ -170,7 +186,8 @@ class MaxSimpleActivity : AppCompatActivity() {
     private fun configurationKey(): String = Json.encodeToString(listOf(
         supportKey(), account()?.let { routes.routes()[it] }?.let { Json.encodeToString(it) }.orEmpty(),
         store.header, store.input, store.version.toString(),
-        store.learnedCard()?.let { Json.encodeToString(it) }.orEmpty()))
+        store.learnedCard()?.let { Json.encodeToString(it) }.orEmpty(),
+        store.learnedSend()?.let { Json.encodeToString(it) }.orEmpty()))
     private fun checked(): Boolean {
         val id = account() ?: return false
         val route = routes.routes()[id] ?: return false

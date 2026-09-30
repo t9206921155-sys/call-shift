@@ -69,6 +69,14 @@ class MaxUiActivity : AppCompatActivity() {
                     else runCatching { startActivity(launch) }.onFailure { MaxUiService.endCardTraining(); toast("Не удалось открыть MAX") }
                 }.setNegativeButton("Отмена", null).show()
         }
+        button("Забыть обученную кнопку отправки") {
+            AlertDialog.Builder(this).setTitle("Забыть кнопку отправки?")
+                .setMessage("CallShift вернётся к распознаванию по подписям. Кнопку можно обучить заново.")
+                .setPositiveButton("Забыть") { _, _ ->
+                    runCatching { store.forgetSend() }.onFailure { toast("Не удалось удалить") }
+                    refresh()
+                }.setNegativeButton("Отмена", null).show()
+        }
         button("Забыть обученное открытие карточки") {
             AlertDialog.Builder(this).setMessage("Удалить только обученное действие? Маршруты SIM и профиль чата останутся. Реальная отправка выключится.")
                 .setPositiveButton("Удалить") { _, _ ->
@@ -130,7 +138,7 @@ class MaxUiActivity : AppCompatActivity() {
     }
     private fun refresh() {
         val c = MaxUiService.usableCandidate(this)
-        status.text = "Обучение карточки: ${MaxUiService.cardLearningStatus.explanation}\nСохранённое действие карточки: ${if (store.learnedCard() != null) "есть" else "нет"}\nСлужба: ${if (MaxUiService.connected) "подключена" else "не подключена"}\nРежим: ${if (!store.enabled) "выключен" else if (store.live) "реальная отправка" else "проверка без отправки"}\nПрофиль MAX: ${store.version}\nПоследний образец: ${c?.phone ?: "нет"}\n${if (c != null) "Образец найден — нажмите «Сохранить»" else MaxUiService.captureIssue.explanation}"
+        status.text = "Обучение карточки: ${MaxUiService.cardLearningStatus.explanation}\nОбучение кнопки отправки: ${MaxUiService.sendTrainingStatus.explanation}\nСохранённая кнопка отправки: ${if (store.learnedSend() != null) "есть" else "нет"}\nСохранённое действие карточки: ${if (store.learnedCard() != null) "есть" else "нет"}\nСлужба: ${if (MaxUiService.connected) "подключена" else "не подключена"}\nРежим: ${if (!store.enabled) "выключен" else if (store.live) "реальная отправка" else "проверка без отправки"}\nПрофиль MAX: ${store.version}\nПоследний образец: ${c?.phone ?: "нет"}\n${if (c != null) "Образец найден — нажмите «Сохранить»" else MaxUiService.captureIssue.explanation}"
     }
     private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_LONG).show()
 }

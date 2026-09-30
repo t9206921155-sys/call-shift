@@ -13,6 +13,7 @@ import fi.callshift.app.domain.MaxRoutePolicy
 import fi.callshift.app.domain.MaxUiPolicy
 import fi.callshift.app.domain.MaxProfileActionPolicy
 import fi.callshift.app.domain.MaxCardLearningPolicy
+import fi.callshift.app.domain.MaxSendTrainingPolicy
 import fi.callshift.app.domain.MaxProfileCapture
 import fi.callshift.app.domain.MaxProfilePolicy
 import fi.callshift.app.domain.MaxProfileReturnPolicy
@@ -117,6 +118,7 @@ class MaxUiService : AccessibilityService() {
         endProbe()
         endPicker()
         endCardLearning()
+        endSendLearning()
         finish("BLOCKED", reason)
         runCatching { store.modes(false, false) }
     }
@@ -143,6 +145,9 @@ class MaxUiService : AccessibilityService() {
         if (event?.packageName?.toString() != MaxUiPolicy.PACKAGE) return
         if (cardUntil != 0L) runCatching { learnCardClick(event) }
             .onFailure { endCardLearning(MaxCardLearningPolicy.Status.ERROR) }
+        if (sendTrainingUntil != 0L && event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+            runCatching { handleSendTrainingClick(event) }.onFailure { endSendLearning(MaxSendTrainingPolicy.Status.ERROR) }
+        }
         val visit = pending?.profile
         if (visit != null && event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
             val source = event.source
@@ -231,7 +236,7 @@ class MaxUiService : AccessibilityService() {
         }
     }
     private fun begin(event: CallEvent, number: String, text: String, contactName: String?, accountId: String?) {
-        if (pending != null || headerGestureBusy || cardUntil != 0L) {
+        if (pending != null || headerGestureBusy || cardUntil != 0L || sendTrainingUntil != 0L) {
             log(event, "BLOCKED", "MAX занят сценарием, обучением или незавершённым касанием Android. Очередь и повтор отключены"); return
         }
         diagnostics.observe(45_000); lastSavedStage = null
@@ -384,11 +389,11 @@ class MaxUiService : AccessibilityService() {
             }
             if (draft != p.text) { finish("BLOCKED", "Текст изменился; отправка остановлена"); return }
             val sendCandidates = sendButtons(all, input!!)
-            val send = sendCandidates.singleOrNull()
+            val send = sendCandidates.singleOrNull() ?: learnedSend(all, input!!)
             if (send == null) {
                 val now = SystemClock.elapsedRealtime()
                 if (p.sendWaitAt == null) p.sendWaitAt = now
-                if (sendCandidates.isEmpty() && now - p.sendWaitAt!! < 1500) {
+                if (sendCandidates.isEmpty() && learnedSend(all, input!!) == null && now - p.sendWaitAt!! < 1500) {
                     main.postDelayed(tick, 250); return // wait for composer animation, never write or click again
                 }
                 finish("BLOCKED", if (sendCandidates.isEmpty())
@@ -403,7 +408,8 @@ class MaxUiService : AccessibilityService() {
             val titles = ns.filter { it.viewIdResourceName == store.header && header(it) }
             val editors = ns.filter { it.isVisibleToUser && it.isEnabled && it.isEditable && !it.isPassword && it.viewIdResourceName == store.input }
             val field = editors.singleOrNull()
-            val sameButton = field != null && send.refresh() && profileClickable(send) && sendButton(ns, field) == send
+            val sameButton = field != null && send.refresh() && profileClickable(send) &&
+                (sendButton(ns, field) == send || learnedSend(ns, field) == send)
             val finalCheck = fi.callshift.app.domain.MaxTransitionPolicy.FinalClick(
                 store.enabled && store.live && app.settings.masterEnabled, unlocked(),
                 fresh?.packageName?.toString() == MaxUiPolicy.PACKAGE && fresh.windowId == root.windowId,
@@ -418,9 +424,16 @@ class MaxUiService : AccessibilityService() {
             // Remove pending BEFORE clicking: no event, timeout or reconnection can retry.
             pending = null; main.removeCallbacks(tick); main.removeCallbacks(timeout)
             log(p.event, "UI_UNKNOWN", "Передано управление кнопке MAX. Результат неизвестен; повторов нет", durable = false)
-            val clicked = send.performAction(Node.ACTION_CLICK)
-            log(p.event, "UI_UNKNOWN", if (clicked) "Нажата кнопка MAX. Отправка и доставка НЕ подтверждены; повторов нет"
-                else "Результат нажатия MAX неизвестен. Проверьте чат вручную; повторов нет")
+            val learnedGesture = store.learnedSend()?.gesture == true && (field == null || sendButton(ns, field) != send)
+            if (learnedGesture) {
+                val tapped = tapLearnedSend(send)
+                log(p.event, "UI_UNKNOWN", if (tapped) "Передано касание обученной кнопке MAX. Отправка и доставка НЕ подтверждены; повторов нет"
+                    else "Android не принял касание кнопки MAX. Проверьте чат вручную; повторов нет")
+            } else {
+                val clicked = send.performAction(Node.ACTION_CLICK)
+                log(p.event, "UI_UNKNOWN", if (clicked) "Нажата кнопка MAX. Отправка и доставка НЕ подтверждены; повторов нет"
+                    else "Результат нажатия MAX неизвестен. Проверьте чат вручную; повторов нет")
+            }
         } catch (_: Exception) { finish("UI_UNKNOWN", "Сценарий MAX остановлен с неопределённым результатом. Проверьте чат; повторов нет") }
     }
     private fun sendButton(all: List<Node>, input: Node): Node? = sendButtons(all, input).singleOrNull()
@@ -432,15 +445,7 @@ class MaxUiService : AccessibilityService() {
             val bounds = android.graphics.Rect().also { n.getBoundsInScreen(it) }
             return !bounds.isEmpty && kotlin.math.abs(bounds.centerY() - inputBounds.centerY()) <= (96 * resources.displayMetrics.density).toInt()
         }
-        fun outsideHistory(node: Node): Boolean {
-            var current: Node? = node
-            repeat(25) {
-                val n = current ?: return true
-                if (collection(n)) return false
-                current = n.parent
-            }
-            return false
-        }
+        fun outsideHistory(node: Node): Boolean = outsideHistoryNode(node)
         val found = mutableSetOf<Node>()
         for (label in all.filter { it.isVisibleToUser && it.isEnabled && !it.isEditable && !it.isPassword && near(it) && evidence(it) && outsideHistory(it) }) {
             if (profileClickable(label)) {
@@ -471,6 +476,237 @@ class MaxUiService : AccessibilityService() {
             val actionable = nodes(parent).filter { it != parent && it.isVisibleToUser && profileClickable(it) }
             !fi.callshift.app.domain.MaxSendActionPolicy.redundantParent(actionable.size, actionable.singleOrNull() in found)
         }
+    }
+    private fun outsideHistoryNode(node: Node): Boolean {
+        var current: Node? = node
+        repeat(25) {
+            val n = current ?: return true
+            if (collection(n)) return false
+            current = n.parent
+        }
+        return false
+    }
+    // ----- One-time training of the send control: a deliberate user tap proves the action.
+    // Only the recognition shape is stored — never recipient, chat, text or coordinates. -----
+    private var sendTrainingUntil = 0L
+    private var sendPhaseAt = 0L
+    private var sendDraft: String? = null
+    private var sendTapSeen = false
+    private var sendTapAt = -1L
+    private var sendTapChain: List<Pair<String, String>> = emptyList()
+    private var sendTapSource = false
+    private var sendTrial: MaxSendTrainingPolicy.Rule? = null
+    private data class SendSnapshot(val at: Long, val window: Int,
+        val identities: List<MaxSendTrainingPolicy.Candidate>, val shape: String)
+    private var sendSnapshot: SendSnapshot? = null
+    private var sendArmedAt = 0L
+    private fun sendState(state: MaxSendTrainingPolicy.Status) {
+        val changed = sendTrainingStatus != state
+        sendTrainingStatus = state
+        diagnostics.sendTraining(state)
+        if (changed) runCatching { store.saveReport(diagnostics, MaxUiStore.ReportKind.LEARNING) }
+        sendPhaseAt = SystemClock.elapsedRealtime()
+    }
+    private fun endSendLearning(state: MaxSendTrainingPolicy.Status = MaxSendTrainingPolicy.Status.STOPPED) {
+        if (sendTrainingUntil == 0L) return
+        val returnToSetup = state != MaxSendTrainingPolicy.Status.STOPPED && unlocked() &&
+            rootInActiveWindow?.packageName?.toString() == MaxUiPolicy.PACKAGE
+        sendTrainingUntil = 0L; main.removeCallbacks(sendTick)
+        sendSnapshot = null; sendTrial = null; sendDraft = null
+        sendTapSeen = false; sendTapAt = -1L; sendTapChain = emptyList(); sendTapSource = false
+        sendArmedAt = 0L
+        sendState(state)
+        runCatching { store.sendOutcome(state) }
+        runCatching { store.saveReport(diagnostics, MaxUiStore.ReportKind.LEARNING, durable = true) }
+        if (state != MaxSendTrainingPolicy.Status.STOPPED)
+            android.widget.Toast.makeText(this, state.explanation, android.widget.Toast.LENGTH_LONG).show()
+        if (returnToSetup) runCatching {
+            startActivity(Intent(this, MaxSimpleActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+        }
+    }
+    private val sendTick = object : Runnable {
+        override fun run() {
+            if (sendTrainingUntil == 0L) return
+            if (SystemClock.elapsedRealtime() >= sendTrainingUntil) { endSendLearning(MaxSendTrainingPolicy.Status.TIMEOUT); return }
+            runCatching { sendTrainingStep() }.onFailure { endSendLearning(MaxSendTrainingPolicy.Status.ERROR) }
+            if (sendTrainingUntil != 0L) main.postDelayed(this, 250)
+        }
+    }
+    private fun sendTrainingStep() {
+        val status = sendTrainingStatus
+        if (status == MaxSendTrainingPolicy.Status.VERIFY && SystemClock.elapsedRealtime() - sendPhaseAt > 6000) {
+            endSendLearning(MaxSendTrainingPolicy.Status.NOT_SENT); return
+        }
+        if (!unlocked() || store.version != version() || store.header.isEmpty() || store.input.isEmpty()) {
+            endSendLearning(MaxSendTrainingPolicy.Status.STOPPED); return
+        }
+        val root = rootInActiveWindow ?: return
+        if (root.packageName?.toString() != MaxUiPolicy.PACKAGE) return
+        val all = nodes(root)
+        if (all.any { it.isVisibleToUser && it.isPassword }) { endSendLearning(MaxSendTrainingPolicy.Status.STOPPED); return }
+        val editor = all.filter { it.viewIdResourceName == store.input && it.isVisibleToUser && it.isEnabled && it.isEditable && !it.isPassword }.singleOrNull()
+        when (status) {
+            MaxSendTrainingPolicy.Status.WAIT_CHAT -> if (editor != null) sendState(MaxSendTrainingPolicy.Status.WAIT_TAP)
+            MaxSendTrainingPolicy.Status.WAIT_TAP -> {
+                if (editor == null) { sendSnapshot = null; sendDraft = null; sendState(MaxSendTrainingPolicy.Status.WAIT_CHAT); return }
+                val draft = editableText(editor)
+                if (draft.isEmpty()) {
+                    // A content change can reach us before the click event: keep the armed
+                    // snapshot briefly so the pending tap can still be resolved.
+                    if (sendTapSeen) {
+                        if (sendSnapshot != null) resolveSendTap()
+                        else if (SystemClock.uptimeMillis() - sendTapAt > 2000)
+                            endSendLearning(MaxSendTrainingPolicy.Status.SOURCE_MISSING)
+                    } else if (sendArmedAt > 0 && SystemClock.elapsedRealtime() - sendArmedAt <= 1500) {
+                        // The draft vanished right after arming without any accepted click:
+                        // the send happened, but Android did not hand us the source event.
+                        endSendLearning(MaxSendTrainingPolicy.Status.SOURCE_MISSING)
+                    } else if (SystemClock.elapsedRealtime() - sendPhaseAt > 3000) { sendSnapshot = null; sendDraft = null; sendArmedAt = 0L }
+                    return
+                }
+                if (sendDraft != draft) { sendDraft = draft; sendSnapshot = null; sendArmedAt = 0L; return } // arm only on a stable draft
+                val candidates = sendRowButtons(all, editor)
+                val shape = composerShape(all, editor)
+                sendSnapshot = if (candidates.isEmpty() || shape == null) null else
+                    SendSnapshot(SystemClock.elapsedRealtime(), root.windowId,
+                        candidates.map { MaxSendTrainingPolicy.Candidate(it.viewIdResourceName.orEmpty(),
+                            it.className?.toString().orEmpty(), profileClickable(it)) }, shape)
+                sendArmedAt = if (sendSnapshot == null) 0L else SystemClock.elapsedRealtime()
+                if (sendSnapshot == null && SystemClock.elapsedRealtime() - sendPhaseAt > 5000) {
+                    endSendLearning(MaxSendTrainingPolicy.Status.NO_CANDIDATES); return
+                }
+                if (sendTapSeen && sendSnapshot != null) resolveSendTap()
+            }
+            MaxSendTrainingPolicy.Status.VERIFY -> {
+                // The draft disappearing is the only accepted proof that the tap sent the message.
+                if (editor != null && editableText(editor).isEmpty()) {
+                    val trial = sendTrial
+                    if (trial == null) endSendLearning(MaxSendTrainingPolicy.Status.ERROR)
+                    else { store.learnSend(trial); endSendLearning(MaxSendTrainingPolicy.Status.SAVED) }
+                }
+            }
+            else -> {}
+        }
+    }
+    private fun handleSendTrainingClick(event: AccessibilityEvent) {
+        if (sendTrainingStatus != MaxSendTrainingPolicy.Status.WAIT_TAP) return
+        // Clicks before the armed draft (opening chats, back) are navigation, not the send tap.
+        if (sendSnapshot == null) return
+        val now = SystemClock.uptimeMillis()
+        if (sendTapSeen) {
+            if (now - sendTapAt <= 700) return // duplicated event for one physical tap
+            endSendLearning(MaxSendTrainingPolicy.Status.FOREIGN); return
+        }
+        val source = event.source
+        sendTapAt = now
+        sendTapChain = clickChain(source, event.className?.toString())
+        sendTapSource = source != null
+        sendTapSeen = true
+        resolveSendTap()
+    }
+    /** The pressed node followed by its ancestors, nearest first, as (id, class) pairs. */
+    private fun clickChain(source: Node?, eventClass: String?): List<Pair<String, String>> {
+        val chain = mutableListOf<Pair<String, String>>()
+        if (source != null) {
+            var current: Node? = source
+            repeat(6) {
+                val n = current ?: return chain
+                chain += (n.viewIdResourceName ?: "") to n.className?.toString().orEmpty()
+                current = n.parent
+            }
+            return chain
+        }
+        chain += "" to eventClass.orEmpty()
+        return chain
+    }
+    private fun resolveSendTap() {
+        val snap = sendSnapshot ?: return // the tick rebuilds a fresh snapshot, then resolves
+        val resolution = MaxSendTrainingPolicy.resolve(snap.identities, sendTapChain, sendTapSource)
+        if (resolution.candidate == null) {
+            endSendLearning(if (resolution.reason == MaxSendTrainingPolicy.ResolveReason.FOREIGN)
+                MaxSendTrainingPolicy.Status.FOREIGN else MaxSendTrainingPolicy.Status.SOURCE_MISSING)
+            return
+        }
+        val trial = MaxSendTrainingPolicy.rule(version(), store.header, store.input, resolution, snap.shape)
+        if (trial == null) { endSendLearning(MaxSendTrainingPolicy.Status.ERROR); return }
+        sendTrial = trial
+        sendState(MaxSendTrainingPolicy.Status.VERIFY)
+    }
+    /** Clickable controls in the composer row: vertical band only, editor and history excluded. */
+    private fun sendRowButtons(all: List<Node>, editor: Node): List<Node> =
+        all.filter { n -> n != editor && n.isVisibleToUser && n.isEnabled && !n.isEditable && !n.isPassword &&
+            profileClickable(n) && outsideHistoryNode(n) && nearComposerRow(n, editor) }
+    private fun nearComposerRow(n: Node, editor: Node): Boolean {
+        val bounds = android.graphics.Rect().also { n.getBoundsInScreen(it) }
+        val inputBounds = android.graphics.Rect().also { editor.getBoundsInScreen(it) }
+        if (bounds.isEmpty || inputBounds.isEmpty) return false
+        return kotlin.math.abs(bounds.centerY() - inputBounds.centerY()) <= (96 * resources.displayMetrics.density).toInt()
+    }
+    /** Stable composer fingerprint: which controls and classes share the row with the editor. */
+    private fun composerShape(all: List<Node>, editor: Node): String? {
+        val band = all.filter { it.isVisibleToUser && nearComposerRow(it, editor) }
+        if (band.isEmpty() || band.size >= 60) return null
+        val shapeSource = band.map {
+            "${it.viewIdResourceName}|${it.className}|${it.childCount}|${it.isClickable}|${it.actionList.any { a -> a.id == Node.ACTION_CLICK }}"
+        }.sorted().joinToString("\n")
+        return java.security.MessageDigest.getInstance("SHA-256").digest(shapeSource.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it.toInt() and 255) }
+    }
+    /** The trained send control in the live tree; exactly one identity match in the composer row.
+     * The stored shape is informational: keyboard state changes the band census, so replay
+     * relies on the trained identity plus the strict context guards instead. */
+    private fun learnedSend(all: List<Node>, input: Node?): Node? {
+        if (input == null) return null
+        val rule = store.learnedSend() ?: return null
+        if (!MaxSendTrainingPolicy.replayable(rule, version(), store.header, store.input)) return null
+        val inputBounds = android.graphics.Rect().also { input.getBoundsInScreen(it) }
+        fun near(n: Node): Boolean {
+            val bounds = android.graphics.Rect().also { n.getBoundsInScreen(it) }
+            return !bounds.isEmpty && !inputBounds.isEmpty &&
+                kotlin.math.abs(bounds.centerY() - inputBounds.centerY()) <= (96 * resources.displayMetrics.density).toInt()
+        }
+        val matches = all.filter { n ->
+            n != input && n.isVisibleToUser && n.isEnabled && !n.isEditable && !n.isPassword &&
+                (rule.gesture || profileClickable(n)) && outsideHistoryNode(n) && near(n) &&
+                MaxSendTrainingPolicy.identityMatches(rule.targetId, rule.targetClass, n.viewIdResourceName, n.className?.toString()) &&
+                !fi.callshift.app.domain.MaxSendActionPolicy.conflict(n.text?.toString(), n.contentDescription?.toString(), n.viewIdResourceName)
+        }
+        // A wrapper and its sole actionable child may expose one control; the descendant acts.
+        val deduped = matches.filter { m -> matches.none { other -> other != m && isNodeAncestor(other, m) } }
+        return deduped.singleOrNull()
+    }
+    private fun isNodeAncestor(ancestor: Node, node: Node): Boolean {
+        var current: Node? = node
+        repeat(25) { current = current?.parent ?: return false; if (current == ancestor) return true }
+        return false
+    }
+    /** A real anchored tap on the freshly located trained button: the same consented
+     * mechanism as the title gesture. The point exists only if the live node exists. */
+    private fun tapLearnedSend(target: Node): Boolean {
+        val accessibility = getSystemService(android.view.accessibility.AccessibilityManager::class.java)
+        if (accessibility == null || accessibility.isTouchExplorationEnabled) return false
+        val scale = runCatching {
+            if (Build.VERSION.SDK_INT >= 33) magnificationController.magnificationConfig?.scale
+            else magnificationController.scale
+        }.getOrNull()
+        if (scale != 1f) return false
+        if (!target.refresh() || !target.isVisibleToUser || !target.isEnabled) return false
+        val bounds = android.graphics.Rect(); target.getBoundsInScreen(bounds)
+        if (bounds.isEmpty) return false
+        val foreground = windows.singleOrNull { it.id == target.windowId && it.isFocused &&
+            it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION } ?: return false
+        if (Build.VERSION.SDK_INT >= 30 && foreground.displayId != android.view.Display.DEFAULT_DISPLAY) return false
+        val path = android.graphics.Path().apply { moveTo(bounds.exactCenterX(), bounds.exactCenterY()) }
+        val gesture = android.accessibilityservice.GestureDescription.Builder().addStroke(
+            android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 60)).build()
+        val token = gestureFlight.begin(SystemClock.elapsedRealtime()) ?: return false
+        val submitted = runCatching { dispatchGesture(gesture, object : AccessibilityService.GestureResultCallback() {
+            override fun onCompleted(description: android.accessibilityservice.GestureDescription) { gestureFlight.resolve(token) }
+            override fun onCancelled(description: android.accessibilityservice.GestureDescription) { gestureFlight.resolve(token) }
+        }, main) }.getOrDefault(false)
+        if (!submitted) gestureFlight.resolve(token)
+        return submitted
     }
     /** One fresh, explicitly learned system choice per call. Never click twice or use list order. */
     private fun routeReady(p: Pending, root: Node): Boolean {
@@ -1287,7 +1523,8 @@ class MaxUiService : AccessibilityService() {
             val uiStore = MaxUiStore(context)
             val saved = uiStore.savedReport()
             val current = diagnostics.report(android.os.Build.VERSION.SDK_INT, fi.callshift.app.BuildConfig.VERSION_NAME) +
-                "\nLearned card method=" + (uiStore.learnedCard()?.let { if (it.gesture) "ANCHORED_TITLE_GESTURE" else "NODE_ACTION" } ?: "NONE")
+                "\nLearned card method=" + (uiStore.learnedCard()?.let { if (it.gesture) "ANCHORED_TITLE_GESTURE" else "NODE_ACTION" } ?: "NONE") +
+                "\nLearned send method=" + (uiStore.learnedSend()?.let { if (it.gesture) "ANCHORED_SEND_GESTURE" else "NODE_ACTION" } ?: "NONE")
             return if (saved == null) current else "$saved\n\nCurrent in-memory capture (may be a different operation):\n$current"
         }
         val diagnostics = MaxUiDiagnostics { SystemClock.elapsedRealtime() }
@@ -1300,6 +1537,41 @@ class MaxUiService : AccessibilityService() {
         val connected get() = instance != null
         @Volatile var cardLearningStatus = MaxCardLearningPolicy.Status.IDLE
             private set
+        @Volatile var sendTrainingStatus = MaxSendTrainingPolicy.Status.IDLE
+            private set
+        fun endSendTraining() { instance?.endSendLearning() }
+        /** One deliberate user tap in MAX proves the send control. Nothing is clicked
+         * automatically during training; recipient, chat and text are never stored. */
+        fun startSendTraining(): Boolean {
+            val service = instance
+            if (service == null) { sendTrainingStatus = MaxSendTrainingPolicy.Status.NO_SERVICE; return false }
+            if (service.pending != null || service.headerGestureBusy || service.cardUntil != 0L || service.sendTrainingUntil != 0L) {
+                sendTrainingStatus = MaxSendTrainingPolicy.Status.BUSY
+                return false
+            }
+            check(Looper.myLooper() == Looper.getMainLooper())
+            return runCatching {
+                service.stop("Остановлено для обучения кнопки отправки")
+                diagnostics.start(120_000)
+                if (service.store.header.isEmpty() || service.store.input.isEmpty() || service.store.version != service.version()) {
+                    service.sendState(MaxSendTrainingPolicy.Status.NO_LAYOUT)
+                    false
+                } else {
+                    service.sendTrainingUntil = SystemClock.elapsedRealtime() + 120_000
+                    service.sendDraft = null; service.sendSnapshot = null; service.sendTrial = null; service.sendArmedAt = 0L
+                    service.sendTapSeen = false; service.sendTapAt = -1L
+                    service.sendTapChain = emptyList(); service.sendTapSource = false
+                    service.store.sendOutcome(MaxSendTrainingPolicy.Status.WAIT_CHAT)
+                    service.sendState(MaxSendTrainingPolicy.Status.WAIT_CHAT)
+                    service.main.post(service.sendTick)
+                    true
+                }
+            }.getOrElse {
+                service.endSendLearning(MaxSendTrainingPolicy.Status.ERROR)
+                sendTrainingStatus = MaxSendTrainingPolicy.Status.ERROR
+                false
+            }
+        }
         fun endCardTraining() { instance?.endCardLearning() }
         fun startCardTraining(gesture: Boolean = false): Boolean {
             val service = instance

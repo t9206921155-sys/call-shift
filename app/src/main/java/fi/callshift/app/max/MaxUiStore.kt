@@ -39,6 +39,19 @@ class MaxUiStore(context: Context) {
         check(p.edit().putString("learned_card", Json.encodeToString(rule)).putBoolean("live", false).commit())
     }
     fun forgetCard() { check(p.edit().remove("learned_card").putBoolean("live", false).commit()) }
+    fun sendOutcome() = runCatching {
+        fi.callshift.app.domain.MaxSendTrainingPolicy.Status.valueOf(p.getString("send_outcome", "IDLE")!!)
+    }.getOrDefault(fi.callshift.app.domain.MaxSendTrainingPolicy.Status.IDLE)
+    fun sendOutcome(state: fi.callshift.app.domain.MaxSendTrainingPolicy.Status) {
+        check(p.edit().putString("send_outcome", state.name).commit())
+    }
+    fun learnedSend(): fi.callshift.app.domain.MaxSendTrainingPolicy.Rule? = runCatching {
+        p.getString("learned_send", null)?.let { Json.decodeFromString<fi.callshift.app.domain.MaxSendTrainingPolicy.Rule>(it) }
+    }.getOrNull()
+    fun learnSend(rule: fi.callshift.app.domain.MaxSendTrainingPolicy.Rule) {
+        check(p.edit().putString("learned_send", Json.encodeToString(rule)).commit())
+    }
+    fun forgetSend() { check(p.edit().remove("learned_send").commit()) }
     fun modes(enabled: Boolean, live: Boolean) { check(p.edit().putBoolean("enabled", enabled).putBoolean("live", live).commit()) }
     fun profile(header: String, input: String, version: Long) {
         check(p.edit().putString("header", header).putString("input", input).putLong("version", version).remove("learned_card")
