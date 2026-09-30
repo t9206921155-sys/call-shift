@@ -495,6 +495,7 @@ class MaxUiService : AccessibilityService() {
     private var sendTapAt = -1L
     private var sendTapChain: List<Pair<String, String>> = emptyList()
     private var sendTapSource = false
+    private var sendEventUnresolved = false
     private var sendTrial: MaxSendTrainingPolicy.Rule? = null
     private data class SendSnapshot(val at: Long, val window: Int,
         val identities: List<MaxSendTrainingPolicy.Candidate>, val shape: String)
@@ -504,7 +505,14 @@ class MaxUiService : AccessibilityService() {
         val changed = sendTrainingStatus != state
         sendTrainingStatus = state
         diagnostics.sendTraining(state)
-        if (changed) runCatching { store.saveReport(diagnostics, MaxUiStore.ReportKind.LEARNING) }
+        if (changed) {
+            runCatching { store.saveReport(diagnostics, MaxUiStore.ReportKind.LEARNING) }
+            // The user is inside MAX: toasts are the only visible guidance.
+            if (state == MaxSendTrainingPolicy.Status.WAIT_TAP)
+                android.widget.Toast.makeText(this, "Черновик распознан. Нажмите синюю стрелку отправки ОДИН раз", android.widget.Toast.LENGTH_LONG).show()
+            if (state == MaxSendTrainingPolicy.Status.VERIFY)
+                android.widget.Toast.makeText(this, "Проверяем, что сообщение ушло", android.widget.Toast.LENGTH_SHORT).show()
+        }
         sendPhaseAt = SystemClock.elapsedRealtime()
     }
     private fun endSendLearning(state: MaxSendTrainingPolicy.Status = MaxSendTrainingPolicy.Status.STOPPED) {
@@ -514,6 +522,7 @@ class MaxUiService : AccessibilityService() {
         sendTrainingUntil = 0L; main.removeCallbacks(sendTick)
         sendSnapshot = null; sendTrial = null; sendDraft = null
         sendTapSeen = false; sendTapAt = -1L; sendTapChain = emptyList(); sendTapSource = false
+        sendEventUnresolved = false
         sendArmedAt = 0L
         sendState(state)
         runCatching { store.sendOutcome(state) }
@@ -552,17 +561,34 @@ class MaxUiService : AccessibilityService() {
                 if (editor == null) { sendSnapshot = null; sendDraft = null; sendState(MaxSendTrainingPolicy.Status.WAIT_CHAT); return }
                 val draft = editableText(editor)
                 if (draft.isEmpty()) {
-                    // A content change can reach us before the click event: keep the armed
-                    // snapshot briefly so the pending tap can still be resolved.
-                    if (sendTapSeen) {
-                        if (sendSnapshot != null) resolveSendTap()
-                        else if (SystemClock.uptimeMillis() - sendTapAt > 2000)
+                    val snap = sendSnapshot
+                    if (snap == null) {
+                        if (sendTapSeen && SystemClock.uptimeMillis() - sendTapAt > 2000)
                             endSendLearning(MaxSendTrainingPolicy.Status.SOURCE_MISSING)
-                    } else if (sendArmedAt > 0 && SystemClock.elapsedRealtime() - sendArmedAt <= 1500) {
-                        // The draft vanished right after arming without any accepted click:
-                        // the send happened, but Android did not hand us the source event.
-                        endSendLearning(MaxSendTrainingPolicy.Status.SOURCE_MISSING)
-                    } else if (SystemClock.elapsedRealtime() - sendPhaseAt > 3000) { sendSnapshot = null; sendDraft = null; sendArmedAt = 0L }
+                        else if (SystemClock.elapsedRealtime() - sendPhaseAt > 3000) {
+                            sendSnapshot = null; sendDraft = null; sendArmedAt = 0L
+                            sendTapSeen = false; sendEventUnresolved = false
+                        }
+                        return
+                    }
+                    val sinceArm = if (sendArmedAt > 0) SystemClock.elapsedRealtime() - sendArmedAt else Long.MAX_VALUE
+                    if (sinceArm > 4000) {
+                        endSendLearning(if (sendTapSeen) MaxSendTrainingPolicy.Status.FOREIGN
+                            else MaxSendTrainingPolicy.Status.SOURCE_MISSING)
+                        return
+                    }
+                    // A content change can reach us before the click event: the armed
+                    // snapshot stays valid so the pending tap can still be resolved.
+                    if (sendTapSeen && !sendEventUnresolved) resolveSendTap()
+                    if (sendTrainingStatus != MaxSendTrainingPolicy.Status.WAIT_TAP) return // VERIFY reached
+                    if (sendEventUnresolved || !sendTapSeen) {
+                        // The outgoing message itself proves the send tap happened even when
+                        // Android handed us no usable click source. Save only an unambiguous
+                        // single right-half control of the armed row.
+                        val only = rightSideSingle(snap, all)
+                        if (only != null) finishTrainingSave(MaxSendTrainingPolicy.Resolution(
+                            MaxSendTrainingPolicy.ResolveReason.SOLE_CANDIDATE, only), snap)
+                    }
                     return
                 }
                 if (sendDraft != draft) { sendDraft = draft; sendSnapshot = null; sendArmedAt = 0L; return } // arm only on a stable draft
@@ -602,6 +628,7 @@ class MaxUiService : AccessibilityService() {
         sendTapAt = now
         sendTapChain = clickChain(source, event.className?.toString())
         sendTapSource = source != null
+        sendEventUnresolved = false
         sendTapSeen = true
         resolveSendTap()
     }
@@ -624,14 +651,29 @@ class MaxUiService : AccessibilityService() {
         val snap = sendSnapshot ?: return // the tick rebuilds a fresh snapshot, then resolves
         val resolution = MaxSendTrainingPolicy.resolve(snap.identities, sendTapChain, sendTapSource)
         if (resolution.candidate == null) {
-            endSendLearning(if (resolution.reason == MaxSendTrainingPolicy.ResolveReason.FOREIGN)
-                MaxSendTrainingPolicy.Status.FOREIGN else MaxSendTrainingPolicy.Status.SOURCE_MISSING)
+            // An unusable source is not a verdict: the vanish proof below may still
+            // identify the control once the message demonstrably went out.
+            sendEventUnresolved = true
             return
         }
+        finishTrainingSave(resolution, snap)
+    }
+    private fun finishTrainingSave(resolution: MaxSendTrainingPolicy.Resolution, snap: SendSnapshot) {
         val trial = MaxSendTrainingPolicy.rule(version(), store.header, store.input, resolution, snap.shape)
         if (trial == null) { endSendLearning(MaxSendTrainingPolicy.Status.ERROR); return }
         sendTrial = trial
         sendState(MaxSendTrainingPolicy.Status.VERIFY)
+    }
+    /** With the outgoing message proving the tap, one unambiguous right-half control
+     * of the armed row is the send arrow; anything else stays unidentified. */
+    private fun rightSideSingle(snap: SendSnapshot, all: List<Node>): MaxSendTrainingPolicy.Candidate? {
+        val only = snap.identities.singleOrNull() ?: return null
+        val node = all.filter { n -> n.isVisibleToUser &&
+            MaxSendTrainingPolicy.identityMatches(only.id, only.className, n.viewIdResourceName, n.className?.toString()) }.singleOrNull()
+            ?: return null
+        val bounds = android.graphics.Rect().also { node.getBoundsInScreen(it) }
+        if (bounds.isEmpty || bounds.centerX() < resources.displayMetrics.widthPixels / 2) return null
+        return only
     }
     /** Clickable controls in the composer row: vertical band only, editor and history excluded. */
     private fun sendRowButtons(all: List<Node>, editor: Node): List<Node> =
@@ -1561,9 +1603,11 @@ class MaxUiService : AccessibilityService() {
                     service.sendDraft = null; service.sendSnapshot = null; service.sendTrial = null; service.sendArmedAt = 0L
                     service.sendTapSeen = false; service.sendTapAt = -1L
                     service.sendTapChain = emptyList(); service.sendTapSource = false
+                    service.sendEventUnresolved = false
                     service.store.sendOutcome(MaxSendTrainingPolicy.Status.WAIT_CHAT)
                     service.sendState(MaxSendTrainingPolicy.Status.WAIT_CHAT)
                     service.main.post(service.sendTick)
+                    android.widget.Toast.makeText(service, "Обучение запущено: откройте любой безопасный чат, введите текст и нажмите стрелку", android.widget.Toast.LENGTH_LONG).show()
                     true
                 }
             }.getOrElse {

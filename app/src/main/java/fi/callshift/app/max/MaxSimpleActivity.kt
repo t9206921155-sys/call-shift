@@ -77,6 +77,7 @@ class MaxSimpleActivity : AppCompatActivity() {
             MaxUiService.stopNow(); runCatching { store.modes(false, false) }
             notice = "MAX выключен. SMS и правила не изменены."; refresh()
         }
+        button("Обучить кнопку отправки MAX") { trainSend() }
         button("Дополнительно") {
             AlertDialog.Builder(this).setTitle("Дополнительно")
                 .setItems(arrayOf("Журнал", "Тесты других каналов", "Технические настройки MAX", "Скопировать технический отчёт",
@@ -92,11 +93,7 @@ class MaxSimpleActivity : AppCompatActivity() {
                             Toast.makeText(this, "Отчёт скопирован", Toast.LENGTH_SHORT).show()
                         }
                         4 -> test(false)
-                        5 -> confirm("Обучить кнопку отправки MAX?",
-                            "Если CallShift не находит синюю стрелку отправки в вашей версии MAX, достаточно один раз показать её.\n\n1. Откройте в MAX любой безопасный чат (например, с самим собой или проверочным номером).\n2. Введите любой короткий текст.\n3. Нажмите синюю стрелку отправки ОДИН раз. Сообщение уйдёт по-настоящему — отправляйте в безопасный чат.\n4. Вернитесь в CallShift.\n\nСохраняется только способ нажатия кнопки — не получатель, не чат и не текст. Ничего автоматически не нажимается, пока обучение не прошло. После обучения запустите «Проверить без отправки», затем тестовую отправку.",
-                            "Начать обучение") {
-                            if (MaxUiService.startSendTraining()) launchMax("send_train") else message(MaxUiService.sendTrainingStatus.explanation)
-                        }
+                        5 -> trainSend()
                     }
                 }.show()
         }
@@ -337,6 +334,13 @@ class MaxSimpleActivity : AppCompatActivity() {
         if (intent == null) { message("MAX не установлен."); return }
         waiting = kind
         runCatching { startActivity(intent) }.onFailure { waiting = null; message("Android не разрешил открыть MAX.") }
+    }
+    private fun trainSend() {
+        confirm("Обучить кнопку отправки MAX?",
+            "Если CallShift не находит синюю стрелку отправки в вашей версии MAX, достаточно один раз показать её.\n\n1. Нажмите «Начать обучение».\n2. В MAX откройте любой безопасный чат (с самим собой или проверочный номер).\n3. Введите любой короткий текст.\n4. Нажмите синюю стрелку отправки ОДИН раз. Сообщение уйдёт по-настоящему — поэтому только в безопасный чат.\n5. CallShift сам вернётся и покажет результат.\n\nСохраняется только способ нажатия кнопки — не получатель, не чат и не текст. После обучения запустите «Проверить без отправки», затем тестовую отправку.",
+            "Начать обучение") {
+            if (MaxUiService.startSendTraining()) launchMax("send_train") else message(MaxUiService.sendTrainingStatus.explanation)
+        }
     }
     private fun confirm(title: String, body: String, positive: String = "Продолжить", action: () -> Unit) {
         AlertDialog.Builder(this).setTitle(title).setMessage(body).setPositiveButton(positive) { _, _ ->
