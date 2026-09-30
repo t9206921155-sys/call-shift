@@ -34,7 +34,7 @@ class MaxSendTrainingPolicyTest {
     }
 
     @Test fun `identical twins in the row can not be told apart`() {
-        val r = MaxSendTrainingPolicy.resolve(listOf(send, send.copy(id = "ru.oneme.app:id/send2")),
+        val r = MaxSendTrainingPolicy.resolve(listOf(send, send.copy(clickable = false)),
             chain(send.id, send.className), true)
         assertEquals(MaxSendTrainingPolicy.ResolveReason.AMBIGUOUS, r.reason)
     }
@@ -55,10 +55,17 @@ class MaxSendTrainingPolicyTest {
     }
 
     @Test fun `missing source falls back to a single row control`() {
-        val r = MaxSendTrainingPolicy.resolve(listOf(send), chain(null, send.className), false)
+        val r = MaxSendTrainingPolicy.resolve(listOf(send), chain(null, "android.view.View"), false)
         assertEquals(MaxSendTrainingPolicy.ResolveReason.SOLE_CANDIDATE, r.reason)
         assertEquals(send, r.candidate)
         assertTrue(MaxSendTrainingPolicy.replayGesture(r.reason))
+    }
+
+    @Test fun `class recovery applies to a single clickable with blank id`() {
+        val bare = MaxSendTrainingPolicy.Candidate("", "com.max.ui.SendButton", true)
+        val r = MaxSendTrainingPolicy.resolve(listOf(bare), chain(null, "com.max.ui.SendButton"), false)
+        assertEquals(MaxSendTrainingPolicy.ResolveReason.CLASS_UNIQUE, r.reason)
+        assertEquals(bare, r.candidate)
     }
 
     @Test fun `missing source with several unknown controls is rejected`() {
@@ -76,7 +83,7 @@ class MaxSendTrainingPolicyTest {
             MaxSendTrainingPolicy.resolve(listOf(attach, send), chain(send.id, send.className), true), "shape")
         assertEquals(MaxSendTrainingPolicy.Rule(6840, "h", "i", send.id, send.className, "shape", false), proven)
         val unproven = MaxSendTrainingPolicy.rule(6840, "h", "i",
-            MaxSendTrainingPolicy.resolve(listOf(send), chain(null, send.className), false), "shape")
+            MaxSendTrainingPolicy.resolve(listOf(send), chain(null, "android.view.View"), false), "shape")
         assertEquals(MaxSendTrainingPolicy.Rule(6840, "h", "i", send.id, send.className, "shape", true), unproven)
     }
 
@@ -84,9 +91,9 @@ class MaxSendTrainingPolicyTest {
         assertNull(MaxSendTrainingPolicy.rule(6840, "h", "i",
             MaxSendTrainingPolicy.resolve(listOf(MaxSendTrainingPolicy.Candidate("", "", true)), chain(null, ""), false), "shape"))
         assertNull(MaxSendTrainingPolicy.rule(6840, "h", "i",
-            MaxSendTrainingPolicy.resolve(listOf(send), chain(null, send.className), false), ""))
+            MaxSendTrainingPolicy.resolve(listOf(send), chain(null, "android.view.View"), false), ""))
         assertNull(MaxSendTrainingPolicy.rule(-1, "h", "i",
-            MaxSendTrainingPolicy.resolve(listOf(send), chain(null, send.className), false), "shape"))
+            MaxSendTrainingPolicy.resolve(listOf(send), chain(null, "android.view.View"), false), "shape"))
     }
 
     @Test fun `replay is bound to the trained version and profile`() {
@@ -103,6 +110,6 @@ class MaxSendTrainingPolicyTest {
         assertTrue(MaxSendTrainingPolicy.identityMatches("", send.className, null, send.className))
         assertTrue(MaxSendTrainingPolicy.identityMatches(send.id, send.className, send.id, send.className))
         assertFalse(MaxSendTrainingPolicy.identityMatches(send.id, send.className, attach.id, send.className))
-        assertFalse(MaxSendTrainingPolicy.identityMatches(send.id, send.className, send.id, attach.className))
+        assertFalse(MaxSendTrainingPolicy.identityMatches(send.id, send.className, send.id, "android.widget.TextView"))
     }
 }

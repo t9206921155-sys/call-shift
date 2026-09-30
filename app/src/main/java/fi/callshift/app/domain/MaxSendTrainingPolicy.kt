@@ -43,19 +43,23 @@ object MaxSendTrainingPolicy {
         val clicked = chain.firstOrNull()
             ?: return if (candidates.size == 1) Resolution(ResolveReason.SOLE_CANDIDATE, candidates.single())
             else Resolution(ResolveReason.FOREIGN)
-        val direct = candidates.filter { it.id == clicked.first && it.className == clicked.second }
-        if (direct.size == 1) return Resolution(
-            if (sourcePresent) ResolveReason.SOURCE else ResolveReason.CLASS_UNIQUE, direct.single())
-        if (direct.size > 1) return Resolution(ResolveReason.AMBIGUOUS)
-        if (sourcePresent) {
-            // The pressed icon may be a non-clickable child of the actionable wrapper.
-            for (step in chain.drop(1)) {
-                val wrapped = candidates.filter { it.id == step.first && it.className == step.second }
-                if (wrapped.size == 1) return Resolution(ResolveReason.SOURCE_ANCESTOR, wrapped.single())
-                if (wrapped.size > 1) return Resolution(ResolveReason.AMBIGUOUS)
-            }
+        if (!sourcePresent) {
+            // No source node: the event class is the only usable hint, and only when unique.
+            val byClass = candidates.filter { it.className == clicked.second }
+            if (byClass.size == 1) return Resolution(ResolveReason.CLASS_UNIQUE, byClass.single())
+            if (byClass.isEmpty() && candidates.size == 1)
+                return Resolution(ResolveReason.SOLE_CANDIDATE, candidates.single())
+            return Resolution(if (byClass.isEmpty()) ResolveReason.FOREIGN else ResolveReason.AMBIGUOUS)
         }
-        if (!sourcePresent && candidates.size == 1) return Resolution(ResolveReason.SOLE_CANDIDATE, candidates.single())
+        val direct = candidates.filter { it.id == clicked.first && it.className == clicked.second }
+        if (direct.size == 1) return Resolution(ResolveReason.SOURCE, direct.single())
+        if (direct.size > 1) return Resolution(ResolveReason.AMBIGUOUS)
+        // The pressed icon may be a non-clickable child of the actionable wrapper.
+        for (step in chain.drop(1)) {
+            val wrapped = candidates.filter { it.id == step.first && it.className == step.second }
+            if (wrapped.size == 1) return Resolution(ResolveReason.SOURCE_ANCESTOR, wrapped.single())
+            if (wrapped.size > 1) return Resolution(ResolveReason.AMBIGUOUS)
+        }
         return Resolution(ResolveReason.FOREIGN)
     }
 
