@@ -46,8 +46,14 @@ jobs:
           CALLSHIFT_KEY_ALIAS: callshift
           CALLSHIFT_KEYSTORE: ${{ runner.temp }}/callshift-signing.p12
         run: |
+          set -eo pipefail
           chmod +x gradlew
-          ./gradlew :app:testStandardDebugUnitTest :app:assembleStandardRelease -PrequireReleaseSigning=true -PversionCode=55 -PversionName=0.8.23-max-send-training --no-daemon
+          if ! ./gradlew :app:testStandardDebugUnitTest :app:assembleStandardRelease -PrequireReleaseSigning=true -PversionCode=55 -PversionName=0.8.23-max-send-training --no-daemon 2>&1 | tee "$RUNNER_TEMP/build.log"; then
+            grep -E "^e: |error:|FAILED|Caused by:|What went wrong" "$RUNNER_TEMP/build.log" | head -30 | cut -c1-900 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit 1
+          fi
       - name: Verify original and new APK signatures against restored certificate
         shell: bash
         run: |
