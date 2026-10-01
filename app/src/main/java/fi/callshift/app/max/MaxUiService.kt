@@ -739,10 +739,27 @@ class MaxUiService : AccessibilityService() {
             ?: return null
         return MaxSendTrainingPolicy.Candidate(node.viewIdResourceName.orEmpty(), node.className?.toString().orEmpty(), true)
     }
-    /** Clickable controls in the composer row: vertical band only, editor and history excluded. */
+    /** Composer-scoped: the control shares a close ancestor with the editor, so the
+     * scrollable message list and its bubbles never enter the candidate set. */
+    private fun inComposerScope(n: Node, editor: Node): Boolean {
+        val ancestors = HashSet<Node>()
+        var current: Node? = editor.parent
+        var up = 0
+        while (current != null && up < 8) { ancestors.add(current); current = current.parent; up++ }
+        current = n
+        var down = 0
+        while (current != null && down < 8) {
+            if (ancestors.contains(current)) return true
+            current = current.parent; down++
+        }
+        return false
+    }
+    /** Composer-row controls. MAX may expose the arrow without a click action or
+     * inside a scrolled container, so clickability and history ancestry are not
+     * required: scope plus the editor's vertical band decide. */
     private fun sendRowButtons(all: List<Node>, editor: Node): List<Node> =
         all.filter { n -> n != editor && n.isVisibleToUser && n.isEnabled && !n.isEditable && !n.isPassword &&
-            profileClickable(n) && outsideHistoryNode(n) && nearComposerRow(n, editor) }
+            !collection(n) && inComposerScope(n, editor) && nearComposerRow(n, editor) }
     private fun nearComposerRow(n: Node, editor: Node): Boolean {
         val bounds = android.graphics.Rect().also { n.getBoundsInScreen(it) }
         val inputBounds = android.graphics.Rect().also { editor.getBoundsInScreen(it) }
@@ -775,7 +792,7 @@ class MaxUiService : AccessibilityService() {
         val half = resources.displayMetrics.widthPixels / 2
         val matches = all.filter { n ->
             n != input && n.isVisibleToUser && n.isEnabled && !n.isEditable && !n.isPassword &&
-                (rule.gesture || profileClickable(n)) && outsideHistoryNode(n) && near(n) &&
+                (rule.gesture || profileClickable(n)) && inComposerScope(n, input) && near(n) &&
                 // Gesture rules were proven on the right-half arrow; resolve them there too.
                 (!rule.gesture || run { val b = android.graphics.Rect().also { n.getBoundsInScreen(it) }; !b.isEmpty && b.centerX() >= half }) &&
                 MaxSendTrainingPolicy.identityMatches(rule.targetId, rule.targetClass, n.viewIdResourceName, n.className?.toString()) &&
