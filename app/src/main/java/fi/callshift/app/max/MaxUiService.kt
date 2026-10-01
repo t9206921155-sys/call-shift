@@ -827,7 +827,8 @@ class MaxUiService : AccessibilityService() {
         return false
     }
     /** A real anchored tap on the freshly located trained button: the same consented
-     * mechanism as the title gesture. The point exists only if the live node exists. */
+     * mechanism as the title gesture. If the saved target is a container, the tap goes
+     * to the center of its distinctly-rightmost child, not to the container center. */
     private fun tapLearnedSend(target: Node): Boolean {
         val accessibility = getSystemService(android.view.accessibility.AccessibilityManager::class.java)
         if (accessibility == null || accessibility.isTouchExplorationEnabled) return false
@@ -839,10 +840,17 @@ class MaxUiService : AccessibilityService() {
         if (!target.refresh() || !target.isVisibleToUser || !target.isEnabled) return false
         val bounds = android.graphics.Rect(); target.getBoundsInScreen(bounds)
         if (bounds.isEmpty) return false
+        val children = nodes(target).filter { it != target && it.isVisibleToUser && it.isEnabled && !it.isEditable && !it.isPassword }
+            .filter { !collection(it) }
+        val point = rightmostDistinct(children)?.let { child ->
+            val cb = android.graphics.Rect(); child.getBoundsInScreen(cb)
+            if (cb.isEmpty || !bounds.contains(cb)) null
+            else android.graphics.Point(cb.centerX(), cb.centerY())
+        } ?: android.graphics.Point(bounds.centerX(), bounds.centerY())
         val foreground = windows.singleOrNull { it.id == target.windowId && it.isFocused &&
             it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION } ?: return false
         if (Build.VERSION.SDK_INT >= 30 && foreground.displayId != android.view.Display.DEFAULT_DISPLAY) return false
-        val path = android.graphics.Path().apply { moveTo(bounds.exactCenterX(), bounds.exactCenterY()) }
+        val path = android.graphics.Path().apply { moveTo(point.x.toFloat(), point.y.toFloat()) }
         val gesture = android.accessibilityservice.GestureDescription.Builder().addStroke(
             android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 60)).build()
         val token = gestureFlight.begin(SystemClock.elapsedRealtime()) ?: return false
