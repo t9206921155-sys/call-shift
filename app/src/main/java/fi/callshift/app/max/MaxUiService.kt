@@ -652,8 +652,10 @@ class MaxUiService : AccessibilityService() {
                     !b.isEmpty && b.centerX() >= resources.displayMetrics.widthPixels / 2 &&
                         !fi.callshift.app.domain.MaxSendActionPolicy.conflict(
                             n.text?.toString(), n.contentDescription?.toString(), n.viewIdResourceName)
-                }.map { MaxSendTrainingPolicy.Candidate(it.viewIdResourceName.orEmpty(),
-                    it.className?.toString().orEmpty(), profileClickable(it)) }
+                }.filter { m -> rights_noneAncestor(m, candidates) }
+                    .let { listOfNotNull(rightmostDistinct(it)) }
+                    .map { MaxSendTrainingPolicy.Candidate(it.viewIdResourceName.orEmpty(),
+                        it.className?.toString().orEmpty(), profileClickable(it)) }
                 sendSnapshot = if (candidates.isEmpty() || shape == null) null else
                     SendSnapshot(SystemClock.elapsedRealtime(), root.windowId,
                         candidates.map { MaxSendTrainingPolicy.Candidate(it.viewIdResourceName.orEmpty(),
@@ -740,6 +742,18 @@ class MaxUiService : AccessibilityService() {
             ?: return null
         return MaxSendTrainingPolicy.Candidate(node.viewIdResourceName.orEmpty(), node.className?.toString().orEmpty(), true)
     }
+    private fun rights_noneAncestor(m: Node, pool: List<Node>): Boolean =
+        pool.none { o -> o != m && isNodeAncestor(o, m) }
+    /** The send arrow is the distinctly rightmost control of the row: the paperclip
+     * and other tools sit clearly to its left. Refuse when two controls crowd the
+     * same right edge — ordering without separation is never guessed. */
+    private fun rightmostDistinct(candidates: List<Node>): Node? {
+        fun centerX(n: Node) = android.graphics.Rect().also { n.getBoundsInScreen(it) }.centerX()
+        val ordered = candidates.sortedByDescending(::centerX)
+        val best = ordered.firstOrNull() ?: return null
+        val second = ordered.getOrNull(1) ?: return best
+        return if (centerX(best) - centerX(second) >= (16 * resources.displayMetrics.density).toInt()) best else null
+    }
     /** Composer-scoped: the control shares a close ancestor with the editor, so the
      * scrollable message list and its bubbles never enter the candidate set. */
     private fun inComposerScope(n: Node, editor: Node): Boolean {
@@ -801,7 +815,7 @@ class MaxUiService : AccessibilityService() {
         }
         // A wrapper and its sole actionable child may expose one control; the descendant acts.
         val deduped = matches.filter { m -> matches.none { other -> other != m && isNodeAncestor(other, m) } }
-        return deduped.singleOrNull()
+        return if (deduped.size == 1) deduped.single() else rightmostDistinct(deduped)
     }
     private fun isNodeAncestor(ancestor: Node, node: Node): Boolean {
         var current: Node? = node
