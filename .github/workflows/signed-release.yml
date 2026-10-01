@@ -104,3 +104,4 @@ jobs:
 # v18: card-based hub UI with collapsible details.
 # v19: Telegram auto-reply via UI imitation, same principle as MAX.
 # v20: fix train-target typing and restore the imitation section.
+# v21: restore lost EventView kinds and test guards.

@@ -16,6 +16,8 @@ object EventView {
         REPLY_SKIPPED("Ответ не подготовлен", "✎", 0xFF90A4AE.toInt()),
         TELEGRAM_PENDING("Telegram: ожидание", "✉", 0xFFFFB74D.toInt()),
         TELEGRAM_SENT("Telegram: отправлено", "✉", 0xFF64B5F6.toInt()),
+        TELEGRAM_SENT_LOCAL("Telegram: предположительно отправлено", "✉", 0xFF64B5F6.toInt()),
+        TELEGRAM_UI_CHECKED("Telegram: проверка без отправки", "✓", 0xFF90A4AE.toInt()),
         TELEGRAM_UNKNOWN("Telegram: результат неизвестен", "?", 0xFFFFB74D.toInt()),
         SMS_PENDING("SMS: ждём подтверждения", "✉", 0xFFFFB74D.toInt()),
         SMS_UNKNOWN("SMS: результат неизвестен", "?", 0xFFFFB74D.toInt()),

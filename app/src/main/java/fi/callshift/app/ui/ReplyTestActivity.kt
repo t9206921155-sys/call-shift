@@ -128,7 +128,7 @@ class ReplyTestActivity : AppCompatActivity() {
             appendLine("Контакты для поиска имени MAX: ${if (checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) "разрешены" else "нет разрешения; доступен поиск по номеру"}.")
             appendLine("Telegram API: настройки ${if (app.telegram.configured()) "есть" else "не заданы"}; автоотправка ${app.telegram.autoEnabled()}; текущая авторизация ${if (app.telegram.authorization.value == "authorizationStateReady") "готова" else "не подтверждена в этом процессе"}. SIM не выбирает аккаунт Telegram.")
             run {
-                val tgUi = fi.callshift.app.telegram.TelegramUiStore(this)
+                val tgUi = fi.callshift.app.telegram.TelegramUiStore(this@ReplyTestActivity)
                 appendLine("Telegram имитация: режим ${if (!tgUi.enabled) "выключен (работает TDLib)" else if (tgUi.live) "реальная отправка" else "проверка без отправки"}; служба ${if (fi.callshift.app.telegram.TelegramUiService.connected) "подключена" else "не подключена"}; кнопка ${if (tgUi.learnedSend() != null) "обучена" else "не обучена"}.")
             }
             for (c in listOf("WHATSAPP", "TELEGRAM", "MAX")) appendLine("${ReplyChannel.labels[c]}: ${if (ManualReply.packages(c).any(::installed)) "приложение обнаружено" else "приложение не обнаружено"}; аккаунт и отправка вручную.")
@@ -148,6 +148,11 @@ class ReplyTestActivity : AppCompatActivity() {
         if (c == MaxUiPolicy.CHANNEL && !dryMax && (!MaxUiStore(this).enabled || !MaxUiStore(this).live || MaxUiService.diagnostics.active())) {
             tell("Для реальной отправки MAX сначала пройдите тест без сообщения, завершите диагностику и отдельно разрешите отправку в настройках MAX."); return
         }
+        val tgUi = fi.callshift.app.telegram.TelegramUiStore(this)
+        val tgImitation = c == fi.callshift.app.domain.TelegramReplyPolicy.CHANNEL && tgUi.enabled
+        if (tgImitation && fi.callshift.app.telegram.TelegramUiService.running) { tell("Telegram уже выполняет отправку. Дождитесь результата."); return }
+        if (tgImitation && !fi.callshift.app.telegram.TelegramUiService.connected) { tell("Сначала включите службу «CallShift — Telegram (имитация касаний)» в настройках Android"); return }
+        if (tgImitation && tgUi.learnedSend() == null) { tell("Сначала обучите кнопку отправки Telegram"); return }
         val label = app.telecom.phoneAccounts()[id] ?: return
         val description = when {
             dryMax -> "Будет проверена навигация MAX с выбранной SIM, без ввода сообщения. Реальная отправка MAX выключится и сама не восстановится."
