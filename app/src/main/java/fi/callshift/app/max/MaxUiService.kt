@@ -119,6 +119,7 @@ class MaxUiService : AccessibilityService() {
         endPicker()
         endCardLearning()
         endSendLearning()
+        sendProofEvent = null; main.removeCallbacks(sendProofTick)
         finish("BLOCKED", reason)
         runCatching { store.modes(false, false) }
     }
@@ -447,14 +448,12 @@ class MaxUiService : AccessibilityService() {
             pending = null; main.removeCallbacks(tick); main.removeCallbacks(timeout)
             log(p.event, "UI_UNKNOWN", "Передано управление кнопке MAX. Результат неизвестен; повторов нет", durable = false)
             val learnedGesture = store.learnedSend()?.gesture == true && (field == null || sendButton(ns, field) != send)
-            if (learnedGesture) {
-                val tapped = tapLearnedSend(send)
-                log(p.event, "UI_UNKNOWN", if (tapped) "Передано касание обученной кнопке MAX. Отправка и доставка НЕ подтверждены; повторов нет"
-                    else "Android не принял касание кнопки MAX. Проверьте чат вручную; повторов нет")
+            val accepted = if (learnedGesture) tapLearnedSend(send) else send.performAction(Node.ACTION_CLICK)
+            if (accepted) {
+                log(p.event, "UI_UNKNOWN", "Нажатие кнопки MAX передано. Проверяем результат по экрану; повторов нет")
+                scheduleSendProof(p.event)
             } else {
-                val clicked = send.performAction(Node.ACTION_CLICK)
-                log(p.event, "UI_UNKNOWN", if (clicked) "Нажата кнопка MAX. Отправка и доставка НЕ подтверждены; повторов нет"
-                    else "Результат нажатия MAX неизвестен. Проверьте чат вручную; повторов нет")
+                log(p.event, "UI_UNKNOWN", "Android не принял нажатие кнопки MAX. Проверьте чат вручную; повторов нет")
             }
         } catch (_: Exception) { finish("UI_UNKNOWN", "Сценарий MAX остановлен с неопределённым результатом. Проверьте чат; повторов нет") }
     }
@@ -878,6 +877,41 @@ class MaxUiService : AccessibilityService() {
         }, main) }.getOrDefault(false)
         if (!submitted) gestureFlight.resolve(token)
         return submitted
+    }
+    /** Read-only post-click proof: the draft vanishing from the editor is the same
+     * evidence training uses. No further actions, no retries - the result text only. */
+    private var sendProofEvent: CallEvent? = null
+    private var sendProofChecks = 0
+    private fun scheduleSendProof(event: CallEvent) {
+        sendProofEvent = event; sendProofChecks = 0
+        main.postDelayed(sendProofTick, 2000)
+    }
+    private val sendProofTick = object : Runnable {
+        override fun run() {
+            val event = sendProofEvent ?: return
+            val editor = rootInActiveWindow
+                ?.takeIf { unlocked() && it.packageName?.toString() == MaxUiPolicy.PACKAGE }
+                ?.let(::nodes)
+                ?.filter { it.viewIdResourceName == store.input && it.isVisibleToUser && it.isEditable && !it.isPassword }
+                ?.singleOrNull()
+            if (editor == null) {
+                sendProofEvent = null
+                log(event, "UI_UNKNOWN", "Нажатие выполнено; подтвердить результат по экрану не удалось. Проверьте сообщение у получателя; повторов нет")
+                return
+            }
+            if (editableText(editor).isEmpty()) {
+                sendProofEvent = null
+                log(event, "UI_SENT_LOCAL", "Нажатие выполнено; текст исчез из поля — сообщение предположительно отправлено. Доставку подтвердите у получателя; повторов нет")
+                return
+            }
+            sendProofChecks++
+            if (sendProofChecks >= 3) {
+                sendProofEvent = null
+                log(event, "UI_UNKNOWN", "Нажатие выполнено; текст остался в поле — вероятно, сообщение не ушло. Проверьте чат вручную; повторов нет")
+                return
+            }
+            main.postDelayed(this, 2000)
+        }
     }
     /** One fresh, explicitly learned system choice per call. Never click twice or use list order. */
     private fun routeReady(p: Pending, root: Node): Boolean {
@@ -1655,7 +1689,7 @@ class MaxUiService : AccessibilityService() {
             diagnostics.stopReason(message)
             trace(MaxUiDiagnostics.Stage.STOP, outcome = result)
         }
-        if (result in setOf("UI_PENDING", "UI_CHECKED", "UI_UNKNOWN", "BLOCKED") &&
+        if (result in setOf("UI_PENDING", "UI_CHECKED", "UI_UNKNOWN", "UI_SENT_LOCAL", "BLOCKED") &&
             ownsCapture) {
             runCatching { store.saveReport(diagnostics, MaxUiStore.ReportKind.ATTEMPT, durable) }
         }
