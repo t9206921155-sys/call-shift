@@ -488,6 +488,7 @@ class MaxUiService : AccessibilityService() {
     }
     // ----- One-time training of the send control: a deliberate user tap proves the action.
     // Only the recognition shape is stored — never recipient, chat, text or coordinates. -----
+    private val TRAIN_TEXT = "Тест обучения CallShift"
     private var sendTrainingUntil = 0L
     private var sendPhaseAt = 0L
     private var sendDraft: String? = null
@@ -496,6 +497,7 @@ class MaxUiService : AccessibilityService() {
     private var sendTapChain: List<Pair<String, String>> = emptyList()
     private var sendTapSource = false
     private var sendEventUnresolved = false
+    private var sendAutoTypePending = false
     private var sendTrial: MaxSendTrainingPolicy.Rule? = null
     private data class SendSnapshot(val at: Long, val window: Int,
         val identities: List<MaxSendTrainingPolicy.Candidate>,
@@ -509,8 +511,6 @@ class MaxUiService : AccessibilityService() {
         if (changed) {
             runCatching { store.saveReport(diagnostics, MaxUiStore.ReportKind.LEARNING) }
             // The user is inside MAX: toasts are the only visible guidance.
-            if (state == MaxSendTrainingPolicy.Status.WAIT_TAP)
-                android.widget.Toast.makeText(this, "Черновик распознан. Нажмите синюю стрелку отправки ОДИН раз", android.widget.Toast.LENGTH_LONG).show()
             if (state == MaxSendTrainingPolicy.Status.VERIFY)
                 android.widget.Toast.makeText(this, "Проверяем, что сообщение ушло", android.widget.Toast.LENGTH_SHORT).show()
         }
@@ -524,6 +524,7 @@ class MaxUiService : AccessibilityService() {
         sendSnapshot = null; sendTrial = null; sendDraft = null
         sendTapSeen = false; sendTapAt = -1L; sendTapChain = emptyList(); sendTapSource = false
         sendEventUnresolved = false
+        sendAutoTypePending = false
         sendArmedAt = 0L
         sendState(state)
         runCatching { store.sendOutcome(state) }
@@ -557,8 +558,24 @@ class MaxUiService : AccessibilityService() {
         if (all.any { it.isVisibleToUser && it.isPassword }) { endSendLearning(MaxSendTrainingPolicy.Status.STOPPED); return }
         val editor = all.filter { it.viewIdResourceName == store.input && it.isVisibleToUser && it.isEnabled && it.isEditable && !it.isPassword }.singleOrNull()
         when (status) {
-            MaxSendTrainingPolicy.Status.WAIT_CHAT -> if (editor != null) sendState(MaxSendTrainingPolicy.Status.WAIT_TAP)
+            MaxSendTrainingPolicy.Status.WAIT_CHAT -> if (editor != null) {
+                sendState(MaxSendTrainingPolicy.Status.WAIT_TAP); sendAutoTypePending = true
+            }
             MaxSendTrainingPolicy.Status.WAIT_TAP -> {
+                // Keep the user's part to a single action: the service types the draft itself.
+                if (sendAutoTypePending) {
+                    sendAutoTypePending = false
+                    if (editor.text.isNullOrEmpty()) {
+                        val args = Bundle().apply { putCharSequence(Node.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, TRAIN_TEXT) }
+                        val accepted = runCatching { editor.performAction(Node.ACTION_SET_TEXT, args) }.getOrDefault(false)
+                        android.widget.Toast.makeText(this, if (accepted)
+                            "Текст введён. Нажмите синюю стрелку отправки ОДИН раз (у вас 30 секунд)"
+                            else "Не удалось ввести текст сам — введите любой текст вручную и нажмите синюю стрелку", android.widget.Toast.LENGTH_LONG).show()
+                    } else {
+                        android.widget.Toast.makeText(this, "Черновик распознан. Нажмите синюю стрелку отправки ОДИН раз", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                    return
+                }
                 // The composer can be rebuilt right after the message goes out; the armed
                 // proof survives this briefly instead of dropping back to WAIT_CHAT.
                 if (editor == null) {
@@ -1607,6 +1624,7 @@ class MaxUiService : AccessibilityService() {
             private set
         @Volatile var sendTrainingStatus = MaxSendTrainingPolicy.Status.IDLE
             private set
+        val sendTrainingActive get() = instance?.sendTrainingUntil != 0L
         fun endSendTraining() { instance?.endSendLearning() }
         /** One deliberate user tap in MAX proves the send control. Nothing is clicked
          * automatically during training; recipient, chat and text are never stored. */
@@ -1630,6 +1648,7 @@ class MaxUiService : AccessibilityService() {
                     service.sendTapSeen = false; service.sendTapAt = -1L
                     service.sendTapChain = emptyList(); service.sendTapSource = false
                     service.sendEventUnresolved = false
+                    service.sendAutoTypePending = false
                     service.store.sendOutcome(MaxSendTrainingPolicy.Status.WAIT_CHAT)
                     service.sendState(MaxSendTrainingPolicy.Status.WAIT_CHAT)
                     service.main.post(service.sendTick)
