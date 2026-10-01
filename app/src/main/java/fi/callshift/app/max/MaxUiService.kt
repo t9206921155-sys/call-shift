@@ -498,6 +498,8 @@ class MaxUiService : AccessibilityService() {
     private var sendTapSource = false
     private var sendEventUnresolved = false
     private var sendAutoTypePending = false
+    private var sendAutoTypeTries = 0
+    private var sendAutoTypeAt = 0L
     private var sendTrial: MaxSendTrainingPolicy.Rule? = null
     private data class SendSnapshot(val at: Long, val window: Int,
         val identities: List<MaxSendTrainingPolicy.Candidate>,
@@ -524,7 +526,7 @@ class MaxUiService : AccessibilityService() {
         sendSnapshot = null; sendTrial = null; sendDraft = null
         sendTapSeen = false; sendTapAt = -1L; sendTapChain = emptyList(); sendTapSource = false
         sendEventUnresolved = false
-        sendAutoTypePending = false
+        sendAutoTypePending = false; sendAutoTypeTries = 0; sendAutoTypeAt = 0L
         sendArmedAt = 0L
         sendState(state)
         runCatching { store.sendOutcome(state) }
@@ -564,15 +566,37 @@ class MaxUiService : AccessibilityService() {
             MaxSendTrainingPolicy.Status.WAIT_TAP -> {
                 // Keep the user's part to a single action: the service types the draft itself.
                 if (sendAutoTypePending) {
-                    sendAutoTypePending = false
-                    if (editor?.text.isNullOrEmpty()) {
-                        val args = Bundle().apply { putCharSequence(Node.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, TRAIN_TEXT) }
-                        val accepted = runCatching { editor?.performAction(Node.ACTION_SET_TEXT, args) == true }.getOrDefault(false)
-                        android.widget.Toast.makeText(this, if (accepted)
-                            "Текст введён. Нажмите синюю стрелку отправки ОДИН раз (у вас 30 секунд)"
-                            else "Не удалось ввести текст сам — введите любой текст вручную и нажмите синюю стрелку", android.widget.Toast.LENGTH_LONG).show()
-                    } else {
-                        android.widget.Toast.makeText(this, "Черновик распознан. Нажмите синюю стрелку отправки ОДИН раз", android.widget.Toast.LENGTH_LONG).show()
+                    // The draft counts only when the editor really shows it: MAX may
+                    // ignore or clear a blind SET_TEXT while the composer assembles.
+                    if (editor != null && editableText(editor) == TRAIN_TEXT) {
+                        sendAutoTypePending = false
+                        android.widget.Toast.makeText(this,
+                            "Текст введён. Нажмите синюю стрелку отправки ОДИН раз (у вас 30 секунд)",
+                            android.widget.Toast.LENGTH_LONG).show()
+                        return
+                    }
+                    if (editor != null && !editor.text.isNullOrEmpty() && editableText(editor) != TRAIN_TEXT) {
+                        sendAutoTypePending = false // the user typed their own draft
+                        android.widget.Toast.makeText(this,
+                            "Черновик распознан. Нажмите синюю стрелку отправки ОДИН раз",
+                            android.widget.Toast.LENGTH_LONG).show()
+                        return
+                    }
+                    val now2 = SystemClock.elapsedRealtime()
+                    if (editor != null && now2 - sendAutoTypeAt >= 700) {
+                        if (sendAutoTypeTries >= 4) {
+                            sendAutoTypePending = false
+                            android.widget.Toast.makeText(this,
+                                "Не удалось ввести текст сам — введите любой текст вручную и нажмите синюю стрелку",
+                                android.widget.Toast.LENGTH_LONG).show()
+                        } else {
+                            sendAutoTypeTries++; sendAutoTypeAt = now2
+                            runCatching {
+                                editor.performAction(Node.ACTION_FOCUS)
+                                val args = Bundle().apply { putCharSequence(Node.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, TRAIN_TEXT) }
+                                editor.performAction(Node.ACTION_SET_TEXT, args)
+                            }
+                        }
                     }
                     return
                 }
@@ -1648,7 +1672,7 @@ class MaxUiService : AccessibilityService() {
                     service.sendTapSeen = false; service.sendTapAt = -1L
                     service.sendTapChain = emptyList(); service.sendTapSource = false
                     service.sendEventUnresolved = false
-                    service.sendAutoTypePending = false
+                    service.sendAutoTypePending = false; service.sendAutoTypeTries = 0; service.sendAutoTypeAt = 0L
                     service.store.sendOutcome(MaxSendTrainingPolicy.Status.WAIT_CHAT)
                     service.sendState(MaxSendTrainingPolicy.Status.WAIT_CHAT)
                     service.main.post(service.sendTick)
