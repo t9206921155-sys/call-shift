@@ -89,3 +89,4 @@ jobs:
       - name: Remove private material
         if: always()
         run: rm -f "$RUNNER_TEMP/callshift-signing.p12"
+# Trigger: rebuild after the training auto-type null-safety fix.
