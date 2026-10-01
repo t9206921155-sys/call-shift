@@ -582,9 +582,11 @@ class MaxUiService : AccessibilityService() {
                             android.widget.Toast.LENGTH_LONG).show()
                         return
                     }
+                    // Plain SET_TEXT, no focusing: the proven real-send path enters this
+                    // same editor without focus, and focusing keeps the hint visible.
                     val now2 = SystemClock.elapsedRealtime()
                     if (editor != null && now2 - sendAutoTypeAt >= 700) {
-                        if (sendAutoTypeTries >= 4) {
+                        if (sendAutoTypeTries >= 8) {
                             sendAutoTypePending = false
                             android.widget.Toast.makeText(this,
                                 "Не удалось ввести текст сам — введите любой текст вручную и нажмите синюю стрелку",
@@ -592,7 +594,6 @@ class MaxUiService : AccessibilityService() {
                         } else {
                             sendAutoTypeTries++; sendAutoTypeAt = now2
                             runCatching {
-                                editor.performAction(Node.ACTION_FOCUS)
                                 val args = Bundle().apply { putCharSequence(Node.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, TRAIN_TEXT) }
                                 editor.performAction(Node.ACTION_SET_TEXT, args)
                             }
