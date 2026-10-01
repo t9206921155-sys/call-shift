@@ -234,6 +234,10 @@
                 android:layout_height="wrap_content" android:visibility="gone" android:text="Проверить каналы / тестовый ответ"
                 style="@style/Widget.CallShift.MainAction" />
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnMessengers" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:text="Мессенджеры: MAX, Telegram, SMS"
+                style="@style/Widget.CallShift.MainAction" />
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnMaxUi" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:text="Автоответ MAX"
                 style="@style/Widget.CallShift.MainAction" />

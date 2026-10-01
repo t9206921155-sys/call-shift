@@ -94,6 +94,12 @@ class SettingsStore(context: Context) : SettingsPort {
 
     /** Global cap in billable SMS segments, including manual/test replies. */
     val smsDailyLimit: Int get() = prefs.getInt("sms_daily_limit", fi.callshift.app.domain.SmsSafety.DEFAULT_LIMIT).coerceIn(1, 1000)
+    /** Daily cap for auto-replies sent through the user's Telegram account. */
+    val telegramDailyLimit: Int get() = prefs.getInt("tg_daily_limit", 20).coerceIn(1, 1000)
+    fun setTelegramDailyLimit(value: Int) {
+        require(value in 1..1000)
+        check(prefs.edit().putInt("tg_daily_limit", value).commit())
+    }
     val smsCooldownPerSim: Boolean get() = prefs.getBoolean("sms_cooldown_per_sim", true)
     fun setSmsSafety(limit: Int, perSim: Boolean) {
         require(limit in 1..1000)

@@ -205,6 +205,11 @@ class TelegramAccountClient(private val app: CallShiftApp) {
             check(autoEnabled() && sessionEpoch == sendingEpoch && auth.value == "authorizationStateReady") {
                 "Сессия Telegram изменилась или автоотправка выключена. Отправка отменена."
             }
+            // Reserve AFTER the recipient is proven and BEFORE the send request, so
+            // lookup failures never consume the daily budget; the send itself always does.
+            check(TelegramLimitStore.reserve(app)) {
+                "Лимит Telegram: ${app.settings.telegramDailyLimit} автоответов за 24 часа. Лимит меняется в разделе «Мессенджеры»."
+            }
             publish(event, "TG_PENDING", "Запрашиваем отправку Telegram. При неизвестном результате повтор не выполняется.")
             submitted = true
             request(obj("sendMessage").put("chat_id", chat.getLong("id"))

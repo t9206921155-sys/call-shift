@@ -153,6 +153,7 @@
         <!-- ======= ВСПОМОГАТЕЛЬНЫЕ ЭКРАНЫ ======= -->
         <activity android:name=".ui.SmsRuleActivity" android:exported="false" />
         <activity android:name=".ui.SmsSafetyActivity" android:exported="false" />
+        <activity android:name=".ui.MessengerHubActivity" android:exported="false" />
         <activity
             android:name=".ui.RuleEditActivity"
             android:exported="false"
