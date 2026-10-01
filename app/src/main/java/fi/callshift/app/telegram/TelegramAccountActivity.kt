@@ -82,7 +82,7 @@ class TelegramAccountActivity : AppCompatActivity() {
 
         // ---- Имитация касаний: тот же принцип, что в MAX ----
         ui.title("Отправка имитацией касаний (как в MAX)")
-        ui.hint("Вместо TDLib CallShift сам откроет Telegram, найдёт чат по номеру звонившего, введёт текст и нажмёт кнопку отправки. Отказ при любой неоднозначности, одна попытка, без повторов. Нужен доступ к службе специальных возможностей для Telegram.")
+        ui.hint("CallShift сам откроет Telegram, найдёт чат по номеру и нажмёт кнопку. Одна попытка, без повторов. Нужна служба спец. возможностей.")
         val uiStatus = ui.add(TextView(this).apply { setTextColor(getColor(fi.callshift.app.R.color.text_primary)); textSize = 14f })
         val imitation = ui.add(SwitchMaterial(this).apply {
             text = "Отправлять имитацией касаний вместо TDLib"
@@ -133,7 +133,7 @@ class TelegramAccountActivity : AppCompatActivity() {
                 }
             }
         })
-        ui.hint("Обучение: откройте любой безопасный чат Telegram (например «Избранное») — CallShift сам введёт тестовый текст, вам нужно нажать кнопку отправки один раз. Сохраняется только форма кнопки; чат, контакт и координаты не хранятся. По умолчанию включён режим проверки без отправки.")
+        ui.hint("Обучение: CallShift введёт тестовый текст в безопасном чате — нажмите кнопку отправки один раз. Сохраняется только форма кнопки, не получатель.")
         ui.add(MaterialButton(this).apply {
             text = "Выйти из Telegram и выключить автоответы"
             setOnClickListener {

@@ -23,22 +23,24 @@ import fi.callshift.app.max.MaxUiService
 import fi.callshift.app.max.MaxUiStore
 import fi.callshift.app.sms.SmsBudgetStore
 import fi.callshift.app.telegram.TelegramLimitStore
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Every messenger in one place. Compact cards: status up front, the rest of the
- * story behind a «Подробнее» toggle so the screen stays readable at a glance. */
+/** Every messenger in one place: a compact card per channel with a concrete
+ * "what to configure next" line; all background is behind «Подробнее». */
 class MessengerHubActivity : AppCompatActivity() {
     private val app by lazy { CallShiftApp.from(this) }
     private val maxStore by lazy { MaxUiStore(this) }
+    private val maxInstalled by lazy {
+        runCatching { packageManager.getPackageInfo(fi.callshift.app.domain.MaxUiPolicy.PACKAGE, 0).longVersionCode }.getOrDefault(-1)
+    }
 
     private class Card(
         val root: LinearLayout,
-        val statusTitle: TextView,
-        val statusLine: TextView,
-        val usageLine: TextView,
+        val chip: TextView,
+        val next: TextView,
+        val usage: TextView,
         val details: TextView,
         val limitButton: MaterialButton,
         var expanded: Boolean = false,
@@ -56,7 +58,6 @@ class MessengerHubActivity : AppCompatActivity() {
             val p = (16 * resources.displayMetrics.density).toInt()
             setPadding(p, p, p, p)
         }
-        scroll.addView(root)
 
         fun text(size: Float, color: Int, bold: Boolean = false) = TextView(this).apply {
             textSize = size
@@ -64,94 +65,146 @@ class MessengerHubActivity : AppCompatActivity() {
             if (bold) typeface = Typeface.DEFAULT_BOLD
         }
 
-        title(text(22f, R.color.text_primary, true), "Мессенджеры", root)
-        title(text(14f, R.color.text_secondary), "Все каналы автоответов: статус, настройка и суточный лимит — в одной карточке. Канал выбирается в правиле звонка; лимит — предохранитель от зацикливания, не ограничение работы.", root)
+        text(22f, R.color.text_primary, true).let { it.text = "Мессенджеры"; root.addView(it) }
+        text(13f, R.color.text_secondary).let {
+            it.text = "Статус, лимит и настройка каждого канала. Канал выбирается в правиле звонка."
+            it.setPadding(0, 0, 0, (10 * resources.displayMetrics.density).toInt())
+            root.addView(it)
+        }
 
-        // ---- MAX card ----
-        val maxCard = makeCard("MAX", "Автоответ по звонку через интерфейс MAX", root)
-        maxCard.limitButton.text = "Лимит MAX в сутки: ${maxStore.sendLimit()}"
+        // ---- MAX ----
+        val maxCard = makeCard("MAX", "Автоответ через приложение MAX", root)
         maxCard.limitButton.setOnClickListener {
-            askLimit("Лимит автоответов MAX в сутки", maxStore.sendLimit()) { v ->
+            askLimit("Лимит MAX в сутки", maxStore.sendLimit()) { v ->
                 runCatching { maxStore.setSendLimit(v) }.onFailure { toast("Не удалось сохранить") }
-                refreshLimits()
             }
         }
         maxCard.details.text = """
-            • Что это: CallShift сам открывает MAX, находит звонившего по номеру (проверка по карточке контакта), вводит текст ответа из правила и нажимает обученную кнопку отправки.
-            • Отправитель: клон MAX привязан к SIM звонка — выбирается автоматически, «+7» и «8» равнозначны.
-            • Кнопка отправки: обучается один раз касанием стрелки, затем нажимается автоматически. Переживает перезапуск приложения; заново обучать нужно только после обновления MAX.
-            • Безопасность: получатель не привязывается; чужие черновики не трогаются; текст меняется только после подтверждения номера.
-            • Итог каждой попытки: «Журнал» внизу экрана настройки.
+            • CallShift сам открывает MAX, находит звонившего по номеру, вводит текст из правила и нажимает обученную кнопку. Клон MAX выбирается по SIM звонка, «+7» и «8» равнозначны.
+            • Чужие черновики не трогаются; получатель нигде не привязывается.
+            • Итог каждой попытки — в «Журнале» на экране настройки MAX. «Предположительно отправлено» проверяйте у получателя.
         """.trimIndent()
-        maxCard.root.addView(button("Настройка MAX: SIM, обучение кнопки, тест") {
+        maxCard.root.addView(button("Настройка MAX") {
             startActivity(Intent(this, fi.callshift.app.max.MaxSimpleActivity::class.java))
         })
 
-        // ---- Telegram card ----
-        val tgCard = makeCard("Telegram", "Автоответ по звонку через ваш аккаунт Telegram", root)
-        tgCard.limitButton.text = "Лимит Telegram в сутки: ${app.settings.telegramDailyLimit}"
+        // ---- Telegram ----
+        val tgCard = makeCard("Telegram", "Автоответ через Telegram", root)
         tgCard.limitButton.setOnClickListener {
-            askLimit("Лимит автоответов Telegram в сутки", app.settings.telegramDailyLimit) { v ->
+            askLimit("Лимит Telegram в сутки", app.settings.telegramDailyLimit) { v ->
                 runCatching { app.settings.setTelegramDailyLimit(v) }.onFailure { toast("Не удалось сохранить") }
-                refreshLimits()
             }
         }
         tgCard.details.text = """
-            • Что это: ответ уходит личным сообщением Telegram с вашего аккаунта получателю, найденному по номеру.
-            • Защита: отправка запрещена ботам, собственному аккаунту и номерам, которые Telegram не подтверждил.
-            • Лимит: резерв списывается перед самой отправкой — ошибка поиска бюджет не тратит. При исчерпании — понятная остановка без повторов.
-            • Вход: нужен однократный вход и включённая автоотправка на экране аккаунта. Выход из аккаунта отключает отправку автоматически.
-            • Доставка: статус «доставлено» подтверждает получатель; CallShift не читает переписку.
+            • Два режима: имитация касаний (как MAX: приложение само открывает Telegram, находит чат по номеру и нажимает обученную кнопку; аккаунт в CallShift не нужен) или ваш аккаунт (TDLib).
+            • Имитация включается на экране «Аккаунт Telegram»: служба, обучение кнопки, разрешение реальной отправки.
+            • Номер подтверждается перед отправкой; боты, свой аккаунт и непроверенные номера запрещены. Лимит списывается до отправки; ошибкам поиска бюджет не тратится.
         """.trimIndent()
-        tgCard.root.addView(button("Аккаунт Telegram: вход и автоотправка") {
+        tgCard.root.addView(button("Аккаунт Telegram и имитация") {
             startActivity(Intent(this, fi.callshift.app.telegram.TelegramAccountActivity::class.java))
         })
 
-        // ---- SMS card ----
-        val smsCard = makeCard("SMS", "Классические ответы SMS по правилам", root)
-        smsCard.limitButton.text = "Лимит SMS в сутки: ${app.settings.smsDailyLimit} частей"
-        smsLimitButtonBind(smsCard)
+        // ---- SMS ----
+        val smsCard = makeCard("SMS", "Ответы SMS по правилам", root)
+        smsCard.limitButton.setOnClickListener {
+            askLimit("Лимит SMS в сутки (частей)", app.settings.smsDailyLimit) { v ->
+                runCatching { app.settings.setSmsSafety(v, app.settings.smsCooldownPerSim) }
+                    .onFailure { toast("Не удалось сохранить") }
+            }
+        }
         smsCard.details.text = """
-            • Что это: ответ обычной SMS с выбранной SIM по шаблону из правила. Каждая часть длинного текста может оплачиваться оператором.
-            • Лимит: считается в частях за последние 24 часа, включая ручные и тестовые отправки. Изменение действует сразу.
-            • Пауза: у каждой SIM своя пауза между ответами, чтобы не писать на каждый звонок.
-            • Расходы и копия ответов: экран «SMS: защита, расходы и копия».
+            • Ответ обычной SMS с SIM звонка по шаблону правила; длинный текст считается частями, возможна плата оператора.
+            • Лимит — в частях за 24 часа, включая тестовые отправки. Пауза между ответами настраивается на каждой SIM.
+            • Расходы и копия ответов — на экране «Защита, расходы и копия».
         """.trimIndent()
-        smsCard.root.addView(button("SMS: правила и шаблоны ответов") {
+        smsCard.root.addView(button("Правила SMS") {
             startActivity(Intent(this, SmsRuleActivity::class.java))
         })
-        smsCard.root.addView(button("SMS: защита, расходы и копия") {
+        smsCard.root.addView(button("Защита, расходы и копия") {
             startActivity(Intent(this, SmsSafetyActivity::class.java))
         })
 
-        title(text(12f, R.color.text_muted), "Лимиты: от 1 до 1000 в сутки, действуют сразу и сохраняются. По умолчанию 20 — достаточно для обычного потока звонков и защищают от ошибочного цикла.", root)
+        text(12f, R.color.text_muted).let {
+            it.text = "Лимиты: 1–1000 в сутки, по умолчанию 20. Изменение действует сразу."
+            it.setPadding(0, (10 * resources.displayMetrics.density).toInt(), 0, 0)
+            root.addView(it)
+        }
 
         setContentView(scroll)
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 while (true) {
-                    refreshStatuses()
-                    refreshLimits()
+                    refresh()
                     delay(1000)
                 }
             }
         }
     }
 
-    private fun smsLimitButtonBind(card: Card) {
-        card.limitButton.setOnClickListener {
-            askLimit("Лимит SMS в сутки (частей)", app.settings.smsDailyLimit) { v ->
-                runCatching { app.settings.setSmsSafety(v, app.settings.smsCooldownPerSim) }.onFailure { toast("Не удалось сохранить") }
-                refreshLimits()
-            }
-        }
+    // ---- concrete "what to configure next" per channel ----
+    private fun maxIssues(): List<String> {
+        val out = mutableListOf<String>()
+        if (maxInstalled < 0) return listOf("установите приложение MAX")
+        if (!MaxUiService.connected) out += "включите службу MAX в спец. возможностях Android"
+        if (maxStore.header.isEmpty() || maxStore.input.isEmpty()) out += "сохраните профиль чата на экране настройки MAX"
+        else if (maxStore.version != maxInstalled) out += "MAX обновился — повторите профиль чата"
+        if (maxStore.learnedSend() == null) out += "обучите кнопку отправки"
+        if (!maxStore.enabled) out += "включите режим на экране настройки MAX"
+        else if (!maxStore.live) out += "разрешите реальную отправку"
+        return out
     }
 
-    private fun title(v: TextView, s: String, root: LinearLayout) {
-        v.text = s
-        val p = (6 * resources.displayMetrics.density).toInt()
-        v.setPadding(0, p, 0, p)
-        root.addView(v)
+    private fun tgIssues(): List<String> {
+        val tgUi = fi.callshift.app.telegram.TelegramUiStore(this)
+        val out = mutableListOf<String>()
+        if (!tgUi.enabled) {
+            if (!runCatching { app.telegram.autoEnabled() }.getOrDefault(false))
+                out += "выберите режим: имитация или аккаунт — на экране «Аккаунт Telegram»"
+        } else {
+            if (!fi.callshift.app.telegram.TelegramUiService.connected) out += "включите службу Telegram в спец. возможностях Android"
+            if (tgUi.learnedSend() == null) out += "обучите кнопку отправки Telegram"
+            if (!tgUi.live) out += "разрешите реальную отправку"
+        }
+        return out
+    }
+
+    private fun smsIssues(): List<String> =
+        if (!app.smsReplier.hasPermission()) listOf("выдайте разрешение на SMS на главном экране") else emptyList()
+
+    private fun refresh() {
+        fun set(name: String, issues: List<String>, okLine: String, usage: String) {
+            val c = cards[name] ?: return
+            val done = issues.isEmpty()
+            c.chip.text = if (done) "● Готов" else "● Настроить"
+            c.chip.setTextColor(ContextCompat.getColor(this, if (done) R.color.status_ok else R.color.status_warn))
+            c.next.text = if (done) okLine else "Дальше: ${issues.first()}"
+            c.next.setTextColor(ContextCompat.getColor(this,
+                if (done) R.color.text_secondary else R.color.status_warn))
+            c.usage.text = usage
+        }
+        val m = maxIssues()
+        set("MAX", m,
+            "Режим: ${if (maxStore.live) "реальная отправка" else if (maxStore.enabled) "проверка без отправки" else "выключен"} · кнопка обучена",
+            "Лимит ${maxStore.sendLimit()}/24ч")
+
+        val tgUi = fi.callshift.app.telegram.TelegramUiStore(this)
+        set("Telegram", tgIssues(),
+            if (tgUi.enabled) "Имитация касаний: ${if (tgUi.live) "реальная отправка" else "проверка без отправки"}"
+            else "Режим аккаунта (TDLib)",
+            "Использовано за 24ч — счётчик ниже; кнопка ${if (tgUi.learnedSend() != null || !tgUi.enabled) "в порядке" else "не обучена"}")
+
+        set("SMS", smsIssues(), "Разрешение есть", "Лимит ${app.settings.smsDailyLimit} частей/24ч")
+
+        lifecycleScope.launch {
+            val tgUsed = runCatching { TelegramLimitStore.used(this@MessengerHubActivity) }.getOrDefault(-1)
+            val smsUsed = runCatching { SmsBudgetStore.used(this@MessengerHubActivity) }.getOrDefault(-1)
+            withContext(kotlinx.coroutines.Dispatchers.Main) {
+                cards["Telegram"]?.usage?.text =
+                    "Использовано: ${if (tgUsed >= 0) tgUsed else "—"} / ${app.settings.telegramDailyLimit} за 24ч"
+                cards["SMS"]?.usage?.text =
+                    "Использовано: ${if (smsUsed >= 0) smsUsed else "—"} / ${app.settings.smsDailyLimit} частей за 24ч"
+            }
+        }
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
@@ -175,43 +228,44 @@ class MessengerHubActivity : AppCompatActivity() {
                 setStroke(dp(1), ContextCompat.getColor(this@MessengerHubActivity, R.color.card_stroke))
             }
         }
+        val headerRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val header = TextView(this).apply {
-            text = name
-            textSize = 18f
+            text = name; textSize = 18f; typeface = Typeface.DEFAULT_BOLD
             setTextColor(ContextCompat.getColor(this@MessengerHubActivity, R.color.text_primary))
-            typeface = Typeface.DEFAULT_BOLD
         }
+        val chip = TextView(this).apply {
+            textSize = 13f; typeface = Typeface.DEFAULT_BOLD
+            setPadding(dp(10), dp(3), dp(10), dp(3))
+            background = GradientDrawable().apply { cornerRadius = dp(14).toFloat() }
+        }
+        headerRow.addView(header)
+        headerRow.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+        headerRow.addView(chip)
         val sub = TextView(this).apply {
-            text = subtitle
+            text = subtitle; textSize = 13f
+            setTextColor(ContextCompat.getColor(this@MessengerHubActivity, R.color.text_muted))
+        }
+        val next = TextView(this).apply {
+            textSize = 14f; typeface = Typeface.DEFAULT_BOLD
+            setPadding(0, dp(6), 0, 0)
+        }
+        val usage = TextView(this).apply {
             textSize = 13f
             setTextColor(ContextCompat.getColor(this@MessengerHubActivity, R.color.text_secondary))
-        }
-        val statusTitle = TextView(this).apply {
-            textSize = 14f
-            setTextColor(ContextCompat.getColor(this@MessengerHubActivity, R.color.text_primary))
-            typeface = Typeface.DEFAULT_BOLD
-        }
-        val statusLine = TextView(this).apply {
-            textSize = 13f
-            setTextColor(ContextCompat.getColor(this@MessengerHubActivity, R.color.text_secondary))
-        }
-        val usageLine = TextView(this).apply {
-            textSize = 13f
-            setTextColor(ContextCompat.getColor(this@MessengerHubActivity, R.color.text_secondary))
+            setPadding(0, dp(2), 0, 0)
         }
         val details = TextView(this).apply {
             textSize = 13f
             setTextColor(ContextCompat.getColor(this@MessengerHubActivity, R.color.text_secondary))
             setLineSpacing(dp(3).toFloat(), 1f)
             visibility = View.GONE
+            setPadding(0, dp(4), 0, 0)
         }
         val toggle = TextView(this).apply {
-            text = "Подробнее ▸"
-            textSize = 13f
+            text = "Подробнее ▸"; textSize = 13f
             setTextColor(ContextCompat.getColor(this@MessengerHubActivity, R.color.brand_accent))
             typeface = Typeface.DEFAULT_BOLD
-            setPadding(0, dp(4), 0, dp(2))
-            gravity = Gravity.END
+            setPadding(0, dp(6), 0, dp(2))
             setOnClickListener {
                 val c = cards[name]!!
                 c.expanded = !c.expanded
@@ -221,28 +275,28 @@ class MessengerHubActivity : AppCompatActivity() {
         }
         val limitButton = MaterialButton(this).apply {
             isAllCaps = false
+            setPadding(0, dp(8), 0, dp(8))
         }
         val limitRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.END
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.END
+            setPadding(0, dp(8), 0, 0)
         }
-        limitRow.addView(limitButton)
-        card.addView(header)
+        limitRow.addView(limitButton, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        card.addView(headerRow)
         card.addView(sub)
-        card.addView(statusTitle)
-        card.addView(statusLine)
-        card.addView(usageLine)
+        card.addView(next)
+        card.addView(usage)
         card.addView(limitRow)
         card.addView(toggle)
         card.addView(details)
         val wrapper = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val p = dp(6)
-            setPadding(0, p, 0, p)
+            setPadding(0, dp(6), 0, dp(6))
             addView(card)
         }
         root.addView(wrapper)
-        return Card(wrapper, statusTitle, statusLine, usageLine, details, limitButton).also { cards[name] = it }
+        return Card(wrapper, chip, next, usage, details, limitButton).also { cards[name] = it }
     }
 
     private fun askLimit(title: String, current: Int, save: (Int) -> Unit) {
@@ -251,7 +305,7 @@ class MessengerHubActivity : AppCompatActivity() {
             setText(current.toString())
         }
         AlertDialog.Builder(this).setTitle(title)
-            .setMessage("Введите число от 1 до 1000. Действует сразу и сохраняется.")
+            .setMessage("Число от 1 до 1000. Действует сразу.")
             .setView(input)
             .setPositiveButton("Сохранить") { _, _ ->
                 val v = input.text.toString().trim().toIntOrNull()
@@ -261,53 +315,5 @@ class MessengerHubActivity : AppCompatActivity() {
                     toast("Сохранено: $v в сутки")
                 }
             }.setNegativeButton("Отмена", null).show()
-    }
-
-    private fun refreshLimits() {
-        cards["MAX"]?.limitButton?.text = "Лимит MAX в сутки: ${maxStore.sendLimit()}"
-        cards["Telegram"]?.limitButton?.text = "Лимит Telegram в сутки: ${app.settings.telegramDailyLimit}"
-        cards["SMS"]?.limitButton?.text = "Лимит SMS в сутки: ${app.settings.smsDailyLimit} частей"
-    }
-
-    private fun refreshStatuses() {
-        fun set(name: String, ok: Boolean, line: String, usage: String) {
-            val c = cards[name] ?: return
-            c.statusTitle.text = if (ok) "● Готов" else "● Требует настройки"
-            c.statusTitle.setTextColor(ContextCompat.getColor(this,
-                if (ok) R.color.status_ok else R.color.status_warn))
-            c.statusLine.text = line
-            c.usageLine.text = usage
-        }
-        val maxReady = maxStore.enabled && maxStore.live && maxStore.learnedSend() != null && MaxUiService.connected
-        val maxMode = when {
-            !maxStore.enabled -> "выключен"
-            maxStore.live -> "реальная отправка разрешена"
-            else -> "только проверка без отправки"
-        }
-        set("MAX", maxReady, "Режим: $maxMode; служба ${if (MaxUiService.connected) "подключена" else "не подключена"}",
-            "Кнопка отправки: ${if (maxStore.learnedSend() != null) "обучена" else "не обучена"}; лимит ${maxStore.sendLimit()}/24ч")
-
-        val tgUi = fi.callshift.app.telegram.TelegramUiStore(this)
-        val tgReady = if (tgUi.enabled)
-            fi.callshift.app.telegram.TelegramUiService.connected && tgUi.live && tgUi.learnedSend() != null
-        else runCatching { app.telegram.autoEnabled() }.getOrDefault(false)
-        val tgMode = when {
-            !tgUi.enabled -> "через аккаунт (TDLib): автоотправка выключена — нужен вход"
-            !tgUi.live -> "имитация касаний: проверка без отправки"
-            tgUi.learnedSend() == null -> "имитация касаний: не обучена кнопка отправки"
-            else -> "имитация касаний: реальная отправка разрешена"
-        }
-        set("Telegram", tgReady, "Режим: $tgMode",
-            "Кнопка отправки: ${if (tgUi.learnedSend() != null) "обучена" else "не обучена"}; лимит ${app.settings.telegramDailyLimit}/24ч")
-        lifecycleScope.launch {
-            val tgUsed = runCatching { TelegramLimitStore.used(this@MessengerHubActivity) }.getOrDefault(-1)
-            val smsUsed = runCatching { SmsBudgetStore.used(this@MessengerHubActivity) }.getOrDefault(-1)
-            withContext(Dispatchers.Main) {
-                cards["Telegram"]?.usageLine?.text =
-                    "Использовано: ${if (tgUsed >= 0) tgUsed else "счётчик недоступен"} / ${app.settings.telegramDailyLimit} за 24ч"
-                cards["SMS"]?.usageLine?.text =
-                    "Использовано: ${if (smsUsed >= 0) smsUsed else "счётчик недоступен"} / ${app.settings.smsDailyLimit} частей за 24ч"
-            }
-        }
     }
 }
