@@ -1,4 +1,4 @@
-name: Publish signed CallShift 0.8.25-send-training-v3
+name: Publish signed CallShift 0.8.26-send-training-v4
 # Validate profile return and opener event snapshots before publishing.
 on:
   push:
@@ -26,7 +26,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test "$(gh release view v0.8.25-send-training-v3 --json isDraft --jq '.isDraft')" = true || { echo '::error::Refusing to replace a published release.'; exit 1; }
+          test "$(gh release view v0.8.26-send-training-v4 --json isDraft --jq '.isDraft')" = true || { echo '::error::Refusing to replace a published release.'; exit 1; }
       - name: Download the original signed APK as identity reference
         uses: actions/download-artifact@v4
         with:
@@ -48,7 +48,7 @@ jobs:
         run: |
           set -eo pipefail
           chmod +x gradlew
-          if ! ./gradlew :app:testStandardDebugUnitTest :app:assembleStandardRelease -PrequireReleaseSigning=true -PversionCode=57 -PversionName=0.8.25-send-training-v3 --no-daemon 2>&1 | tee "$RUNNER_TEMP/build.log"; then
+          if ! ./gradlew :app:testStandardDebugUnitTest :app:assembleStandardRelease -PrequireReleaseSigning=true -PversionCode=58 -PversionName=0.8.26-send-training-v4 --no-daemon 2>&1 | tee "$RUNNER_TEMP/build.log"; then
             grep -E "^e: |error:|FAILED|Caused by:|What went wrong|expected:|but was:|Exception" "$RUNNER_TEMP/build.log" | head -40 | cut -c1-900 | while IFS= read -r line; do
               echo "::error::$line"
             done
@@ -65,16 +65,16 @@ jobs:
           "$signer" verify --verbose --print-certs "${originals[0]}" > "$RUNNER_TEMP/original-signature.txt"
           grep -Fi "certificate SHA-256 digest: $expected" "$RUNNER_TEMP/original-signature.txt"
           mkdir -p release-public
-          cp app/build/outputs/apk/standard/release/app-standard-release.apk release-public/CallShift-0.8.25-send-training-v3.apk
+          cp app/build/outputs/apk/standard/release/app-standard-release.apk release-public/CallShift-0.8.26-send-training-v4.apk
           cp "$RUNNER_TEMP/callshift-certificate.pem" release-public/certificate.pem
-          "$signer" verify --verbose --print-certs release-public/CallShift-0.8.25-send-training-v3.apk > release-public/signature-verification.txt
+          "$signer" verify --verbose --print-certs release-public/CallShift-0.8.26-send-training-v4.apk > release-public/signature-verification.txt
           grep -Fi "certificate SHA-256 digest: $expected" release-public/signature-verification.txt
-          (cd release-public && sha256sum CallShift-0.8.25-send-training-v3.apk > SHA256SUMS.txt)
+          (cd release-public && sha256sum CallShift-0.8.26-send-training-v4.apk > SHA256SUMS.txt)
           echo "Certificate SHA-256: $expected" >> "$GITHUB_STEP_SUMMARY"
       - name: Retain only public release files
         uses: actions/upload-artifact@v4
         with:
-          name: CallShift-0.8.25-send-training-v3-verified-release
+          name: CallShift-0.8.26-send-training-v4-verified-release
           path: release-public/
           if-no-files-found: error
       - name: Upload APK and publish the existing draft
@@ -83,9 +83,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(gh release view v0.8.25-send-training-v3 --json isDraft --jq '.isDraft')" = true
-          gh release upload v0.8.25-send-training-v3 release-public/CallShift-0.8.25-send-training-v3.apk release-public/certificate.pem release-public/signature-verification.txt release-public/SHA256SUMS.txt --clobber
-          gh release edit v0.8.25-send-training-v3 --target "$GITHUB_SHA" --title 'CallShift 0.8.25-send-training-v3' --notes-file docs/RELEASE_MAX_SEND_TRAINING_V3.md --draft=false --prerelease --latest=false
+          test "$(gh release view v0.8.26-send-training-v4 --json isDraft --jq '.isDraft')" = true
+          gh release upload v0.8.26-send-training-v4 release-public/CallShift-0.8.26-send-training-v4.apk release-public/certificate.pem release-public/signature-verification.txt release-public/SHA256SUMS.txt --clobber
+          gh release edit v0.8.26-send-training-v4 --target "$GITHUB_SHA" --title 'CallShift 0.8.26-send-training-v4' --notes-file docs/RELEASE_MAX_SEND_TRAINING_V4.md --draft=false --prerelease --latest=false
       - name: Remove private material
         if: always()
         run: rm -f "$RUNNER_TEMP/callshift-signing.p12"

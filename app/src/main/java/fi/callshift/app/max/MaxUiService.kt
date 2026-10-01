@@ -558,36 +558,43 @@ class MaxUiService : AccessibilityService() {
         when (status) {
             MaxSendTrainingPolicy.Status.WAIT_CHAT -> if (editor != null) sendState(MaxSendTrainingPolicy.Status.WAIT_TAP)
             MaxSendTrainingPolicy.Status.WAIT_TAP -> {
-                if (editor == null) { sendSnapshot = null; sendDraft = null; sendState(MaxSendTrainingPolicy.Status.WAIT_CHAT); return }
+                // The composer can be rebuilt right after the message goes out; the armed
+                // proof survives this briefly instead of dropping back to WAIT_CHAT.
+                if (editor == null) {
+                    val withinProof = sendArmedAt > 0 && SystemClock.elapsedRealtime() - sendArmedAt <= 30_000
+                    if (withinProof) return
+                    if (sendTapSeen && SystemClock.uptimeMillis() - sendTapAt > 2000)
+                        endSendLearning(MaxSendTrainingPolicy.Status.SOURCE_MISSING)
+                    else {
+                        sendSnapshot = null; sendDraft = null; sendArmedAt = 0L
+                        sendTapSeen = false; sendEventUnresolved = false
+                        sendState(MaxSendTrainingPolicy.Status.WAIT_CHAT)
+                    }
+                    return
+                }
                 val draft = editableText(editor)
                 if (draft.isEmpty()) {
                     val snap = sendSnapshot
-                    if (snap == null) {
-                        if (sendTapSeen && SystemClock.uptimeMillis() - sendTapAt > 2000)
-                            endSendLearning(MaxSendTrainingPolicy.Status.SOURCE_MISSING)
-                        else if (SystemClock.elapsedRealtime() - sendPhaseAt > 3000) {
-                            sendSnapshot = null; sendDraft = null; sendArmedAt = 0L
-                            sendTapSeen = false; sendEventUnresolved = false
-                        }
-                        return
+                    val withinProof = sendArmedAt > 0 && SystemClock.elapsedRealtime() - sendArmedAt <= 30_000
+                    if (snap != null && sendTapSeen && !sendEventUnresolved) {
+                        resolveSendTap()
+                        if (sendTrainingStatus != MaxSendTrainingPolicy.Status.WAIT_TAP) return // VERIFY reached
                     }
-                    val sinceArm = if (sendArmedAt > 0) SystemClock.elapsedRealtime() - sendArmedAt else Long.MAX_VALUE
-                    if (sinceArm > 4000) {
-                        endSendLearning(if (sendTapSeen) MaxSendTrainingPolicy.Status.FOREIGN
-                            else MaxSendTrainingPolicy.Status.SOURCE_MISSING)
-                        return
-                    }
-                    // A content change can reach us before the click event: the armed
-                    // snapshot stays valid so the pending tap can still be resolved.
-                    if (sendTapSeen && !sendEventUnresolved) resolveSendTap()
-                    if (sendTrainingStatus != MaxSendTrainingPolicy.Status.WAIT_TAP) return // VERIFY reached
-                    if (sendEventUnresolved || !sendTapSeen) {
-                        // The outgoing message itself proves the send tap happened even when
-                        // Android handed us no usable click source. Save only an unambiguous
-                        // single right-half control of the armed row.
+                    if (snap != null && withinProof && (sendEventUnresolved || !sendTapSeen)) {
+                        // The outgoing message proves the send tap even when Android handed
+                        // us no usable click source. Save only an unambiguous single
+                        // right-half control of the live row: the paperclip drops out.
                         val only = rightSideSingle(all)
                         if (only != null) finishTrainingSave(MaxSendTrainingPolicy.Resolution(
                             MaxSendTrainingPolicy.ResolveReason.SOLE_CANDIDATE, only), snap)
+                    }
+                    if (sendTrainingStatus != MaxSendTrainingPolicy.Status.WAIT_TAP) return
+                    if (snap == null) {
+                        if (sendTapSeen && SystemClock.uptimeMillis() - sendTapAt > 2000)
+                            endSendLearning(MaxSendTrainingPolicy.Status.SOURCE_MISSING)
+                        else if (!withinProof && SystemClock.elapsedRealtime() - sendPhaseAt > 3000) {
+                            sendTapSeen = false; sendEventUnresolved = false
+                        }
                     }
                     return
                 }
