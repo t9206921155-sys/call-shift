@@ -81,7 +81,8 @@ class MaxSimpleActivity : AppCompatActivity() {
         button("Дополнительно") {
             AlertDialog.Builder(this).setTitle("Дополнительно")
                 .setItems(arrayOf("Журнал", "Тесты других каналов", "Технические настройки MAX", "Скопировать технический отчёт",
-                    "Начать новую проверку без отправки", "Обучить кнопку отправки MAX")) { _, i ->
+                    "Начать новую проверку без отправки", "Обучить кнопку отправки MAX",
+                    "Скопировать настройку для нового телефона", "Вставить настройку с другого телефона")) { _, i ->
                     when (i) {
                         0 -> startActivity(Intent(this, fi.callshift.app.ui.LogActivity::class.java))
                         1 -> startActivity(Intent(this, fi.callshift.app.ui.ReplyTestActivity::class.java))
@@ -94,6 +95,26 @@ class MaxSimpleActivity : AppCompatActivity() {
                         }
                         4 -> test(false)
                         5 -> trainSend()
+                        6 -> {
+                            val code = store.exportSetup(routes.routes())
+                            getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(
+                                android.content.ClipData.newPlainText("CallShift MAX setup", code))
+                            notice = "Код настройки скопирован в буфер. На новом телефоне: Автоответ MAX → Дополнительно → «Вставить настройку с другого телефона»."
+                            refresh()
+                        }
+                        7 -> {
+                            val input = EditText(this).apply {
+                                hint = "Вставьте код настройки"
+                                inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                            }
+                            AlertDialog.Builder(this).setTitle("Перенос настройки MAX")
+                                .setMessage("Код заменит профиль чата, кнопку отправки, маршруты SIM и лимит. Реальная отправка после переноса выключена — включите её после успешной проверки без отправки.")
+                                .setView(input)
+                                .setPositiveButton("Применить") { _, _ ->
+                                    notice = store.importSetup(input.text.toString()) { a, r -> routes.put(a, r) }
+                                    refresh()
+                                }.setNegativeButton("Отмена", null).show()
+                        }
                     }
                 }.show()
         }

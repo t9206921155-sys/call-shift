@@ -77,6 +77,38 @@ class MaxUiStore(context: Context) {
     fun setSendLimit(value: Int) {
         check(p.edit().putInt("send_limit", value.coerceIn(1, 1000)).commit())
     }
+    /** Кнопка отправки, карточка, профиль чата и маршруты SIM — константа настройки:
+     * обучается один раз и переносится на новый телефон кодом переноса. Версия MAX
+     * сохраняется в коде; при несовпадении версий существующие проверки сами
+     * потребуют переприёма профиля и переобучения — ничего не применяется вслепую. */
+    @kotlinx.serialization.Serializable
+    private data class Setup(val v: Long, val header: String, val input: String,
+        val card: String?, val send: String?, val routes: Map<String, String>, val limit: Int)
+
+    fun exportSetup(routes: Map<String, fi.callshift.app.domain.MaxRoutePolicy.Route>): String {
+        val s = Setup(version, header, input,
+            learnedCard()?.let { Json.encodeToString(it) },
+            learnedSend()?.let { Json.encodeToString(it) },
+            routes.mapValues { Json.encodeToString(it.value) }, sendLimit())
+        return android.util.Base64.encodeToString(Json.encodeToString(s).toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+    }
+
+    fun importSetup(code: String, putRoute: (String, fi.callshift.app.domain.MaxRoutePolicy.Route) -> Unit): String {
+        val json = runCatching { String(android.util.Base64.decode(code.trim(), android.util.Base64.DEFAULT), Charsets.UTF_8) }.getOrNull()
+            ?: return "Код не распознан. Настройка не применена."
+        val s = runCatching { Json.decodeFromString<Setup>(json) }.getOrNull()
+            ?: return "Код не распознан. Настройка не применена."
+        if (s.header.isEmpty() || s.input.isEmpty() || s.v <= 0) return "В коде нет профиля чата. Настройка не применена."
+        check(p.edit().putString("header", s.header).putString("input", s.input).putLong("version", s.v)
+            .putBoolean("enabled", true).putBoolean("live", false).commit())
+        s.card?.let { c -> runCatching { learnCard(Json.decodeFromString<fi.callshift.app.domain.MaxCardLearningPolicy.Rule>(c)) } }
+        s.send?.let { r -> runCatching { learnSend(Json.decodeFromString<fi.callshift.app.domain.MaxSendTrainingPolicy.Rule>(r)) } }
+        for ((account, route) in s.routes) runCatching { putRoute(account, Json.decodeFromString(route)) }
+        setSendLimit(s.limit)
+        return if (s.v == version()) "Настройка перенесена: версия MAX совпадает, переобучение не нужно. Запустите проверку без отправки."
+        else "Настройка перенесена, но версия MAX изменилась (${s.v} → $version()). Повторите профиль чата и обучение кнопки."
+    }
+
     /** Reserve before editing/clicking. Errors and process death never cause an automatic retry. */
     @Synchronized fun reserve(): Boolean {
         val entries = Json.decodeFromString<List<SmsSafety.Reservation>>(p.getString("attempts", "[]")!!)
