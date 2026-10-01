@@ -110,3 +110,4 @@ jobs:
 # v24: version property, not function.
 # v25: robust Telegram send-button training (placeholder focus, sourceless taps, silent capture).
 # v26: xml comment placement.
+# v27: smart-cast friendly package guard.

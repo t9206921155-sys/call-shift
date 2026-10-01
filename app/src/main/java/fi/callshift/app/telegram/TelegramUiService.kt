@@ -85,7 +85,8 @@ class TelegramUiService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event?.packageName?.toString() !in TelegramUiPolicy.PACKAGES) return
+        val pkg = event?.packageName?.toString() ?: return
+        if (pkg !in TelegramUiPolicy.PACKAGES) return
         if (trainUntil != 0L) {
             if (event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
                 runCatching { handleTrainClick(event) }.onFailure { endTraining(TelegramUiPolicy.TrainStatus.ERROR) }
