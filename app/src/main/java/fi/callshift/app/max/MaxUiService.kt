@@ -565,9 +565,9 @@ class MaxUiService : AccessibilityService() {
                 // Keep the user's part to a single action: the service types the draft itself.
                 if (sendAutoTypePending) {
                     sendAutoTypePending = false
-                    if (editor.text.isNullOrEmpty()) {
+                    if (editor?.text.isNullOrEmpty()) {
                         val args = Bundle().apply { putCharSequence(Node.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, TRAIN_TEXT) }
-                        val accepted = runCatching { editor.performAction(Node.ACTION_SET_TEXT, args) }.getOrDefault(false)
+                        val accepted = runCatching { editor?.performAction(Node.ACTION_SET_TEXT, args) == true }.getOrDefault(false)
                         android.widget.Toast.makeText(this, if (accepted)
                             "Текст введён. Нажмите синюю стрелку отправки ОДИН раз (у вас 30 секунд)"
                             else "Не удалось ввести текст сам — введите любой текст вручную и нажмите синюю стрелку", android.widget.Toast.LENGTH_LONG).show()
