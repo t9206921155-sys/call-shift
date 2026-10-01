@@ -127,6 +127,10 @@ class ReplyTestActivity : AppCompatActivity() {
             appendLine("MAX: главный переключатель ${app.settings.masterEnabled}; режим ${if (!max.enabled) "выключен" else if (max.live) "реальная отправка" else "без отправки"}; диагностика ${MaxUiService.diagnostics.active()}.")
             appendLine("Контакты для поиска имени MAX: ${if (checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) "разрешены" else "нет разрешения; доступен поиск по номеру"}.")
             appendLine("Telegram API: настройки ${if (app.telegram.configured()) "есть" else "не заданы"}; автоотправка ${app.telegram.autoEnabled()}; текущая авторизация ${if (app.telegram.authorization.value == "authorizationStateReady") "готова" else "не подтверждена в этом процессе"}. SIM не выбирает аккаунт Telegram.")
+            run {
+                val tgUi = fi.callshift.app.telegram.TelegramUiStore(this)
+                appendLine("Telegram имитация: режим ${if (!tgUi.enabled) "выключен (работает TDLib)" else if (tgUi.live) "реальная отправка" else "проверка без отправки"}; служба ${if (fi.callshift.app.telegram.TelegramUiService.connected) "подключена" else "не подключена"}; кнопка ${if (tgUi.learnedSend() != null) "обучена" else "не обучена"}.")
+            }
             for (c in listOf("WHATSAPP", "TELEGRAM", "MAX")) appendLine("${ReplyChannel.labels[c]}: ${if (ManualReply.packages(c).any(::installed)) "приложение обнаружено" else "приложение не обнаружено"}; аккаунт и отправка вручную.")
             append("Другой мессенджер: системное меню отправки, получатель и аккаунт вручную.")
         }
@@ -150,6 +154,7 @@ class ReplyTestActivity : AppCompatActivity() {
             ReplyChannel.isManual(c) -> "Будет подготовлен ручной ответ. Приложение не отправит сообщение само и не выберет аккаунт по SIM."
             c == ReplyChannel.SMS -> "Будет запрошена реальная SMS с этой SIM. Возможна плата за несколько SMS-частей."
             c == MaxUiPolicy.CHANNEL -> "Будет запрошена реальная отправка из MAX, настроенного для этой SIM. При неизвестном результате повторять опасно."
+            tgImitation -> "Будет выполнена имитация касаний в приложении Telegram: поиск чата по номеру, ввод текста, нажатие обученной кнопки. Одна попытка, без повторов."
             else -> "Будет запрошена реальная отправка из подключённого личного аккаунта Telegram, независимо от SIM."
         }
         AlertDialog.Builder(this).setTitle("Подтвердите тест")

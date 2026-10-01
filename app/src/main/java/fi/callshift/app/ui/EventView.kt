@@ -45,8 +45,10 @@ object EventView {
         }
         "TELEGRAM_REPLY" -> when (e.result) {
             "TG_SENT" -> Kind.TELEGRAM_SENT
-            "TG_LOOKUP", "TG_PENDING" -> Kind.TELEGRAM_PENDING
-            "TG_UNKNOWN" -> Kind.TELEGRAM_UNKNOWN
+            "TG_UI_SENT_LOCAL" -> Kind.TELEGRAM_SENT_LOCAL
+            "TG_UI_CHECKED" -> Kind.TELEGRAM_UI_CHECKED
+            "TG_LOOKUP", "TG_PENDING", "TG_UI_PENDING" -> Kind.TELEGRAM_PENDING
+            "TG_UNKNOWN", "TG_UI_UNKNOWN" -> Kind.TELEGRAM_UNKNOWN
             "FAILED", "ERROR" -> Kind.ERROR
             else -> Kind.REPLY_SKIPPED
         }

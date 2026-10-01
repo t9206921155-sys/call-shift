@@ -112,6 +112,17 @@ class TelegramAccountActivity : AppCompatActivity() {
                         else InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
                 } }
                 launch { client.status.collect { status.text = it } }
+                launch {
+                    while (true) {
+                        val s = TelegramUiStore(this@TelegramAccountActivity)
+                        uiStatus.text = "Служба: ${if (TelegramUiService.connected) "подключена" else "не подключена"}; режим ${
+                            if (!s.enabled) "выключен" else if (s.live) "реальная отправка" else "проверка без отправки"}; кнопка ${
+                            if (s.learnedSend() != null) "обучена" else "не обучена"}\nСтатус обучения: ${
+                            TelegramUiService.trainStatus(this@TelegramAccountActivity).explanation}"
+                        liveSwitch.isChecked = s.live
+                        kotlinx.coroutines.delay(1000)
+                    }
+                }
             }
         }
         if (client.configured()) runCatching { client.start() }

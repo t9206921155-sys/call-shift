@@ -287,9 +287,18 @@ class MessengerHubActivity : AppCompatActivity() {
         set("MAX", maxReady, "Режим: $maxMode; служба ${if (MaxUiService.connected) "подключена" else "не подключена"}",
             "Кнопка отправки: ${if (maxStore.learnedSend() != null) "обучена" else "не обучена"}; лимит ${maxStore.sendLimit()}/24ч")
 
-        val tgAuto = runCatching { app.telegram.autoEnabled() }.getOrDefault(false)
-        set("Telegram", tgAuto, "Автоотправка: ${if (tgAuto) "включена" else "выключена — нужен вход в аккаунт"}",
-            "Лимит ${app.settings.telegramDailyLimit}/24ч")
+        val tgUi = fi.callshift.app.telegram.TelegramUiStore(this)
+        val tgReady = if (tgUi.enabled)
+            fi.callshift.app.telegram.TelegramUiService.connected && tgUi.live && tgUi.learnedSend() != null
+        else runCatching { app.telegram.autoEnabled() }.getOrDefault(false)
+        val tgMode = when {
+            !tgUi.enabled -> "через аккаунт (TDLib): автоотправка выключена — нужен вход"
+            !tgUi.live -> "имитация касаний: проверка без отправки"
+            tgUi.learnedSend() == null -> "имитация касаний: не обучена кнопка отправки"
+            else -> "имитация касаний: реальная отправка разрешена"
+        }
+        set("Telegram", tgReady, "Режим: $tgMode",
+            "Кнопка отправки: ${if (tgUi.learnedSend() != null) "обучена" else "не обучена"}; лимит ${app.settings.telegramDailyLimit}/24ч")
         lifecycleScope.launch {
             val tgUsed = runCatching { TelegramLimitStore.used(this@MessengerHubActivity) }.getOrDefault(-1)
             val smsUsed = runCatching { SmsBudgetStore.used(this@MessengerHubActivity) }.getOrDefault(-1)

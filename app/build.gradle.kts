@@ -39,8 +39,8 @@ android {
         applicationId = "fi.callshift.app"
         minSdk = 28          // Android 9.0 — минимум по ТЗ (п. 15.1)
         targetSdk = 35
-        versionCode = Integer.parseInt(providers.gradleProperty("versionCode").getOrElse("72"))
-        versionName = providers.gradleProperty("versionName").getOrElse("0.8.40-messenger-hub-ui")
+        versionCode = Integer.parseInt(providers.gradleProperty("versionCode").getOrElse("73"))
+        versionName = providers.gradleProperty("versionName").getOrElse("0.8.41-telegram-ui")
 
         resourceConfigurations += listOf("en", "ru")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

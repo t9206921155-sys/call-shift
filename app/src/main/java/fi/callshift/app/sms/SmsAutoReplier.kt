@@ -107,6 +107,14 @@ class SmsAutoReplier(
                 if (channel == fi.callshift.app.domain.TelegramReplyPolicy.CHANNEL) {
                     // Reserve before contacting Telegram: timeouts must not cause duplicate messages.
                     check(prefs.edit().putLong(key, now).commit()) { "Не удалось сохранить попытку Telegram" }
+                    if (fi.callshift.app.telegram.TelegramUiStore(appContext).enabled) {
+                        // Imitation mode: same principle as MAX, one attempt, no retries.
+                        fi.callshift.app.telegram.TelegramUiService.submit(
+                            event(ctx, decision, "TG_UI_PENDING", null,
+                                "Telegram: готовим имитацию касаний в приложении").copy(eventId = java.util.UUID.randomUUID().toString()),
+                            r.number, r.text)
+                        return
+                    }
                     fi.callshift.app.CallShiftApp.from(appContext).telegram.reply(ctx, decision, r.text)
                     return
                 }
