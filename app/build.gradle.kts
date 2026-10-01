@@ -39,8 +39,8 @@ android {
         applicationId = "fi.callshift.app"
         minSdk = 28          // Android 9.0 — минимум по ТЗ (п. 15.1)
         targetSdk = 35
-        versionCode = Integer.parseInt(providers.gradleProperty("versionCode").getOrElse("65"))
-        versionName = providers.gradleProperty("versionName").getOrElse("0.8.33-send-training-v11")
+        versionCode = Integer.parseInt(providers.gradleProperty("versionCode").getOrElse("66"))
+        versionName = providers.gradleProperty("versionName").getOrElse("0.8.34-send-training-v12")
 
         resourceConfigurations += listOf("en", "ru")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

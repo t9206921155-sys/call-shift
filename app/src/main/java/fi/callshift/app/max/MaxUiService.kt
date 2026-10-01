@@ -408,8 +408,12 @@ class MaxUiService : AccessibilityService() {
             val titles = ns.filter { it.viewIdResourceName == store.header && header(it) }
             val editors = ns.filter { it.isVisibleToUser && it.isEnabled && it.isEditable && !it.isPassword && it.viewIdResourceName == store.input }
             val field = editors.singleOrNull()
-            val sameButton = field != null && send.refresh() && profileClickable(send) &&
-                (sendButton(ns, field) == send || learnedSend(ns, field) == send)
+            val trainedGesture = store.learnedSend()?.gesture == true
+            // A trained gesture arrow may expose no click action at all: the replay is a
+            // real anchored tap, so clickability is not required - only the fresh identity.
+            val sameButton = field != null && send.refresh() &&
+                (if (trainedGesture) learnedSend(ns, field) == send
+                else profileClickable(send) && (sendButton(ns, field) == send || learnedSend(ns, field) == send))
             val finalCheck = fi.callshift.app.domain.MaxTransitionPolicy.FinalClick(
                 store.enabled && store.live && app.settings.masterEnabled, unlocked(),
                 fresh?.packageName?.toString() == MaxUiPolicy.PACKAGE && fresh.windowId == root.windowId,
