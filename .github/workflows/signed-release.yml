@@ -101,3 +101,4 @@ jobs:
 # v14: clear the app-own leftover draft.
 # v15: post-click vanish proof refines the result.
 # v16: configurable daily MAX send limit.
+# v16: rebuild after the limit-button property fix.
