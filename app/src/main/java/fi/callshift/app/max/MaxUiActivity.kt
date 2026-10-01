@@ -14,6 +14,7 @@ import fi.callshift.app.ui.FormUi
 
 class MaxUiActivity : AppCompatActivity() {
     private lateinit var status: TextView
+    private var limitButton: com.google.android.material.button.MaterialButton? = null
     private val store by lazy { MaxUiStore(this) }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -96,7 +97,7 @@ class MaxUiActivity : AppCompatActivity() {
                 .setPositiveButton("Разрешить") { _, _ -> runCatching { store.modes(true, true) }.onFailure { toast("Ошибка сохранения") }; refresh() }
                 .setNegativeButton("Отмена", null).show()
         }
-        val limitButton = button("Лимит автоответов MAX в сутки: ${store.sendLimit()}") {
+        limitButton = button("Лимит автоответов MAX в сутки: ${store.sendLimit()}") {
             val input = android.widget.EditText(this@MaxUiActivity).apply {
                 inputType = android.text.InputType.TYPE_CLASS_NUMBER
                 setText(store.sendLimit().toString())
@@ -110,7 +111,7 @@ class MaxUiActivity : AppCompatActivity() {
                     else runCatching { store.setSendLimit(v) }
                         .onSuccess { toast("Лимит: ${store.sendLimit()} в сутки") }
                         .onFailure { toast("Не удалось сохранить") }
-                    limitButton.text = "Лимит автоответов MAX в сутки: ${store.sendLimit()}"
+                    limitButton?.text = "Лимит автоответов MAX в сутки: ${store.sendLimit()}"
                 }.setNegativeButton("Отмена", null).show()
         }
         button("СТОП: выключить автоматизацию MAX") {
