@@ -103,3 +103,4 @@ jobs:
 # v16: configurable daily MAX send limit.
 # v18: card-based hub UI with collapsible details.
 # v19: Telegram auto-reply via UI imitation, same principle as MAX.
+# v20: fix train-target typing and restore the imitation section.

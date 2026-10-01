@@ -79,6 +79,61 @@ class TelegramAccountActivity : AppCompatActivity() {
             }
         })
         ui.hint("После входа выберите в правиле «Telegram — автоматически (мой аккаунт)». Старые ручные правила не изменяются. Повторные попытки ограничиваются интервалом, выбранным в правиле или автоответчике; без автоматических повторов, оплаты Stars и запасных SMS. Выключение разрешения останавливает новые попытки, но не отменяет уже принятые Telegram сообщения.")
+
+        // ---- Имитация касаний: тот же принцип, что в MAX ----
+        ui.title("Отправка имитацией касаний (как в MAX)")
+        ui.hint("Вместо TDLib CallShift сам откроет Telegram, найдёт чат по номеру звонившего, введёт текст и нажмёт кнопку отправки. Отказ при любой неоднозначности, одна попытка, без повторов. Нужен доступ к службе специальных возможностей для Telegram.")
+        val uiStatus = ui.add(TextView(this).apply { setTextColor(getColor(fi.callshift.app.R.color.text_primary)); textSize = 14f })
+        val imitation = ui.add(SwitchMaterial(this).apply {
+            text = "Отправлять имитацией касаний вместо TDLib"
+            setTextColor(getColor(fi.callshift.app.R.color.text_primary))
+            isChecked = TelegramUiStore(this@TelegramAccountActivity).enabled
+            setOnCheckedChangeListener { _, checked ->
+                if (checked && !TelegramUiService.connected) {
+                    isChecked = false
+                    Toast.makeText(this@TelegramAccountActivity,
+                        "Сначала включите службу «CallShift — Telegram (имитация касаний)» в настройках специальных возможностей Android",
+                        Toast.LENGTH_LONG).show()
+                    return@setOnCheckedChangeListener
+                }
+                runCatching { TelegramUiStore(this@TelegramAccountActivity).modes(checked, false) }
+                    .onFailure { Toast.makeText(this@TelegramAccountActivity, "Не удалось сохранить", Toast.LENGTH_LONG).show() }
+            }
+        })
+        val liveSwitch = ui.add(SwitchMaterial(this).apply {
+            text = "Разрешить реальную отправку (после обучения кнопки)"
+            setTextColor(getColor(fi.callshift.app.R.color.text_primary))
+            setOnCheckedChangeListener { _, checked ->
+                if (checked && TelegramUiStore(this@TelegramAccountActivity).learnedSend() == null) {
+                    isChecked = false
+                    Toast.makeText(this@TelegramAccountActivity, "Сначала обучите кнопку отправки", Toast.LENGTH_LONG).show()
+                    return@setOnCheckedChangeListener
+                }
+                val s = TelegramUiStore(this@TelegramAccountActivity)
+                runCatching { s.modes(s.enabled, checked) }
+                    .onFailure { Toast.makeText(this@TelegramAccountActivity, "Не удалось сохранить", Toast.LENGTH_LONG).show() }
+            }
+        })
+        ui.add(MaterialButton(this).apply {
+            text = "Обучить кнопку отправки Telegram"
+            setOnClickListener {
+                if (!TelegramUiService.startSendTraining()) {
+                    Toast.makeText(this@TelegramAccountActivity, TelegramUiService.trainStatus(this@TelegramAccountActivity).explanation, Toast.LENGTH_LONG).show()
+                }
+            }
+        })
+        ui.add(MaterialButton(this).apply {
+            text = "Забыть обученную кнопку отправки"
+            setOnClickListener {
+                runCatching {
+                    TelegramUiStore(this@TelegramAccountActivity).forgetSend()
+                    TelegramUiStore(this@TelegramAccountActivity).modes(
+                        TelegramUiStore(this@TelegramAccountActivity).enabled, false)
+                    Toast.makeText(this@TelegramAccountActivity, "Обучение забыто; реальная отправка выключена", Toast.LENGTH_SHORT).show()
+                }
+            }
+        })
+        ui.hint("Обучение: откройте любой безопасный чат Telegram (например «Избранное») — CallShift сам введёт тестовый текст, вам нужно нажать кнопку отправки один раз. Сохраняется только форма кнопки; чат, контакт и координаты не хранятся. По умолчанию включён режим проверки без отправки.")
         ui.add(MaterialButton(this).apply {
             text = "Выйти из Telegram и выключить автоответы"
             setOnClickListener {

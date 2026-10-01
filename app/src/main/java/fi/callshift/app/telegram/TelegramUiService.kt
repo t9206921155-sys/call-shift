@@ -461,7 +461,7 @@ class TelegramUiService : AccessibilityService() {
             endTraining(TelegramUiPolicy.TrainStatus.FOREIGN); return
         }
         val candidates = sendCandidates(all, input!!)
-        val target: Trial? = run {
+        val target: Node? = run {
             val direct = chain.mapNotNull { step -> candidates.singleOrNull {
                 it.viewIdResourceName == step.first && it.className?.toString() == step.second } }
             when {
