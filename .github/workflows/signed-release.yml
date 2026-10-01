@@ -91,3 +91,4 @@ jobs:
         run: rm -f "$RUNNER_TEMP/callshift-signing.p12"
 # Trigger: rebuild after the training auto-type null-safety fix.
 # v7: auto-type verify-and-retry in send training.
+# v7: draft release created.
