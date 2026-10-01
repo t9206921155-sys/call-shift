@@ -397,7 +397,7 @@ class MaxUiService : AccessibilityService() {
                     main.postDelayed(tick, 250); return // wait for composer animation, never write or click again
                 }
                 finish("BLOCKED", if (sendCandidates.isEmpty())
-                    "MAX не передал доступное действие отправки с однозначной подписью или ID. Черновик оставлен"
+                    "MAX не передал доступное действие отправки, обученной кнопки нет. Черновик оставлен. НАЖМИТЕ «ОБУЧИТЬ КНОПКУ ОТПРАВКИ MAX» на экране CallShift — один раз, затем повторите тест"
                     else "MAX показал несколько действий отправки. Ничего не нажато; черновик оставлен")
                 return
             }
