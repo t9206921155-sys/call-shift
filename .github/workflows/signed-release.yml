@@ -107,3 +107,4 @@ jobs:
 # v21: restore lost EventView kinds and test guards.
 # v22: hub cards name the exact next setup step; texts compressed.
 # v23: MAX setup transfer code; the send button becomes a portable constant.
+# v24: version property, not function.

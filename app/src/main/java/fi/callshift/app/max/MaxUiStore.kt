@@ -105,7 +105,7 @@ class MaxUiStore(context: Context) {
         s.send?.let { r -> runCatching { learnSend(Json.decodeFromString<fi.callshift.app.domain.MaxSendTrainingPolicy.Rule>(r)) } }
         for ((account, route) in s.routes) runCatching { putRoute(account, Json.decodeFromString(route)) }
         setSendLimit(s.limit)
-        return if (s.v == version()) "Настройка перенесена: версия MAX совпадает, переобучение не нужно. Запустите проверку без отправки."
+        return if (s.v == version) "Настройка перенесена: версия MAX совпадает, переобучение не нужно. Запустите проверку без отправки."
         else "Настройка перенесена, но версия MAX изменилась (${s.v} → $version()). Повторите профиль чата и обучение кнопки."
     }
 
