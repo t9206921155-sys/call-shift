@@ -58,6 +58,8 @@ class TelegramUiService : AccessibilityService() {
     private var trainToastShown = false
     private var trainTypeTried = false
     private var trainFocusAt = 0L
+    private var trainAuto = false
+    private var trainSaidManual = false
     private var lastArmedDraft = ""
     private var soleId: String? = null
     private var soleClass = ""
@@ -468,6 +470,15 @@ class TelegramUiService : AccessibilityService() {
             if (ph != null && now - trainFocusAt > 2500) {
                 trainFocusAt = now
                 runCatching { (if (ph.isClickable) ph else clickableAncestor(ph))?.performAction(Node.ACTION_CLICK) }
+            } else if (trainAuto && now - trainFocusAt > 3000) {
+                // Автопилот: сами открываем безопасный чат «Избранное».
+                val row = all.filter { it.isVisibleToUser }.firstOrNull {
+                    textOf(it) == "Избранное" || textOf(it) == "Saved Messages" }
+                if (row != null) {
+                    trainFocusAt = now
+                    toast("Открываем «Избранное»…")
+                    runCatching { (if (row.isClickable) row else clickableAncestor(row))?.performAction(Node.ACTION_CLICK) }
+                }
             }
             main.postDelayed(trainTick, 700); return
         }
@@ -484,6 +495,10 @@ class TelegramUiService : AccessibilityService() {
                 toast("Кнопка отправки Telegram распознана и сохранена")
             } else endTraining(TelegramUiPolicy.TrainStatus.SOURCE_MISSING)
             return
+        }
+        if (!trainArmed && draft.isEmpty() && !trainTypeTried) {
+            // короткая подсказка, что ввод пойдёт сам
+            if (now - trainEditorSeenAt in 1500..1600) toast("Вводим тестовый текст…")
         }
         lastArmedDraft = draft
         if (trainArmed) {
@@ -507,6 +522,10 @@ class TelegramUiService : AccessibilityService() {
                     val anc = clickableAncestor(input)
                     if (anc != null && now - trainFocusAt > 2000) { trainFocusAt = now; runCatching { anc.performAction(Node.ACTION_CLICK) } }
                 }
+            }
+            draft.isEmpty() && trainTypeTried && now - trainEditorSeenAt > 8000 && !trainSaidManual -> {
+                trainSaidManual = true
+                toast("Автоввод не прошёл — введите текст вручную: Тест обучения CallShift")
             }
         }
         main.postDelayed(trainTick, 600)
@@ -580,6 +599,7 @@ class TelegramUiService : AccessibilityService() {
         trainUntil = 0L; trainArmed = false; trainToastShown = false; trainTypeTried = false
         trainEditorSeenAt = 0; trainVerifyAt = 0; trainTrial = null
         lastArmedDraft = ""; soleId = null; soleClass = ""; soleDesc = ""
+        trainAuto = false; trainSaidManual = false
         main.removeCallbacks(trainTick)
         store.sendOutcome(status)
     }
@@ -610,7 +630,9 @@ class TelegramUiService : AccessibilityService() {
                 service.trainArmed = false; service.trainToastShown = false; service.trainTypeTried = false
                 service.trainEditorSeenAt = 0; service.trainVerifyAt = 0; service.trainTrial = null
                 service.store.sendOutcome(TelegramUiPolicy.TrainStatus.WAIT_CHAT)
+                service.trainAuto = true; service.trainSaidManual = false
                 service.main.post(service.trainTick)
+                service.launchTelegram()
                 service.toast("Обучение запущено: откройте любой безопасный чат Telegram, например «Избранное»")
                 true
             }.getOrElse { service.endTraining(TelegramUiPolicy.TrainStatus.ERROR); false }
