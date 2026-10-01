@@ -92,9 +92,26 @@ class MaxUiActivity : AppCompatActivity() {
             if (MaxUiService.diagnostics.forcesDry()) { toast("Сначала завершите диагностику: во время записи отправка запрещена"); return@button }
             if (!MaxUiService.connected || store.header.isEmpty()) { toast("Сначала подключите службу и сохраните профиль"); return@button }
             AlertDialog.Builder(this).setTitle("Реальная отправка через интерфейс MAX")
-                .setMessage("Сначала выполните проверочный звонок в режиме без отправки и проверьте журнал. При включении CallShift сможет вводить текст и нажимать «Отправить» в проверенном чате. Возможны ошибки интерфейса. Лимит — 5 попыток за последние 24 часа, ошибки не возвращают резерв. Доставка не подтверждается. После переподключения службы отправка снова выключится. Разрешить?")
+                .setMessage("Сначала выполните проверочный звонок в режиме без отправки и проверьте журнал. При включении CallShift сможет вводить текст и нажимать «Отправить» в проверенном чате. Возможны ошибки интерфейса. Лимит — ${store.sendLimit()} попыток за последние 24 часа (меняется кнопкой «Лимит автоответов»), ошибки не возвращают резерв. Доставка не подтверждается. После переподключения службы отправка снова выключится. Разрешить?")
                 .setPositiveButton("Разрешить") { _, _ -> runCatching { store.modes(true, true) }.onFailure { toast("Ошибка сохранения") }; refresh() }
                 .setNegativeButton("Отмена", null).show()
+        }
+        val limitButton = button("Лимит автоответов MAX в сутки: ${store.sendLimit()}") {
+            val input = android.widget.EditText(this@MaxUiActivity).apply {
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                setText(store.sendLimit().toString())
+            }
+            AlertDialog.Builder(this@MaxUiActivity).setTitle("Лимит автоответов MAX в сутки")
+                .setMessage("Сколько сообщений MAX может отправить за 24 часа: от 1 до 1000. По умолчанию 20 — это защита от зацикливания сценария, а не ограничение нормальной работы. Изменение действует сразу.")
+                .setView(input)
+                .setPositiveButton("Сохранить") { _, _ ->
+                    val v = input.text.toString().trim().toIntOrNull()
+                    if (v == null) toast("Введите число от 1 до 1000")
+                    else runCatching { store.setSendLimit(v) }
+                        .onSuccess { toast("Лимит: ${store.sendLimit()} в сутки") }
+                        .onFailure { toast("Не удалось сохранить") }
+                    limitButton.text = "Лимит автоответов MAX в сутки: ${store.sendLimit()}"
+                }.setNegativeButton("Отмена", null).show()
         }
         button("СТОП: выключить автоматизацию MAX") {
             runCatching { store.modes(false, false); MaxUiService.stopNow() }.onFailure { toast("Ошибка сохранения; отключите службу в Android") }; refresh()

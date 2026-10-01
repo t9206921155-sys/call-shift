@@ -383,7 +383,7 @@ class MaxUiService : AccessibilityService() {
                     withContext(Dispatchers.Main) {
                         if (pending !== p) return@withContext
                         busy = false
-                        if (!reserved) { finish("BLOCKED", "Лимит MAX: 20 попыток за 24 часа, либо хранилище недоступно"); return@withContext }
+                        if (!reserved) { finish("BLOCKED", "Лимит MAX: ${store.sendLimit()} попыток за 24 часа, либо хранилище недоступно"); return@withContext }
                         // Recheck fresh UI before writing; do not retain stale node references across IO.
                         p.edited = true
                         val fresh = rootInActiveWindow

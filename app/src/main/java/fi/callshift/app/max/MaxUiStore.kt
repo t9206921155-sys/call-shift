@@ -71,10 +71,16 @@ class MaxUiStore(context: Context) {
         val i = p.getString("staged_input", null) ?: return null
         return MaxUiService.Profile(h, i, p.getLong("staged_version", -1), "восстановленный образец (без номера)", p.getLong("staged_elapsed", -1))
     }
+    /** Daily MAX send cap. Default 20; the owner can raise it (1..1000) in settings.
+     * The cap exists to bound a runaway scenario, not to ration normal use. */
+    fun sendLimit(): Int = runCatching { p.getInt("send_limit", 20) }.getOrDefault(20).coerceIn(1, 1000)
+    fun setSendLimit(value: Int) {
+        check(p.edit().putInt("send_limit", value.coerceIn(1, 1000)).commit())
+    }
     /** Reserve before editing/clicking. Errors and process death never cause an automatic retry. */
     @Synchronized fun reserve(): Boolean {
         val entries = Json.decodeFromString<List<SmsSafety.Reservation>>(p.getString("attempts", "[]")!!)
-        val next = SmsSafety.reserve(entries, System.currentTimeMillis(), 1, 20) ?: return false
+        val next = SmsSafety.reserve(entries, System.currentTimeMillis(), 1, sendLimit()) ?: return false
         check(p.edit().putString("attempts", Json.encodeToString(next)).commit())
         return true
     }
