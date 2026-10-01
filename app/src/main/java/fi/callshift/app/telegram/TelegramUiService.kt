@@ -36,6 +36,11 @@ class TelegramUiService : AccessibilityService() {
         var edited = false
         var clearedLeftover = false
         var composerTried = false
+        var backTried = false
+        var saidOpen = false
+        var saidSearch = false
+        var saidCompose = false
+        var saidSend = false
         var sendWaitAt: Long = 0
         var proofChecks = 0
         var proofAt: Long = 0
@@ -116,9 +121,12 @@ class TelegramUiService : AccessibilityService() {
     private fun descOf(n: Node): String = n.contentDescription?.toString() ?: ""
     /** The single visible editable field of the current Telegram screen: search box
      * on the list, message editor in a chat. Never a password field. */
-    private fun editor(all: List<Node>): Node? = all
-        .filter { it.isVisibleToUser && it.isEnabled && it.isEditable && !it.isPassword }
-        .singleOrNull()
+    private fun editor(all: List<Node>): Node? {
+        val list = all.filter { it.isVisibleToUser && it.isEnabled && it.isEditable && !it.isPassword }
+        if (list.size == 1) return list.single()
+        // На экране поиска Telegram полей может быть несколько: вводим в сфокусированное.
+        return list.firstOrNull { it.isFocused }
+    }
 
     // ===================== send =====================
     private fun begin(event: CallEvent, number: String, text: String) {
@@ -152,6 +160,7 @@ class TelegramUiService : AccessibilityService() {
     private fun launchTelegram() {
         try {
             val launch = TelegramUiPolicy.PACKAGES.firstNotNullOfOrNull { packageManager.getLaunchIntentForPackage(it) } ?: error("Telegram отсутствует")
+            toast("Telegram: открываем приложение…")
             startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             main.postDelayed(tick, 800)
         } catch (_: Exception) { finish("BLOCKED", "Android не разрешил открыть Telegram") }
@@ -197,15 +206,23 @@ class TelegramUiService : AccessibilityService() {
         // Opened straight into a chat (restored state): typing there would touch a
         // foreign conversation. Refuse and ask the user to return to the chat list.
         if (all.any { it.isVisibleToUser && TelegramUiPolicy.looksLikeSend(descOf(it), it.viewIdResourceName ?: "") }) {
-            finish("BLOCKED", "Telegram открылся внутри чата. Вернитесь к списку чатов и повторите вызов; отправка отменена")
+            // Telegram открывается на последнем чате: один раз возвращаемся к списку.
+            if (!p.backTried) {
+                p.backTried = true
+                performGlobalAction(GLOBAL_ACTION_BACK)
+                main.postDelayed(tick, 1000); return
+            }
+            finish("BLOCKED", "Telegram открылся внутри чата, вернуться к списку не удалось. Откройте список чатов и повторите вызов")
             return
         }
+        if (!p.saidOpen) { p.saidOpen = true; toast("Telegram: ищем поиск по номеру…") }
         val field = editor(all)
         if (field != null) {
             // The list screen with its search box is in front: type the number.
             val args = Bundle().apply { putCharSequence(Node.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, p.number) }
             if (runCatching { field.performAction(Node.ACTION_SET_TEXT, args) }.getOrDefault(false)) {
                 p.queryAt = SystemClock.elapsedRealtime(); p.phase = Phase.RESULTS
+                toast("Telegram: ищем чат по номеру…")
                 main.postDelayed(tick, 1500); return
             }
         }
@@ -213,7 +230,11 @@ class TelegramUiService : AccessibilityService() {
             (it.viewIdResourceName?.lowercase()?.contains("search") == true ||
                 descOf(it).lowercase().contains("поиск") || descOf(it).lowercase().contains("search")) }
         if (entry != null && SystemClock.elapsedRealtime() - p.started > 1200) {
-            if (entry.isClickable && entry.performAction(Node.ACTION_CLICK)) { main.postDelayed(tick, 900); return }
+            val kids = (0 until entry.childCount).mapNotNull { entry.getChild(it) }
+                .filter { it.isVisibleToUser && it.isEnabled && it.isClickable }
+            val opened = listOfNotNull(entry.takeIf { it.isClickable }, clickableAncestor(entry)).any { it.performAction(Node.ACTION_CLICK) } ||
+                kids.any { it.performAction(Node.ACTION_CLICK) }
+            if (opened) { main.postDelayed(tick, 900); return }
         }
         if (SystemClock.elapsedRealtime() - p.started > 14_000) {
             finish("BLOCKED", "Не найдено поле поиска Telegram. Откройте список чатов Telegram и повторите вызов")
@@ -288,6 +309,7 @@ class TelegramUiService : AccessibilityService() {
             finish("BLOCKED", "В поле сообщения Telegram есть текст, который не принадлежит CallShift. Отправка запрещена; чужой черновик не тронут")
             return
         }
+        if (!p.saidCompose) { p.saidCompose = true; toast("Telegram: вводим текст ответа…") }
         val args = Bundle().apply { putCharSequence(Node.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, p.text) }
         if (!runCatching { input.performAction(Node.ACTION_SET_TEXT, args) }.getOrDefault(false)) {
             if (SystemClock.elapsedRealtime() - p.sendWaitAt > 6000 && p.sendWaitAt != 0L) {
@@ -341,6 +363,7 @@ class TelegramUiService : AccessibilityService() {
             finish("TG_UI_CHECKED", "Проверка пройдена: чат найден по номеру, текст введён, кнопка отправки распознана. Реальная отправка выключена, черновик остался в поле")
             return
         }
+        if (!p.saidSend) { p.saidSend = true; toast("Telegram: нажимаем кнопку отправки…") }
         val pressed = run {
             val useGesture = rule?.gesture ?: !target.isClickable
             if (!useGesture) target.performAction(Node.ACTION_CLICK) else tapGesture(p, target)
