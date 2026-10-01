@@ -6,6 +6,8 @@ package fi.callshift.app.domain
  * сообщения и экранные координаты никогда не сохраняются. */
 object TelegramUiPolicy {
     const val PACKAGE = "org.telegram.messenger"
+    /** Официальный клиент и его веб-вариант; имя пакета проверяется в коде. */
+    val PACKAGES = listOf("org.telegram.messenger", "org.telegram.messenger.web")
     const val TRAIN_TEXT = "Тест обучения CallShift"
 
     @kotlinx.serialization.Serializable

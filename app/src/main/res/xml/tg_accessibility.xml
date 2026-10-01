@@ -3,7 +3,7 @@
     android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewTextChanged|typeViewClicked"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:notificationTimeout="150"
-    android:packageNames="org.telegram.messenger"
+    <!-- Имя пакета не ограничиваем: код проверяет официальный клиент и его веб-вариант. -->
     android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows"
     android:canRetrieveWindowContent="true"
     android:canPerformGestures="true"

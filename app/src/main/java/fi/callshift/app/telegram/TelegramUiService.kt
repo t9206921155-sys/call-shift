@@ -35,6 +35,7 @@ class TelegramUiService : AccessibilityService() {
         var queryAt: Long = 0
         var edited = false
         var clearedLeftover = false
+        var composerTried = false
         var sendWaitAt: Long = 0
         var proofChecks = 0
         var proofAt: Long = 0
@@ -51,6 +52,11 @@ class TelegramUiService : AccessibilityService() {
     private var trainArmed = false
     private var trainToastShown = false
     private var trainTypeTried = false
+    private var trainFocusAt = 0L
+    private var lastArmedDraft = ""
+    private var soleId: String? = null
+    private var soleClass = ""
+    private var soleDesc = ""
     private var trainEditorSeenAt = 0L
     private var trainVerifyAt = 0L
     private var trainTrial: Trial? = null
@@ -79,7 +85,7 @@ class TelegramUiService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event?.packageName?.toString() != TelegramUiPolicy.PACKAGE) return
+        if (event?.packageName?.toString() !in TelegramUiPolicy.PACKAGES) return
         if (trainUntil != 0L) {
             if (event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
                 runCatching { handleTrainClick(event) }.onFailure { endTraining(TelegramUiPolicy.TrainStatus.ERROR) }
@@ -91,7 +97,9 @@ class TelegramUiService : AccessibilityService() {
 
     private fun unlocked() = getSystemService(android.os.PowerManager::class.java).isInteractive &&
         !getSystemService(android.app.KeyguardManager::class.java).isKeyguardLocked
-    private fun version(): Long = runCatching { packageManager.getPackageInfo(TelegramUiPolicy.PACKAGE, 0).longVersionCode }.getOrDefault(-1)
+    private fun version(): Long = TelegramUiPolicy.PACKAGES.firstNotNullOfOrNull { pkg -> runCatching { packageManager.getPackageInfo(pkg, 0).longVersionCode }.getOrNull() } ?: -1
+
+    private fun isTelegram(pkg: String?) = pkg != null && pkg in TelegramUiPolicy.PACKAGES
 
     private fun nodes(root: Node): List<Node> {
         val out = mutableListOf<Node>()
@@ -142,7 +150,7 @@ class TelegramUiService : AccessibilityService() {
 
     private fun launchTelegram() {
         try {
-            val launch = packageManager.getLaunchIntentForPackage(TelegramUiPolicy.PACKAGE) ?: error("Telegram отсутствует")
+            val launch = TelegramUiPolicy.PACKAGES.firstNotNullOfOrNull { packageManager.getLaunchIntentForPackage(it) } ?: error("Telegram отсутствует")
             startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             main.postDelayed(tick, 800)
         } catch (_: Exception) { finish("BLOCKED", "Android не разрешил открыть Telegram") }
@@ -163,7 +171,7 @@ class TelegramUiService : AccessibilityService() {
             }
             val root = rootInActiveWindow
             if (root == null) { main.postDelayed(tick, 500); return }
-            if (root.packageName?.toString() != TelegramUiPolicy.PACKAGE) {
+            if (!isTelegram(root.packageName?.toString())) {
                 if (SystemClock.elapsedRealtime() - p.started > 15_000) {
                     finish("BLOCKED", "Telegram не открылся за отведённое время"); return
                 }
@@ -253,6 +261,12 @@ class TelegramUiService : AccessibilityService() {
 
     private fun composePhase(p: Pending, all: List<Node>) {
         val input = editor(all) ?: run {
+            val ph = composerPlaceholder(all)
+            if (ph != null && !p.composerTried) {
+                p.composerTried = true
+                runCatching { (if (ph.isClickable) ph else clickableAncestor(ph))?.performAction(Node.ACTION_CLICK) }
+                main.postDelayed(tick, 900); return
+            }
             if (SystemClock.elapsedRealtime() - p.queryAt > 12_000) {
                 finish("BLOCKED", "Чат Telegram не открылся; поле сообщения не найдено")
             } else main.postDelayed(tick, 700)
@@ -377,7 +391,7 @@ class TelegramUiService : AccessibilityService() {
         override fun run() {
             val p = pending ?: return
             val editor = rootInActiveWindow
-                ?.takeIf { unlocked() && it.packageName?.toString() == TelegramUiPolicy.PACKAGE }
+                ?.takeIf { unlocked() && isTelegram(it.packageName?.toString()) }
                 ?.let { editor(nodes(it)) }
             if (editor == null) {
                 finish("TG_UI_UNKNOWN", "Нажатие выполнено; подтвердить результат по экрану не удалось. Проверьте сообщение у получателя; повторов нет")
@@ -417,17 +431,45 @@ class TelegramUiService : AccessibilityService() {
         if (now > trainUntil) { endTraining(TelegramUiPolicy.TrainStatus.TIMEOUT); return }
         if (trainTrial != null) { verifyTick(); main.postDelayed(trainTick, 700); return }
         val root = rootInActiveWindow ?: run { main.postDelayed(trainTick, 700); return }
-        if (root.packageName?.toString() != TelegramUiPolicy.PACKAGE) { main.postDelayed(trainTick, 700); return }
+        if (!isTelegram(root.packageName?.toString())) { main.postDelayed(trainTick, 700); return }
         val all = runCatching { nodes(root) }.getOrDefault(emptyList())
         val input = editor(all)
         if (input == null) {
             if (trainArmed) { endTraining(TelegramUiPolicy.TrainStatus.NO_EDITOR); return }
             trainTypeTried = false; trainEditorSeenAt = 0
             store.sendOutcome(TelegramUiPolicy.TrainStatus.WAIT_CHAT)
+            // Некоторые сборки Telegram держат поле ввода как некликабельную заглушку,
+            // пока в него не тапнут: будим настоящий редактор вместо вечного ожидания.
+            val ph = composerPlaceholder(all)
+            if (ph != null && now - trainFocusAt > 2500) {
+                trainFocusAt = now
+                runCatching { (if (ph.isClickable) ph else clickableAncestor(ph))?.performAction(Node.ACTION_CLICK) }
+            }
             main.postDelayed(trainTick, 700); return
         }
         if (trainEditorSeenAt == 0L) trainEditorSeenAt = now
         val draft = textOf(input)
+        // Черновик исчез сразу после подготовки: нажатие отправило сообщение, хотя
+        // Android не передал событие нажатия. Сохраняем кнопку, которую видели одной
+        // у поля ввода, — как жест, тем же способом, что в MAX.
+        if (trainArmed && lastArmedDraft == TelegramUiPolicy.TRAIN_TEXT && draft.isEmpty()) {
+            if (soleId != null) {
+                store.learnSend(TelegramUiPolicy.SendRule(version(), soleId!!, soleClass, soleDesc, true))
+                store.markVersion(version())
+                endTraining(TelegramUiPolicy.TrainStatus.SAVED)
+                toast("Кнопка отправки Telegram распознана и сохранена")
+            } else endTraining(TelegramUiPolicy.TrainStatus.SOURCE_MISSING)
+            return
+        }
+        lastArmedDraft = draft
+        if (trainArmed) {
+            val cands = sendCandidates(all, input)
+            if (cands.size == 1) {
+                soleId = cands.single().viewIdResourceName ?: ""
+                soleClass = cands.single().className?.toString() ?: ""
+                soleDesc = descOf(cands.single())
+            } else { soleId = null; soleClass = ""; soleDesc = "" }
+        }
         when {
             draft == TelegramUiPolicy.TRAIN_TEXT -> {
                 trainArmed = true
@@ -437,9 +479,20 @@ class TelegramUiService : AccessibilityService() {
             draft.isEmpty() && !trainTypeTried && now - trainEditorSeenAt > 1500 -> {
                 val args = Bundle().apply { putCharSequence(Node.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, TelegramUiPolicy.TRAIN_TEXT) }
                 if (runCatching { input.performAction(Node.ACTION_SET_TEXT, args) }.getOrDefault(false)) trainTypeTried = true
+                else {
+                    val anc = clickableAncestor(input)
+                    if (anc != null && now - trainFocusAt > 2000) { trainFocusAt = now; runCatching { anc.performAction(Node.ACTION_CLICK) } }
+                }
             }
         }
         main.postDelayed(trainTick, 600)
+    }
+
+    /** Некликабельная заглушка поля ввода, которую некоторые сборки Telegram показывают до первого касания. */
+    private fun composerPlaceholder(all: List<Node>): Node? = all.firstOrNull { n ->
+        n.isVisibleToUser && n.isEnabled && (
+            descOf(n).contains("сообщ", true) || descOf(n).contains("message", true) ||
+            textOf(n).contains("сообщ", true) || textOf(n).contains("Написать", true))
     }
 
     private fun handleTrainClick(event: AccessibilityEvent) {
@@ -452,15 +505,17 @@ class TelegramUiService : AccessibilityService() {
             chain += (n.viewIdResourceName ?: "") to (n.className?.toString() ?: "")
             cur = n.parent
         }
-        if (chain.isEmpty()) { endTraining(TelegramUiPolicy.TrainStatus.SOURCE_MISSING); return }
+
         val root = rootInActiveWindow
-        val all = if (root != null && root.packageName?.toString() == TelegramUiPolicy.PACKAGE) nodes(root) else emptyList()
+        val all = if (root != null && isTelegram(root.packageName?.toString())) nodes(root) else emptyList()
         val input = editor(all)
         val draft = textOf(input)
         if (input == null || (draft != TelegramUiPolicy.TRAIN_TEXT && !trainArmed)) {
             endTraining(TelegramUiPolicy.TrainStatus.FOREIGN); return
         }
         val candidates = sendCandidates(all, input!!)
+        // Отсутствие источника события допустимо только при однозначном ответе.
+        if (chain.isEmpty() && candidates.size != 1) { endTraining(TelegramUiPolicy.TrainStatus.SOURCE_MISSING); return }
         val target: Node? = run {
             val direct = chain.mapNotNull { step -> candidates.singleOrNull {
                 it.viewIdResourceName == step.first && it.className?.toString() == step.second } }
@@ -481,7 +536,7 @@ class TelegramUiService : AccessibilityService() {
     private fun verifyTick() {
         val trial = trainTrial ?: return
         val root = rootInActiveWindow
-        val all = if (root != null && root.packageName?.toString() == TelegramUiPolicy.PACKAGE) nodes(root) else emptyList()
+        val all = if (root != null && isTelegram(root.packageName?.toString())) nodes(root) else emptyList()
         val input = editor(all)
         if (input == null) {
             if (SystemClock.elapsedRealtime() - trainVerifyAt > 4000) { endTraining(TelegramUiPolicy.TrainStatus.NOT_SENT); return }
@@ -500,6 +555,7 @@ class TelegramUiService : AccessibilityService() {
     private fun endTraining(status: TelegramUiPolicy.TrainStatus) {
         trainUntil = 0L; trainArmed = false; trainToastShown = false; trainTypeTried = false
         trainEditorSeenAt = 0; trainVerifyAt = 0; trainTrial = null
+        lastArmedDraft = ""; soleId = null; soleClass = ""; soleDesc = ""
         main.removeCallbacks(trainTick)
         store.sendOutcome(status)
     }
