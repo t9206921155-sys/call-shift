@@ -74,7 +74,7 @@ class MaxUiStore(context: Context) {
     /** Reserve before editing/clicking. Errors and process death never cause an automatic retry. */
     @Synchronized fun reserve(): Boolean {
         val entries = Json.decodeFromString<List<SmsSafety.Reservation>>(p.getString("attempts", "[]")!!)
-        val next = SmsSafety.reserve(entries, System.currentTimeMillis(), 1, 5) ?: return false
+        val next = SmsSafety.reserve(entries, System.currentTimeMillis(), 1, 20) ?: return false
         check(p.edit().putString("attempts", Json.encodeToString(next)).commit())
         return true
     }

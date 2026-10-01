@@ -364,7 +364,7 @@ class MaxUiService : AccessibilityService() {
                     withContext(Dispatchers.Main) {
                         if (pending !== p) return@withContext
                         busy = false
-                        if (!reserved) { finish("BLOCKED", "Лимит MAX: 5 попыток за 24 часа, либо хранилище недоступно"); return@withContext }
+                        if (!reserved) { finish("BLOCKED", "Лимит MAX: 20 попыток за 24 часа, либо хранилище недоступно"); return@withContext }
                         // Recheck fresh UI before writing; do not retain stale node references across IO.
                         p.edited = true
                         val fresh = rootInActiveWindow
@@ -498,7 +498,8 @@ class MaxUiService : AccessibilityService() {
     private var sendEventUnresolved = false
     private var sendTrial: MaxSendTrainingPolicy.Rule? = null
     private data class SendSnapshot(val at: Long, val window: Int,
-        val identities: List<MaxSendTrainingPolicy.Candidate>, val shape: String)
+        val identities: List<MaxSendTrainingPolicy.Candidate>,
+        val rightIdentities: List<MaxSendTrainingPolicy.Candidate>, val shape: String)
     private var sendSnapshot: SendSnapshot? = null
     private var sendArmedAt = 0L
     private fun sendState(state: MaxSendTrainingPolicy.Status) {
@@ -584,7 +585,7 @@ class MaxUiService : AccessibilityService() {
                         // The outgoing message proves the send tap even when Android handed
                         // us no usable click source. Save only an unambiguous single
                         // right-half control of the live row: the paperclip drops out.
-                        val only = rightSideSingle(all)
+                        val only = snap.rightIdentities.singleOrNull() ?: rightSideSingle(all)
                         if (only != null) finishTrainingSave(MaxSendTrainingPolicy.Resolution(
                             MaxSendTrainingPolicy.ResolveReason.SOLE_CANDIDATE, only), snap)
                     }
@@ -601,10 +602,20 @@ class MaxUiService : AccessibilityService() {
                 if (sendDraft != draft) { sendDraft = draft; sendSnapshot = null; sendArmedAt = 0L; return } // arm only on a stable draft
                 val candidates = sendRowButtons(all, editor)
                 val shape = composerShape(all, editor)
+                // MAX hides the arrow as soon as the draft leaves, so the proof must use
+                // controls captured while the draft still exists: the send arrow is the
+                // single actionable control in the RIGHT half of the composer row.
+                val rights = candidates.filter { n ->
+                    val b = android.graphics.Rect().also { n.getBoundsInScreen(it) }
+                    !b.isEmpty && b.centerX() >= resources.displayMetrics.widthPixels / 2 &&
+                        !fi.callshift.app.domain.MaxSendActionPolicy.conflict(
+                            n.text?.toString(), n.contentDescription?.toString(), n.viewIdResourceName)
+                }.map { MaxSendTrainingPolicy.Candidate(it.viewIdResourceName.orEmpty(),
+                    it.className?.toString().orEmpty(), profileClickable(it)) }
                 sendSnapshot = if (candidates.isEmpty() || shape == null) null else
                     SendSnapshot(SystemClock.elapsedRealtime(), root.windowId,
                         candidates.map { MaxSendTrainingPolicy.Candidate(it.viewIdResourceName.orEmpty(),
-                            it.className?.toString().orEmpty(), profileClickable(it)) }, shape)
+                            it.className?.toString().orEmpty(), profileClickable(it)) }, rights, shape)
                 sendArmedAt = if (sendSnapshot == null) 0L else SystemClock.elapsedRealtime()
                 if (sendSnapshot == null && SystemClock.elapsedRealtime() - sendPhaseAt > 5000) {
                     endSendLearning(MaxSendTrainingPolicy.Status.NO_CANDIDATES); return
