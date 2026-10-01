@@ -268,6 +268,16 @@ class MaxUiService : AccessibilityService() {
             main.postDelayed(tick, 700)
         } catch (_: Exception) { finish("BLOCKED", "Android не разрешил открыть MAX") }
     }
+    /** A draft byte-identical to this run's own test text is the app's leftover from a
+     * stopped earlier attempt: clear it once and continue. Anything else is the user's
+     * content and is never touched. */
+    private fun clearOwnLeftover(p: Pending, draft: String, input: Node): Boolean {
+        if (p.edited || draft != p.text) return false
+        val args = Bundle().apply { putCharSequence(Node.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "") }
+        val cleared = runCatching { input.performAction(Node.ACTION_SET_TEXT, args) }.getOrDefault(false)
+        if (cleared) log(p.event, "UI_CHECKED", "Очищен остаточный черновик предыдущей проверки CallShift")
+        return cleared
+    }
     private fun step() {
         if (busy) return
         val p = pending ?: return
@@ -336,14 +346,22 @@ class MaxUiService : AccessibilityService() {
             }
             if (!p.edited && input != null && h.size == 1 && searchFields(all).isEmpty() &&
                 MaxUiPolicy.phone(h.single().text.toString()) == null && !p.skipCurrentProfile && p.profile == null) {
-                if (draft.isNotEmpty()) { finish("BLOCKED", "В чате есть черновик или MAX не обозначил подсказку как подсказку. Поле не изменено; смотрите Editor flags в отчёте"); return }
+                if (draft.isNotEmpty() && !clearOwnLeftover(p, draft, input)) {
+                    finish("BLOCKED", "В чате есть черновик или MAX не обозначил подсказку как подсказку. Поле не изменено; смотрите Editor flags в отчёте")
+                    return
+                }
+                if (draft.isNotEmpty()) { main.postDelayed(tick, 400); return }
                 openProfile(p, root, h.single(), input)
                 return
             }
             if (!p.edited) {
                 val correctChat = h.size == 1 && MaxSearchPolicy.equivalent(checkedRecipient(p, h.singleOrNull(), input), p.number)
                 if (!correctChat || (p.query != null && p.selectedAt == null) || searchFields(all).isNotEmpty()) {
-                    if (draft.isNotEmpty()) { finish("BLOCKED", "В открытом чате есть черновик — поиск не запускается"); return }
+                    if (draft.isNotEmpty() && !clearOwnLeftover(p, draft, input!!)) {
+                        finish("BLOCKED", "В открытом чате есть черновик — поиск не запускается")
+                        return
+                    }
+                    if (draft.isNotEmpty()) { main.postDelayed(tick, 400); return }
                     if (p.query == null && !p.globalSearchConfirmed && input != null && h.size == 1 && searchFields(all).isEmpty()) {
                         returnToChatList(p, root, h.single(), input)
                     } else search(p, root, all)
