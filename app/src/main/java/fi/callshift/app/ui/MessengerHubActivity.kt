@@ -47,9 +47,23 @@ class MessengerHubActivity : AppCompatActivity() {
     )
 
     private val cards = LinkedHashMap<String, Card>()
+    private var fault: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Ошибка на конкретном устройстве должна быть ВИДНА текстом, а не пустым экраном.
+        runCatching { buildScreen() }.onFailure { fail ->
+            setContentView(TextView(this).apply {
+                val p = (20 * resources.displayMetrics.density).toInt()
+                setPadding(p, p, p, p)
+                textSize = 14f
+                setTextColor(ContextCompat.getColor(this@MessengerHubActivity, R.color.text_primary))
+                text = "Раздел «Мессенджеры» не открылся: ${fail.javaClass.simpleName}: ${fail.message}.\nПришлите этот текст целиком.\n\nВерсия ${fi.callshift.app.BuildConfig.VERSION_NAME} (${fi.callshift.app.BuildConfig.VERSION_CODE})"
+            })
+        }
+    }
+
+    private fun buildScreen() {
         val scroll = android.widget.ScrollView(this).apply {
             setBackgroundColor(ContextCompat.getColor(this@MessengerHubActivity, R.color.brand_primary))
         }
@@ -132,11 +146,27 @@ class MessengerHubActivity : AppCompatActivity() {
             root.addView(it)
         }
 
+        TextView(this).apply {
+            textSize = 12f
+            setTextColor(ContextCompat.getColor(this@MessengerHubActivity, R.color.text_muted))
+            text = "CallShift ${fi.callshift.app.BuildConfig.VERSION_NAME} (${fi.callshift.app.BuildConfig.VERSION_CODE})"
+            setPadding(0, (12 * resources.displayMetrics.density).toInt(), 0, 0)
+        }.let { root.addView(it) }
+        TextView(this).apply {
+            textSize = 13f
+            setTextColor(ContextCompat.getColor(this@MessengerHubActivity, R.color.status_error))
+            setPadding(0, (8 * resources.displayMetrics.density).toInt(), 0, 0)
+            visibility = View.GONE
+        }.let { fault = it; root.addView(it) }
+
         setContentView(scroll)
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 while (true) {
-                    refresh()
+                    runCatching { refresh() }.onFailure { f ->
+                        fault?.visibility = View.VISIBLE
+                        fault?.text = "Ошибка обновления: ${f.javaClass.simpleName}: ${f.message}"
+                    }
                     delay(1000)
                 }
             }
