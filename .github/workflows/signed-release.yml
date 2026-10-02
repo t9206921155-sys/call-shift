@@ -118,3 +118,4 @@ jobs:
 # v32: never drop a Telegram attempt silently; explicit service-off refusal.
 # v33: hub rebuilt on classic XML layout (view binding).
 # v34: on-screen diagnosis strip and clipboard report.
+# v35: fix duplicated card ids in the hub layout.
