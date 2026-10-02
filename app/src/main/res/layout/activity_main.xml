@@ -301,6 +301,15 @@
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
+    <TextView
+        android:id="@+id/versionFooter"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:paddingStart="16dp" android:paddingEnd="16dp" android:paddingBottom="20dp"
+        android:textSize="12sp"
+        android:textColor="@color/text_muted" />
+
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabAddRule"
         android:layout_width="wrap_content"

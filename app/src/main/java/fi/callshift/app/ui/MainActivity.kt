@@ -60,6 +60,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding = ActivityMainBinding.inflate(layoutInflater)
+        binding.versionFooter.text = "CallShift ${fi.callshift.app.BuildConfig.VERSION_NAME} (${fi.callshift.app.BuildConfig.VERSION_CODE})"
         setContentView(binding.root)
 
         setupListeners()

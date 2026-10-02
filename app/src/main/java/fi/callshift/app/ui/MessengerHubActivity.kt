@@ -37,6 +37,13 @@ class MessengerHubActivity : AppCompatActivity() {
         runCatching {
             binding = ActivityMessengerHubBinding.inflate(layoutInflater)
             binding.footerVersion.text = "CallShift ${fi.callshift.app.BuildConfig.VERSION_NAME} (${fi.callshift.app.BuildConfig.VERSION_CODE})"
+            binding.diagHeader.text = "Версия ${fi.callshift.app.BuildConfig.VERSION_NAME} (${fi.callshift.app.BuildConfig.VERSION_CODE}). Если видна только эта строка без разделов — нажмите кнопку ниже и пришлите текст."
+            binding.diagCopy.setOnClickListener { copyDiagnosis() }
+            binding.root.postDelayed({
+                if (!isDestroyed && !binding.maxHeader.isShown && !binding.tgHeader.isShown) {
+                    binding.diagHeader.text = "⚠ Разделы не отображаются на этом устройстве. Нажмите «Скопировать диагноз экрана» и пришлите текст."
+                }
+            }, 1500)
             wire()
             setContentView(binding.root)
             lifecycleScope.launch {
@@ -172,6 +179,29 @@ class MessengerHubActivity : AppCompatActivity() {
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
+
+    /** Полная сводка состояния экрана в буфер обмена: вместо догадок — факты устройства. */
+    private fun copyDiagnosis() {
+        val d = resources.displayMetrics
+        val night = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+        fun part(name: String, header: TextView, chip: TextView, next: TextView) =
+            "$name: shown=${header.isShown} height=${header.height}, статус=\"${chip.text}\", шаг=\"${next.text}\""
+        val report = buildString {
+            appendLine("Диагностика «Мессенджеров»")
+            appendLine("Версия: ${fi.callshift.app.BuildConfig.VERSION_NAME} (${fi.callshift.app.BuildConfig.VERSION_CODE})")
+            appendLine("Устройство: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}, Android ${android.os.Build.VERSION.SDK_INT}")
+            appendLine("Экран: ${d.widthPixels}x${d.heightPixels}, dpi=${d.densityDpi}, density=${d.density}, ночная тема=$night")
+            appendLine("Служба MAX=${MaxUiService.connected}, Telegram=${fi.callshift.app.telegram.TelegramUiService.connected}")
+            appendLine(part("MAX", binding.maxHeader, binding.maxChip, binding.maxNext))
+            appendLine(part("Telegram", binding.tgHeader, binding.tgChip, binding.tgNext))
+            appendLine(part("SMS", binding.smsHeader, binding.smsChip, binding.smsNext))
+            appendLine("Верхняя строка: shown=${binding.diagHeader.isShown} height=${binding.diagHeader.height}")
+            appendLine("Ошибки: ${binding.faultText.text}")
+        }
+        getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(
+            android.content.ClipData.newPlainText("CallShift diagnosis", report))
+        toast("Скопировано — пришлите текст в чат")
+    }
 
     private fun askLimit(title: String, current: Int, save: (Int) -> Unit) {
         val input = EditText(this).apply {
