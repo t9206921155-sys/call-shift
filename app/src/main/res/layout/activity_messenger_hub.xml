@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@color/brand_primary"
+    android:fillViewport="true">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="16dp">
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Мессенджеры" android:textSize="22sp" android:textStyle="bold"
+            android:textColor="@color/text_primary"/>
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Статус, лимит и настройка каждого канала. Канал выбирается в правиле звонка."
+            android:textSize="13sp" android:textColor="@color/text_secondary"
+            android:paddingBottom="10dp"/>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            app:cardBackgroundColor="@color/surface_card" app:cardCornerRadius="16dp"
+            app:strokeColor="@color/card_stroke" app:strokeWidth="1dp" app:cardElevation="0dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="16dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="MAX" android:textSize="18sp" android:textStyle="bold"
+                        android:textColor="@color/text_primary"/>
+                    <Space android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1"/>
+                    <TextView android:id="@+id/maxChip" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:textSize="13sp"
+                        android:textStyle="bold" android:paddingStart="10dp" android:paddingEnd="10dp"/>
+                </LinearLayout>
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="Автоответ через приложение MAX" android:textSize="13sp"
+                    android:textColor="@color/text_muted"/>
+                <TextView android:id="@+id/maxNext" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold"
+                    android:paddingTop="6dp"/>
+                <TextView android:id="@+id/maxUsage" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:textSize="13sp"
+                    android:textColor="@color/text_secondary" android:paddingTop="2dp"/>
+                <com.google.android.material.button.MaterialButton android:id="@+id/maxLimit"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp" android:textAllCaps="false"/>
+                <TextView android:id="@+id/maxToggle" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:text="Подробнее ▸"
+                    android:textSize="13sp" android:textStyle="bold" android:gravity="end"
+                    android:textColor="@color/brand_accent" android:paddingTop="6dp"/>
+                <TextView android:id="@+id/maxDetails" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:textSize="13sp"
+                    android:textColor="@color/text_secondary" android:visibility="gone"/>
+                <com.google.android.material.button.MaterialButton android:id="@+id/maxOpen"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp" android:textAllCaps="false"
+                    android:text="Настройка MAX"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="@color/surface_card" app:cardCornerRadius="16dp"
+            app:strokeColor="@color/card_stroke" app:strokeWidth="1dp" app:cardElevation="0dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="16dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Telegram" android:textSize="18sp" android:textStyle="bold"
+                        android:textColor="@color/text_primary"/>
+                    <Space android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1"/>
+                    <TextView android:id="@+id/tgChip" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:textSize="13sp"
+                        android:textStyle="bold" android:paddingStart="10dp" android:paddingEnd="10dp"/>
+                </LinearLayout>
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="Автоответ через Telegram" android:textSize="13sp"
+                    android:textColor="@color/text_muted"/>
+                <TextView android:id="@+id/tgNext" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold"
+                    android:paddingTop="6dp"/>
+                <TextView android:id="@+id/tgUsage" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:textSize="13sp"
+                    android:textColor="@color/text_secondary" android:paddingTop="2dp"/>
+                <com.google.android.material.button.MaterialButton android:id="@+id/tgLimit"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp" android:textAllCaps="false"/>
+                <TextView android:id="@+id/tgToggle" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:text="Подробнее ▸"
+                    android:textSize="13sp" android:textStyle="bold" android:gravity="end"
+                    android:textColor="@color/brand_accent" android:paddingTop="6dp"/>
+                <TextView android:id="@+id/tgDetails" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:textSize="13sp"
+                    android:textColor="@color/text_secondary" android:visibility="gone"/>
+                <com.google.android.material.button.MaterialButton android:id="@+id/tgOpen"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp" android:textAllCaps="false"
+                    android:text="Аккаунт Telegram и имитация"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="@color/surface_card" app:cardCornerRadius="16dp"
+            app:strokeColor="@color/card_stroke" app:strokeWidth="1dp" app:cardElevation="0dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="16dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="SMS" android:textSize="18sp" android:textStyle="bold"
+                        android:textColor="@color/text_primary"/>
+                    <Space android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1"/>
+                    <TextView android:id="@+id/smsChip" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:textSize="13sp"
+                        android:textStyle="bold" android:paddingStart="10dp" android:paddingEnd="10dp"/>
+                </LinearLayout>
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="Ответы SMS по правилам" android:textSize="13sp"
+                    android:textColor="@color/text_muted"/>
+                <TextView android:id="@+id/smsNext" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold"
+                    android:paddingTop="6dp"/>
+                <TextView android:id="@+id/smsUsage" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:textSize="13sp"
+                    android:textColor="@color/text_secondary" android:paddingTop="2dp"/>
+                <com.google.android.material.button.MaterialButton android:id="@+id/smsLimit"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp" android:textAllCaps="false"/>
+                <TextView android:id="@+id/smsToggle" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:text="Подробнее ▸"
+                    android:textSize="13sp" android:textStyle="bold" android:gravity="end"
+                    android:textColor="@color/brand_accent" android:paddingTop="6dp"/>
+                <TextView android:id="@+id/smsDetails" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:textSize="13sp"
+                    android:textColor="@color/text_secondary" android:visibility="gone"/>
+                <com.google.android.material.button.MaterialButton android:id="@+id/smsRules"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp" android:textAllCaps="false"
+                    android:text="Правила SMS"/>
+                <com.google.android.material.button.MaterialButton android:id="@+id/smsSafety"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp" android:textAllCaps="false"
+                    android:text="Защита, расходы и копия"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView android:id="@+id/faultText" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:textSize="13sp"
+            android:textColor="@color/status_error" android:paddingTop="8dp"
+            android:visibility="gone"/>
+        <TextView android:id="@+id/footerVersion" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:textSize="12sp"
+            android:textColor="@color/text_muted" android:paddingTop="12dp"/>
+    </LinearLayout>
+</ScrollView>
