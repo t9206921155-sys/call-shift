@@ -109,7 +109,7 @@ class SmsAutoReplier(
                     check(prefs.edit().putLong(key, now).commit()) { "Не удалось сохранить попытку Telegram" }
                     if (fi.callshift.app.telegram.TelegramUiStore(appContext).enabled) {
                         // Imitation mode: same principle as MAX, one attempt, no retries.
-                        fi.callshift.app.telegram.TelegramUiService.submit(
+                        fi.callshift.app.telegram.TelegramUiService.submit(appContext,
                             event(ctx, decision, "TG_UI_PENDING", null,
                                 "Telegram: готовим имитацию касаний в приложении").copy(eventId = java.util.UUID.randomUUID().toString()),
                             r.number, r.text)

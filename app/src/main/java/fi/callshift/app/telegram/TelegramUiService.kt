@@ -36,6 +36,7 @@ class TelegramUiService : AccessibilityService() {
         var edited = false
         var clearedLeftover = false
         var composerTried = false
+        var composerFocused = false
         var backTried = false
         var saidOpen = false
         var saidSearch = false
@@ -314,6 +315,11 @@ class TelegramUiService : AccessibilityService() {
         if (!p.saidCompose) { p.saidCompose = true; toast("Telegram: вводим текст ответа…") }
         val args = Bundle().apply { putCharSequence(Node.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, p.text) }
         if (!runCatching { input.performAction(Node.ACTION_SET_TEXT, args) }.getOrDefault(false)) {
+            if (!p.composerFocused) {
+                p.composerFocused = true
+                runCatching { clickableAncestor(input)?.performAction(Node.ACTION_CLICK) }
+                main.postDelayed(tick, 800); return
+            }
             if (SystemClock.elapsedRealtime() - p.sendWaitAt > 6000 && p.sendWaitAt != 0L) {
                 finish("BLOCKED", "Android не позволил ввести текст в поле Telegram"); return
             }
@@ -648,8 +654,18 @@ class TelegramUiService : AccessibilityService() {
         }
         fun endSendTraining() { instance?.main?.post { instance?.endTraining(TelegramUiPolicy.TrainStatus.STOPPED) } }
         fun stopNow() { instance?.main?.post { instance?.stop("Остановлено пользователем") } }
-        fun submit(event: CallEvent, number: String, text: String) {
-            val service = instance ?: return
+        fun submit(context: android.content.Context, event: CallEvent, number: String, text: String) {
+            val service = instance
+            if (service == null) {
+                // Молчаливая потеря попытки = «сценарий висит». Отказ обязан попасть в журнал.
+                val app = CallShiftApp.from(context)
+                app.appScope.launch {
+                    runCatching { app.eventStore.record(event.copy(result = "BLOCKED",
+                        errorMessage = "Служба «CallShift — Telegram (имитация касаний)» не включена (или выключена Android). Включите её: Настройки → Спец. возможности. Сообщение не отправлено; повторов нет",
+                        errorCode = "telegram_ui_SERVICE_OFF")) }
+                }
+                return
+            }
             service.main.post { service.begin(event, number, text) }
         }
     }
