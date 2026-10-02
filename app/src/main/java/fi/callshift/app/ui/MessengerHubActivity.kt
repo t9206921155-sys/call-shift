@@ -98,7 +98,8 @@ class MessengerHubActivity : AppCompatActivity() {
         }
         tgCard.details.text = """
             • Два режима: имитация касаний (как MAX: приложение само открывает Telegram, находит чат по номеру и нажимает обученную кнопку; аккаунт в CallShift не нужен) или ваш аккаунт (TDLib).
-            • Имитация включается на экране «Аккаунт Telegram»: служба, обучение кнопки, разрешение реальной отправки.
+            • Имитация включается на экране «Аккаунт Telegram»: включите службу и разрешите реальную отправку. Кнопка определяется автоматически, обучение не нужно (запасной режим для нестандартных сборок).
+            • Массовое развёртывание: на каждом телефоне — только эти два переключателя; обучение и перенос кодом не требуются.
             • Номер подтверждается перед отправкой; боты, свой аккаунт и непроверенные номера запрещены. Лимит списывается до отправки; ошибкам поиска бюджет не тратится.
         """.trimIndent()
         tgCard.root.addView(button("Аккаунт Telegram и имитация") {
@@ -163,7 +164,6 @@ class MessengerHubActivity : AppCompatActivity() {
                 out += "выберите режим: имитация или аккаунт — на экране «Аккаунт Telegram»"
         } else {
             if (!fi.callshift.app.telegram.TelegramUiService.connected) out += "включите службу Telegram в спец. возможностях Android"
-            if (tgUi.learnedSend() == null) out += "обучите кнопку отправки Telegram"
             if (!tgUi.live) out += "разрешите реальную отправку"
         }
         return out
@@ -192,7 +192,7 @@ class MessengerHubActivity : AppCompatActivity() {
         set("Telegram", tgIssues(),
             if (tgUi.enabled) "Имитация касаний: ${if (tgUi.live) "реальная отправка" else "проверка без отправки"}"
             else "Режим аккаунта (TDLib)",
-            "Использовано за 24ч — счётчик ниже; кнопка ${if (tgUi.learnedSend() != null || !tgUi.enabled) "в порядке" else "не обучена"}")
+            "Кнопка отправки: определяется автоматически")
 
         set("SMS", smsIssues(), "Разрешение есть", "Лимит ${app.settings.smsDailyLimit} частей/24ч")
 

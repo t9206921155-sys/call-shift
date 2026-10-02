@@ -352,13 +352,10 @@ class TelegramUiService : AccessibilityService() {
                     else -> { finish("BLOCKED", "Обученная кнопка отправки соответствует нескольким элементам; отправка запрещена"); return }
                 }
             }
-            else -> when (candidates.size) {
-                1 -> candidates.single()
-                0 -> { finish("BLOCKED", "Кнопка отправки Telegram не распознана. Обучите кнопку отправки в настройках Telegram"); return }
-                else -> { finish("BLOCKED", "Возле поля несколько кнопок отправки; выбор неоднозначен. Обучите кнопку отправки в настройках Telegram"); return }
-            }
+            else -> pickBuiltIn(candidates, input!!)
         }
-        if (!target!!.refresh() || !target.isVisibleToUser || !target.isEnabled) {
+        if (target == null) { finish("BLOCKED", "Кнопка отправки Telegram не найдена на экране. Откройте чат заново или обучите кнопку в настройках"); return }
+        if (!target.refresh() || !target.isVisibleToUser || !target.isEnabled) {
             finish("BLOCKED", "Кнопка отправки стала недоступной в момент нажатия"); return
         }
         if (p.dry) {
@@ -382,6 +379,18 @@ class TelegramUiService : AccessibilityService() {
             val b = Rect(); n.getBoundsInScreen(b)
             b.width() > 0 && b.height() > 0 && b.left >= bounds.left && b.top >= bounds.top - bounds.height() * 2 &&
                 b.top <= bounds.bottom + bounds.height() * 2
+        }
+    }
+
+    /** Встроенное правило (константа приложения): среди элементов ряда ввода с
+     * признаком «отправить» берём самый правый — Telegram всегда держит кнопку
+     * отправки правее микрофона и скрепки. Обучение не требуется. */
+    private fun pickBuiltIn(candidates: List<Node>, input: Node): Node? {
+        if (candidates.isEmpty()) return null
+        val ib = android.graphics.Rect(); input.getBoundsInScreen(ib)
+        return candidates.maxByOrNull { c ->
+            val b = android.graphics.Rect(); c.getBoundsInScreen(b)
+            b.left + if (b.top >= ib.top - ib.height() * 2) 1_000_000 else 0
         }
     }
 

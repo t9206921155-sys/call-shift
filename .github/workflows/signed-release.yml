@@ -1,4 +1,4 @@
-name: Publish signed CallShift 0.8.46-tg-train-auto
+name: Publish signed CallShift 0.8.47-tg-builtin
 # Validate profile return and opener event snapshots before publishing.
 on:
   push:
@@ -26,7 +26,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test "$(gh release view v0.8.46-tg-train-auto --json isDraft --jq '.isDraft')" = true || { echo '::error::Refusing to replace a published release.'; exit 1; }
+          test "$(gh release view v0.8.47-tg-builtin --json isDraft --jq '.isDraft')" = true || { echo '::error::Refusing to replace a published release.'; exit 1; }
       - name: Download the original signed APK as identity reference
         uses: actions/download-artifact@v4
         with:
@@ -48,7 +48,7 @@ jobs:
         run: |
           set -eo pipefail
           chmod +x gradlew
-          if ! ./gradlew :app:testStandardDebugUnitTest :app:assembleStandardRelease -PrequireReleaseSigning=true -PversionCode=78 -PversionName=0.8.46-tg-train-auto --no-daemon 2>&1 | tee "$RUNNER_TEMP/build.log"; then
+          if ! ./gradlew :app:testStandardDebugUnitTest :app:assembleStandardRelease -PrequireReleaseSigning=true -PversionCode=79 -PversionName=0.8.47-tg-builtin --no-daemon 2>&1 | tee "$RUNNER_TEMP/build.log"; then
             grep -E "^e: |error:|FAILED|Caused by:|What went wrong|expected:|but was:|Exception" "$RUNNER_TEMP/build.log" | head -40 | cut -c1-900 | while IFS= read -r line; do
               echo "::error::$line"
             done
@@ -65,16 +65,16 @@ jobs:
           "$signer" verify --verbose --print-certs "${originals[0]}" > "$RUNNER_TEMP/original-signature.txt"
           grep -Fi "certificate SHA-256 digest: $expected" "$RUNNER_TEMP/original-signature.txt"
           mkdir -p release-public
-          cp app/build/outputs/apk/standard/release/app-standard-release.apk release-public/CallShift-0.8.46-tg-train-auto.apk
+          cp app/build/outputs/apk/standard/release/app-standard-release.apk release-public/CallShift-0.8.47-tg-builtin.apk
           cp "$RUNNER_TEMP/callshift-certificate.pem" release-public/certificate.pem
-          "$signer" verify --verbose --print-certs release-public/CallShift-0.8.46-tg-train-auto.apk > release-public/signature-verification.txt
+          "$signer" verify --verbose --print-certs release-public/CallShift-0.8.47-tg-builtin.apk > release-public/signature-verification.txt
           grep -Fi "certificate SHA-256 digest: $expected" release-public/signature-verification.txt
-          (cd release-public && sha256sum CallShift-0.8.46-tg-train-auto.apk > SHA256SUMS.txt)
+          (cd release-public && sha256sum CallShift-0.8.47-tg-builtin.apk > SHA256SUMS.txt)
           echo "Certificate SHA-256: $expected" >> "$GITHUB_STEP_SUMMARY"
       - name: Retain only public release files
         uses: actions/upload-artifact@v4
         with:
-          name: CallShift-0.8.46-tg-train-auto-verified-release
+          name: CallShift-0.8.47-tg-builtin-verified-release
           path: release-public/
           if-no-files-found: error
       - name: Upload APK and publish the existing draft
@@ -83,9 +83,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(gh release view v0.8.46-tg-train-auto --json isDraft --jq '.isDraft')" = true
-          gh release upload v0.8.46-tg-train-auto release-public/CallShift-0.8.46-tg-train-auto.apk release-public/certificate.pem release-public/signature-verification.txt release-public/SHA256SUMS.txt --clobber
-          gh release edit v0.8.46-tg-train-auto --target "$GITHUB_SHA" --title 'CallShift 0.8.46-tg-train-auto' --notes-file docs/RELEASE_TG_TRAIN_AUTO.md --draft=false --prerelease --latest=false
+          test "$(gh release view v0.8.47-tg-builtin --json isDraft --jq '.isDraft')" = true
+          gh release upload v0.8.47-tg-builtin release-public/CallShift-0.8.47-tg-builtin.apk release-public/certificate.pem release-public/signature-verification.txt release-public/SHA256SUMS.txt --clobber
+          gh release edit v0.8.47-tg-builtin --target "$GITHUB_SHA" --title 'CallShift 0.8.47-tg-builtin' --notes-file docs/RELEASE_TG_BUILTIN.md --draft=false --prerelease --latest=false
       - name: Remove private material
         if: always()
         run: rm -f "$RUNNER_TEMP/callshift-signing.p12"
@@ -113,3 +113,4 @@ jobs:
 # v27: smart-cast friendly package guard.
 # v28: observable Telegram flow: back-to-list retry, focused field, progress toasts.
 # v29: training autopilot: opens Telegram and Saved Messages, types by itself.
+# v30: built-in send-button rule; training optional, ready for fleet rollout.

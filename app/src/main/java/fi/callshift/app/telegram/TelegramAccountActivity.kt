@@ -101,14 +101,9 @@ class TelegramAccountActivity : AppCompatActivity() {
             }
         })
         val liveSwitch = ui.add(SwitchMaterial(this).apply {
-            text = "Разрешить реальную отправку (после обучения кнопки)"
+            text = "Разрешить реальную отправку"
             setTextColor(getColor(fi.callshift.app.R.color.text_primary))
             setOnCheckedChangeListener { _, checked ->
-                if (checked && TelegramUiStore(this@TelegramAccountActivity).learnedSend() == null) {
-                    isChecked = false
-                    Toast.makeText(this@TelegramAccountActivity, "Сначала обучите кнопку отправки", Toast.LENGTH_LONG).show()
-                    return@setOnCheckedChangeListener
-                }
                 val s = TelegramUiStore(this@TelegramAccountActivity)
                 runCatching { s.modes(s.enabled, checked) }
                     .onFailure { Toast.makeText(this@TelegramAccountActivity, "Не удалось сохранить", Toast.LENGTH_LONG).show() }
@@ -133,7 +128,7 @@ class TelegramAccountActivity : AppCompatActivity() {
                 }
             }
         })
-        ui.hint("Обучение: CallShift введёт тестовый текст в безопасном чате — нажмите кнопку отправки один раз. Сохраняется только форма кнопки, не получатель.")
+        ui.hint("Кнопка отправки определяется автоматически — обучение не нужно. Пункт выше только для нестандартных сборок Telegram, если автоматическая отправка не срабатывает.")
         ui.add(MaterialButton(this).apply {
             text = "Выйти из Telegram и выключить автоответы"
             setOnClickListener {
