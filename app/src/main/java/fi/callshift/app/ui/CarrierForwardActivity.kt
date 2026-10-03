@@ -37,10 +37,10 @@ class CarrierForwardActivity : AppCompatActivity() {
         }
 
         val simLabels = simAccounts.map { it.second }
-        binding.spinnerSim.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, simLabels)
+        binding.spinnerSim.adapter = darkSpinnerAdapter(this, simLabels)
 
         val mmiLabels = mmiServices.map { "${it.code} — ${it.labelRu}" }
-        binding.spinnerMmiCode.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, mmiLabels)
+        binding.spinnerMmiCode.adapter = darkSpinnerAdapter(this, mmiLabels)
     }
 
     private fun setupListeners() {

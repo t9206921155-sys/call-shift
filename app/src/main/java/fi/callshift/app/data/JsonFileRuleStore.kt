@@ -62,8 +62,9 @@ class JsonFileRuleStore(
     }
 
     private fun readFromDisk(): List<Rule> = try {
-        if (!file.exists()) emptyList()
-        else json.decodeFromString<RuleFile>(file.readText()).rules
+        val atomic = android.util.AtomicFile(file)
+        if (!file.exists() && !File(file.path + ".bak").exists()) emptyList()
+        else json.decodeFromString<RuleFile>(atomic.openRead().bufferedReader().use { it.readText() }).rules
             .sortedBy { it.priority }
     } catch (t: Throwable) {
         runCatching { file.renameTo(File(file.parentFile, "$FILE_NAME.corrupt-${System.currentTimeMillis()}")) }
@@ -72,13 +73,12 @@ class JsonFileRuleStore(
 
     private fun writeLocked(rules: List<Rule>) {
         val sorted = rules.sortedBy { it.priority }
-        val tmp = File(file.parentFile, "$FILE_NAME.tmp")
-        tmp.writeText(json.encodeToString(RuleFile(rules = sorted)))
-        if (file.exists()) file.delete()
-        if (!tmp.renameTo(file)) {
-            file.writeText(json.encodeToString(RuleFile(rules = sorted)))
-            tmp.delete()
-        }
+        val atomic = android.util.AtomicFile(file)
+        val stream = atomic.startWrite()
+        try {
+            stream.write(json.encodeToString(RuleFile(rules = sorted)).toByteArray(Charsets.UTF_8))
+            atomic.finishWrite(stream)
+        } catch (error: Exception) { atomic.failWrite(stream); throw error }
         cache = sorted
     }
 
@@ -116,8 +116,7 @@ class JsonFileRuleStore(
     }
 
     override suspend fun replaceAll(rules: List<Rule>) = withContext(io) {
-        mutex.withLock { writeLocked(rules) }
-        loaded = true
+        mutex.withLock { writeLocked(rules); loaded = true }
     }
 
     override suspend fun nextId(): Long = withContext(io) {

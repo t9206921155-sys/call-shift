@@ -1,0 +1,136 @@
+name: Publish signed CallShift 0.8.54-one-place
+# Validate profile return and opener event snapshots before publishing.
+on:
+  push:
+    branches: [arena/01a0d923-call-shift]
+    paths: [.github/workflows/signed-release.yml, scripts/restore-signing.sh]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: callshift-production-release
+  cancel-in-progress: true
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Require the existing unpublished release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(gh release view v0.8.54-one-place --json isDraft --jq '.isDraft')" = true || { echo '::error::Refusing to replace a published release.'; exit 1; }
+      - name: Download the original signed APK as identity reference
+        uses: actions/download-artifact@v4
+        with:
+          name: CallShift-signed-release-apk
+          run-id: 36305423377
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/original-signed-apk
+      - name: Restore existing key (never generate a key)
+        env:
+          CALLSHIFT_SIGNING_KEY: ${{ secrets.CALLSHIFT_SIGNING_KEY }}
+          CALLSHIFT_STORE_PASSWORD: ${{ secrets.CALLSHIFT_STORE_PASSWORD }}
+        run: bash scripts/restore-signing.sh
+      - name: Test and build release
+        env:
+          CALLSHIFT_STORE_PASSWORD: ${{ secrets.CALLSHIFT_STORE_PASSWORD }}
+          CALLSHIFT_KEY_PASSWORD: ${{ secrets.CALLSHIFT_STORE_PASSWORD }}
+          CALLSHIFT_KEY_ALIAS: callshift
+          CALLSHIFT_KEYSTORE: ${{ runner.temp }}/callshift-signing.p12
+        run: |
+          set -eo pipefail
+          chmod +x gradlew
+          if ! ./gradlew :app:testStandardDebugUnitTest :app:assembleStandardRelease -PrequireReleaseSigning=true -PversionCode=86 -PversionName=0.8.54-one-place --no-daemon 2>&1 | tee "$RUNNER_TEMP/build.log"; then
+            grep -E "^e: |error:|FAILED|Caused by:|What went wrong|expected:|but was:|Exception" "$RUNNER_TEMP/build.log" | head -40 | cut -c1-900 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit 1
+          fi
+          # Компактная сборка: только arm64-v8a (в 3-4 раза меньше для обычных телефонов).
+          cp app/build/outputs/apk/standard/release/app-standard-release.apk "$RUNNER_TEMP/universal-signed.apk"
+          if ! ./gradlew :app:assembleStandardRelease -PrequireReleaseSigning=true -PversionCode=86 -PversionName=0.8.54-one-place -PabiFilter=arm64-v8a --no-daemon 2>&1 | tee -a "$RUNNER_TEMP/build.log"; then
+            echo "::error::compact arm64 build failed"
+            exit 1
+          fi
+          cp app/build/outputs/apk/standard/release/app-standard-release.apk "$RUNNER_TEMP/arm64-signed.apk"
+          cp "$RUNNER_TEMP/universal-signed.apk" app/build/outputs/apk/standard/release/app-standard-release.apk
+      - name: Verify original and new APK signatures against restored certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          signer=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          mapfile -t originals < <(find "$RUNNER_TEMP/original-signed-apk" -name '*.apk')
+          test "${#originals[@]}" -eq 1
+          expected=$(openssl x509 -in "$RUNNER_TEMP/callshift-certificate.pem" -outform DER | sha256sum | cut -d' ' -f1)
+          "$signer" verify --verbose --print-certs "${originals[0]}" > "$RUNNER_TEMP/original-signature.txt"
+          grep -Fi "certificate SHA-256 digest: $expected" "$RUNNER_TEMP/original-signature.txt"
+          mkdir -p release-public
+          cp app/build/outputs/apk/standard/release/app-standard-release.apk release-public/CallShift-0.8.54-one-place.apk
+          cp "$RUNNER_TEMP/callshift-certificate.pem" release-public/certificate.pem
+          "$signer" verify --verbose --print-certs release-public/CallShift-0.8.54-one-place.apk > release-public/signature-verification.txt
+          grep -Fi "certificate SHA-256 digest: $expected" release-public/signature-verification.txt
+          (cd release-public && sha256sum CallShift-0.8.54-one-place.apk > SHA256SUMS.txt)
+          cp "$RUNNER_TEMP/arm64-signed.apk" release-public/CallShift-0.8.54-one-place-arm64.apk
+          "$signer" verify --verbose --print-certs release-public/CallShift-0.8.54-one-place-arm64.apk | grep -Fi "certificate SHA-256 digest: $expected"
+          (cd release-public && sha256sum CallShift-0.8.54-one-place-arm64.apk >> SHA256SUMS.txt)
+          echo "Certificate SHA-256: $expected" >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain only public release files
+        uses: actions/upload-artifact@v4
+        with:
+          name: CallShift-0.8.54-one-place-verified-release
+          path: release-public/
+          if-no-files-found: error
+      - name: Upload APK and publish the existing draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh release view v0.8.54-one-place --json isDraft --jq '.isDraft')" = true
+          gh release upload v0.8.54-one-place release-public/CallShift-0.8.54-one-place.apk release-public/CallShift-0.8.54-one-place-arm64.apk release-public/certificate.pem release-public/signature-verification.txt release-public/SHA256SUMS.txt --clobber
+          gh release edit v0.8.54-one-place --target "$GITHUB_SHA" --title 'CallShift 0.8.54-one-place' --notes-file docs/RELEASE_ONE_PLACE.md --draft=false --prerelease --latest=false
+      - name: Remove private material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/callshift-signing.p12"
+# Trigger: rebuild after the training auto-type null-safety fix.
+# v7: auto-type verify-and-retry in send training.
+# v7: draft release created.
+# v8: composer-scope candidate scan.
+# v9: blocked-test message points at training.
+# v10: plain SET_TEXT without focusing in training.
+# v11: rightmost-arrow resolution.
+# v12: gesture replay skips the clickability gate.
+# v13: container tap targets the arrow child center.
+# v14: clear the app-own leftover draft.
+# v15: post-click vanish proof refines the result.
+# v16: configurable daily MAX send limit.
+# v18: card-based hub UI with collapsible details.
+# v19: Telegram auto-reply via UI imitation, same principle as MAX.
+# v20: fix train-target typing and restore the imitation section.
+# v21: restore lost EventView kinds and test guards.
+# v22: hub cards name the exact next setup step; texts compressed.
+# v23: MAX setup transfer code; the send button becomes a portable constant.
+# v24: version property, not function.
+# v25: robust Telegram send-button training (placeholder focus, sourceless taps, silent capture).
+# v26: xml comment placement.
+# v27: smart-cast friendly package guard.
+# v28: observable Telegram flow: back-to-list retry, focused field, progress toasts.
+# v29: training autopilot: opens Telegram and Saved Messages, types by itself.
+# v30: built-in send-button rule; training optional, ready for fleet rollout.
+# v31: hub never renders blank; on-screen fault text and build version footer.
+# v32: never drop a Telegram attempt silently; explicit service-off refusal.
+# v33: hub rebuilt on classic XML layout (view binding).
+# v34: on-screen diagnosis strip and clipboard report.
+# v35: fix duplicated card ids in the hub layout.
+# v36: primitive platform widgets in the hub; version footer on the main screen.
+# v37: compact arm64 APK alongside the universal one.
+# v38: upload the compact apk and use the right release notes.
+# v39: hub rebuilt on FormUi; single support button collects all logs.

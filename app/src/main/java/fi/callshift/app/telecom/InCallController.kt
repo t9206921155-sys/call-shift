@@ -45,6 +45,10 @@ class InCallController private constructor() {
         val connectTimeMs: Long,
         val simLabel: String?,
         val isConference: Boolean,
+        /** id PhoneAccountHandle (SIM), на которую/с которой идёт вызов. */
+        val simId: String? = null,
+        /** Оператор и телефон поддерживают видеозвонок (ViLTE). */
+        val canVideo: Boolean = false,
     )
 
     fun interface Listener {
@@ -157,6 +161,17 @@ class InCallController private constructor() {
         }
     }
 
+    /** Доступные маршруты звука (битовая маска CallAudioState.ROUTE_*) и текущий. */
+    @Suppress("DEPRECATION")
+    fun audioRoutes(): Pair<Int, Int> {
+        val st = runCatching { service?.callAudioState }.getOrNull()
+        return (st?.supportedRouteMask ?: 0) to (st?.route ?: 0)
+    }
+
+    fun setAudioRoute(route: Int) {
+        runCatching { service?.setAudioRoute(route) }
+    }
+
     fun setMute(muted: Boolean) {
         runCatching {
             service?.setMuted(muted)
@@ -212,6 +227,11 @@ class InCallController private constructor() {
             connectTimeMs = runCatching { details?.connectTimeMillis }.getOrNull() ?: 0L,
             simLabel = sim,
             isConference = hasConf ?: false,
+            simId = runCatching { details?.accountHandle?.id }.getOrNull(),
+            canVideo = runCatching {
+                details?.can(Call.Details.CAPABILITY_SUPPORTS_VT_LOCAL_BIDIRECTIONAL) == true &&
+                    details.can(Call.Details.CAPABILITY_SUPPORTS_VT_REMOTE_BIDIRECTIONAL)
+            }.getOrDefault(false),
         )
     }
 

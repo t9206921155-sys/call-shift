@@ -24,7 +24,13 @@ class PhoneNumberNormalizer(private val defaultRegion: String = "FI") {
     fun normalize(raw: String?): Normalized {
         val source = raw?.let { stripTelScheme(it) }?.takeIf { it.isNotBlank() } ?: return Normalized()
         return try {
-            val number = util.parse(source, defaultRegion)
+            // Domestic 8 + ten digits is the +7 numbering-plan equivalent,
+            // regardless of the device/default region. Do not rewrite other lengths,
+            // explicit international numbers, SIP addresses or service codes.
+            val compact = source.filterNot { it.isWhitespace() || it in "()-" }
+            val parseSource = if (compact.length == 11 && compact.startsWith("8") &&
+                compact.all { it in '0'..'9' }) "+7" + compact.drop(1) else source
+            val number = util.parse(parseSource, defaultRegion)
             val e164 = util.format(number, PhoneNumberUtil.PhoneNumberFormat.E164)
             val national = util.format(number, PhoneNumberUtil.PhoneNumberFormat.NATIONAL)
             Normalized(

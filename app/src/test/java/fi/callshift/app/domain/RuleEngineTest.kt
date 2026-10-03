@@ -40,6 +40,45 @@ class RuleEngineTest {
     private val testDispatcher = StandardTestDispatcher()
 
     @Test
+    fun testSavedSimAliasMatchesOnlyResolvedSameSim() = runTest(testDispatcher) {
+        val rule = Rule(
+            id = 99, name = "SIM 2 reject", simSelector = "HANDLE:legacy-sim2",
+            action = Action(verdict = VerdictSpec.DISALLOW_REJECT),
+        )
+        val engine = RuleEngine(
+            ruleStore = FakeRuleStore(listOf(rule)), contacts = { false },
+            settings = FakeSettings(), profileProvider = { PermissionProfile.SCREENING },
+            simIndexProvider = { ref -> when (ref?.id) {
+                "legacy-sim2", "sim2" -> 1
+                "sim1" -> 0
+                else -> null
+            } }, dispatcher = testDispatcher,
+        )
+        fun ctx(id: String?) = CallContext(
+            e164 = "+79161234567", phoneAccount = id?.let { PhoneAccountRef(id = it, label = "") },
+        )
+        assertTrue(engine.evaluate(ctx("sim2")).shouldDisallow)
+        assertFalse(engine.evaluate(ctx("sim1")).shouldDisallow)
+        assertFalse(engine.evaluate(ctx(null)).shouldDisallow)
+        assertFalse(engine.evaluate(ctx("unknown")).shouldDisallow)
+    }
+
+    @Test
+    fun testDialerWithoutScreeningCanRejectByDefaultPolicy() = runTest(testDispatcher) {
+        val engine = RuleEngine(
+            ruleStore = FakeRuleStore(),
+            contacts = { false },
+            settings = FakeSettings(defaultPolicy = DefaultPolicy(VerdictSpec.DISALLOW_REJECT, StrategySpec.NONE)),
+            profileProvider = { PermissionProfile.DIALER },
+            simIndexProvider = { null },
+            dispatcher = testDispatcher,
+        )
+        val decision = engine.evaluate(CallContext(rawHandle = "+79161234567", e164 = "+79161234567"))
+        assertEquals(Verdict.DISALLOW_REJECT, decision.verdict)
+        assertTrue(decision.shouldDisallow)
+    }
+
+    @Test
     fun testEmergencyNumberAlwaysPasses() = runTest(testDispatcher) {
         val engine = RuleEngine(
             ruleStore = FakeRuleStore(),

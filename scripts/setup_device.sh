@@ -46,6 +46,7 @@ PERMISSIONS=(
   android.permission.CALL_PHONE
   android.permission.ANSWER_PHONE_CALLS
   android.permission.READ_CALL_LOG
+  android.permission.SEND_SMS
   android.permission.WRITE_CALL_LOG
   android.permission.READ_CONTACTS
   android.permission.POST_NOTIFICATIONS

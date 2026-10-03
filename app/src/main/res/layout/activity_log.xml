@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/brand_primary"
@@ -37,6 +38,57 @@
             android:text="Очистить"
             android:textColor="@color/status_error" />
     </LinearLayout>
+
+    <EditText
+        android:id="@+id/etLogSearch"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/bg_search"
+        android:hint="Поиск: номер, имя, правило"
+        android:inputType="text"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:textColor="@color/text_primary"
+        android:textColorHint="@color/text_muted" />
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:scrollbars="none">
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/chipsFilter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:checkedChip="@+id/fAll"
+            app:selectionRequired="true"
+            app:singleLine="true"
+            app:singleSelection="true">
+
+            <com.google.android.material.chip.Chip android:id="@+id/fAll" style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content" android:layout_height="wrap_content" android:checkable="true" android:text="Все" />
+            <com.google.android.material.chip.Chip android:id="@+id/fRejected" style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content" android:layout_height="wrap_content" android:checkable="true" android:text="Сброшенные" />
+            <com.google.android.material.chip.Chip android:id="@+id/fPassed" style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content" android:layout_height="wrap_content" android:checkable="true" android:text="Прошедшие" />
+            <com.google.android.material.chip.Chip android:id="@+id/fSms" style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content" android:layout_height="wrap_content" android:checkable="true" android:text="SMS" />
+            <com.google.android.material.chip.Chip android:id="@+id/fForward" style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content" android:layout_height="wrap_content" android:checkable="true" android:text="Перенаправления" />
+            <com.google.android.material.chip.Chip android:id="@+id/fErrors" style="@style/Widget.CallShift.Chip"
+                android:layout_width="wrap_content" android:layout_height="wrap_content" android:checkable="true" android:text="Ошибки" />
+        </com.google.android.material.chip.ChipGroup>
+    </HorizontalScrollView>
+
+    <TextView
+        android:id="@+id/tvLogStats"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textColor="@color/text_secondary"
+        android:textSize="13sp" />
 
     <TextView
         android:id="@+id/tvEmpty"

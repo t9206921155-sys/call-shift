@@ -106,6 +106,7 @@ class PermissionProfileDetector(private val context: Context) {
             Manifest.permission.ANSWER_PHONE_CALLS,
             Manifest.permission.READ_CONTACTS,
             Manifest.permission.READ_CALL_LOG,
+            Manifest.permission.SEND_SMS,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) Manifest.permission.POST_NOTIFICATIONS
             else Manifest.permission.READ_PHONE_STATE,
         ).distinct()

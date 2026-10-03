@@ -18,6 +18,7 @@ fun interface EventRecorder {
 }
 
 /** Событие журнала — соответствует таблице `events` из ТЗ п. 9.2. */
+@kotlinx.serialization.Serializable
 data class CallEvent(
     val ts: Long,
     val direction: String,
@@ -35,6 +36,9 @@ data class CallEvent(
     val screeningMs: Long,
     val forwardMs: Long,
     val totalMs: Long,
+    val eventId: String? = null,
+    val replyChannel: String? = null,
+    val replyText: String? = null,
 )
 
 /**

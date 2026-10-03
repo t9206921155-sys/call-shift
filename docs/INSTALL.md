@@ -54,7 +54,7 @@ PKG=fi.callshift.app
 adb install -r -t app-standard-release.apk
 
 for p in READ_PHONE_STATE READ_PHONE_NUMBERS CALL_PHONE ANSWER_PHONE_CALLS \
-         READ_CALL_LOG WRITE_CALL_LOG READ_CONTACTS POST_NOTIFICATIONS; do
+         READ_CALL_LOG WRITE_CALL_LOG READ_CONTACTS POST_NOTIFICATIONS SEND_SMS; do
   adb shell pm grant $PKG android.permission.$p
 done
 

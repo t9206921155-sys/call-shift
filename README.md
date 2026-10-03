@@ -40,6 +40,7 @@ adb logcat -s CallShift:D
 | `docs/TZ_CallShift.md` | Техническое задание (основной документ), v1.1 |
 | `docs/TZ_CallShift.docx` | ТЗ в формате Word |
 | `docs/TZ_CallShift.pdf` | ТЗ в формате PDF (A4, с содержанием) |
+| `docs/PAMYATKA.md` | **Памятка команд**: роли, ADB, правила, MMI-коды, неполадки |
 | `docs/INSTALL.md` | Пошаговая установка и настройка (adb и ручной путь) |
 | `docs/OEM_NOTES.md` | Особенности Xiaomi/Samsung/Huawei/Oppo/Pixel |
 | `docs/TEST_CHECKLIST.md` | Приёмочный чек-лист полевых тестов (ТЗ п. 14.3) |

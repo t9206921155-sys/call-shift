@@ -3,11 +3,13 @@
     <cloud-backup>
         <exclude domain="file" path="events.json" />
         <include domain="sharedpref" path="." />
+        <exclude domain="sharedpref" path="max_ui_v1.xml" />
         <include domain="file" path="rules.json" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="events.json" />
         <include domain="sharedpref" path="." />
+        <exclude domain="sharedpref" path="max_ui_v1.xml" />
         <include domain="file" path="rules.json" />
     </device-transfer>
 </data-extraction-rules>

@@ -54,7 +54,10 @@ class DiagnosticsActivity : AppCompatActivity() {
     }
 
     private fun setupButtons() {
+        binding.btnTestSms.setOnClickListener { testSms() }
+        if (Build.VERSION.SDK_INT == 28) binding.btnActionScreening.text = "Android 9: назначить приложение «Телефон»"
         binding.btnActionScreening.setOnClickListener {
+            if (Build.VERSION.SDK_INT == 28) { binding.btnActionDialer.performClick(); return@setOnClickListener }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val roleManager = getSystemService(RoleManager::class.java)
                 if (roleManager.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)) {
@@ -84,6 +87,7 @@ class DiagnosticsActivity : AppCompatActivity() {
 
         binding.btnActionPerms.setOnClickListener {
             val perms = mutableListOf(
+                Manifest.permission.SEND_SMS,
                 Manifest.permission.READ_PHONE_STATE,
                 Manifest.permission.READ_PHONE_NUMBERS,
                 Manifest.permission.CALL_PHONE,
@@ -128,11 +132,50 @@ class DiagnosticsActivity : AppCompatActivity() {
         }
     }
 
+    /** Real SMS only after explicit number/SIM confirmation, never on opening diagnostics. */
+    private fun testSms() {
+        val accounts = app.telecom.phoneAccounts().entries.toList()
+        if (accounts.isEmpty() || !app.smsReplier.hasPermission()) {
+            Toast.makeText(this, "Сначала выдайте разрешения «Телефон» и «SMS» кнопкой ниже", Toast.LENGTH_LONG).show()
+            return
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Выберите SIM для тестовой SMS")
+            .setItems(accounts.mapIndexed { i, e -> "SIM ${i + 1}: ${e.value}" }.toTypedArray()) { _, position ->
+                val account = accounts[position]
+                if (!app.smsReplier.canUseAccount(account.key)) {
+                    Toast.makeText(this, "Эта SIM не определена для SMS. Другая карта не будет использована.", Toast.LENGTH_LONG).show()
+                    return@setItems
+                }
+                val input = android.widget.EditText(this).apply {
+                    hint = "+7… — номер получателя"
+                    inputType = android.text.InputType.TYPE_CLASS_PHONE
+                }
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("Тестовая SMS с ${account.value}")
+                    .setMessage("Введите номер своего второго телефона. Будет отправлена настоящая SMS «CallShift test» по тарифу оператора. Правила и пауза автоответов в ручном тесте не используются. Общий лимит расходов SMS действует.")
+                    .setView(input)
+                    .setPositiveButton("Далее") { _, _ ->
+                        val number = app.normalizer.normalize(input.text.toString()).e164
+                        if (number == null || !fi.callshift.app.domain.ReplyChannel.isPhoneAddress(number)) {
+                            Toast.makeText(this, "Некорректный номер", Toast.LENGTH_LONG).show()
+                        } else androidx.appcompat.app.AlertDialog.Builder(this)
+                            .setTitle("Отправить SMS?")
+                            .setMessage("Получатель: $number\nSIM: ${account.value}\nТекст: CallShift test\nВозможна оплата по тарифу. Результат появится в Журнале → SMS.")
+                            .setPositiveButton("Отправить") { _, _ ->
+                                val error = app.smsReplier.sendQuickReply(number, "CallShift test", account.key)
+                                Toast.makeText(this, error ?: "Запрос отправки принят. Результат — в журнале SMS.", Toast.LENGTH_LONG).show()
+                            }.setNegativeButton("Отмена", null).show()
+                    }
+                    .setNegativeButton("Отмена", null).show()
+            }.setNegativeButton("Отмена", null).show()
+    }
+
     private fun renderReport() {
         val report = app.detector.detect()
         val pkg = packageName
 
-        val sb = StringBuilder()
+        val sb = StringBuilder(CompatibilitySummary.text(app) + "\n\n")
         sb.append("Устройство: ${report.manufacturer} ${report.model} (Android API ${report.apiLevel})\n")
         sb.append("Профиль: ${report.profile.name}\n\n")
 
@@ -150,10 +193,26 @@ class DiagnosticsActivity : AppCompatActivity() {
         sb.append("\nОптимизация батареи (Doze): ")
         sb.append(if (report.isIgnoringBatteryOptimizations) "Исключено (OK)" else "Включена (OEM может выгружать сервис)")
 
+        sb.append("\n\nОтветы звонящим:\n")
+        sb.append(" • SMS: ${if (app.smsReplier.hasPermission()) "разрешена" else "НЕТ разрешения SEND_SMS"}\n")
+        val accounts = app.telecom.phoneAccounts()
+        if (accounts.isEmpty()) sb.append(" • SIM не определены — проверьте разрешение «Телефон»\n")
+        accounts.forEach { (id, label) ->
+            sb.append(" • ${label.ifBlank { "SIM" }}: ${if (app.smsReplier.canUseAccount(id)) "SIM для SMS определена" else "SIM для SMS НЕ определена — отправка запрещена"}\n")
+        }
+        sb.append(" • Повторные звонки: ${if (app.settings.repeatCallEnabled) "пропускаются как срочные" else "проверяются по правилам"}\n")
+        sb.append(" • Отдельный автоответчик: ${if (app.settings.autoReply.isActiveAt(System.currentTimeMillis())) "АКТИВЕН, проверяется раньше правил" else "не активен"}\n")
+        sb.append(" • Уведомления: ${if (androidx.core.app.NotificationManagerCompat.from(this).areNotificationsEnabled()) "разрешены" else "запрещены"}\n")
+        sb.append(" • Главный переключатель: ${if (app.settings.masterEnabled) "ВКЛЮЧЁН" else "ВЫКЛЮЧЕН"}\n")
+        sb.append(" • Белый список: ${app.settings.whitelist.size} номеров — исключения пропускаются\n")
+        sb.append(" • Лимит SMS: ${app.settings.smsDailyLimit} частей за последние 24 часа; счётчик — в «SMS: защита и копия»\n")
+        sb.append(" • Telegram-аккаунт: отдельное подключение для автоотправки. MAX/WhatsApp — ручные.\n")
+        sb.append(" • Проверка SIM не проверяет баланс, сеть и доставку оператором.\n")
         binding.tvReport.text = sb.toString()
 
         val adb = buildString {
             append("# Разрешения и роли для CallShift через ADB:\n")
+            append("adb shell pm grant $pkg android.permission.SEND_SMS\n")
             append("adb shell pm grant $pkg android.permission.READ_PHONE_STATE\n")
             append("adb shell pm grant $pkg android.permission.CALL_PHONE\n")
             append("adb shell pm grant $pkg android.permission.ANSWER_PHONE_CALLS\n")

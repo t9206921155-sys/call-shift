@@ -18,8 +18,8 @@ object NumberMatcher {
     fun matches(pattern: String?, candidate: String?): Boolean {
         if (pattern.isNullOrBlank()) return false
         if (candidate.isNullOrBlank()) return false
-        val p = digits(pattern)
-        val c = digits(candidate)
+        val p = canonicalDigits(pattern)
+        val c = canonicalDigits(candidate)
         if (p.isEmpty()) return false
         return globMatch(p, c)
     }
@@ -36,6 +36,14 @@ object NumberMatcher {
         // не более двух '*' — защищаем от вырожденных масок
         val stars = pattern.count { it == '*' }
         return stars <= 2
+    }
+
+    // Also handles existing saved rules/whitelist entries without a data migration.
+    // Explicit +8 country codes and partial masks must not be treated as domestic 8.
+    private fun canonicalDigits(value: String): String {
+        val d = digits(value)
+        return if (!value.trimStart().startsWith("+") && d.length == 11 &&
+            d.startsWith("8") && d.all { it in '0'..'9' }) "7" + d.drop(1) else d
     }
 
     private fun digits(s: String): String = buildString(s.length) {

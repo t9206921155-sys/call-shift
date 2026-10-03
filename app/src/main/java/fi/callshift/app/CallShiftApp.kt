@@ -32,6 +32,8 @@ import kotlinx.coroutines.SupervisorJob
  */
 class CallShiftApp : Application() {
 
+    val telegram by lazy { fi.callshift.app.telegram.TelegramAccountClient(this) }
+
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     lateinit var normalizer: PhoneNumberNormalizer
@@ -60,15 +62,20 @@ class CallShiftApp : Application() {
         private set
     lateinit var dispatcher: ForwardDispatcher
         private set
+    lateinit var smsReplier: fi.callshift.app.sms.SmsAutoReplier
+        private set
 
     val profile: PermissionProfile
         get() = detector.detect().profile
 
     override fun onCreate() {
         super.onCreate()
+        fi.callshift.app.util.CrashReporter.install(this)
+        fi.callshift.app.ui.SystemBarsInsets.install(this)
 
         normalizer = PhoneNumberNormalizer(defaultRegion = "FI")
         settings = SettingsStore(this)
+        applyTheme(settings.themeMode)
         ruleStore = JsonFileRuleStore(this)
         eventStore = FileEventStore(this)
         contacts = ContactsChecker(this, normalizer)
@@ -115,6 +122,8 @@ class CallShiftApp : Application() {
             scope = appScope,
         )
 
+        smsReplier = fi.callshift.app.sms.SmsAutoReplier(this, eventStore, normalizer)
+
         ruleEngine = RuleEngine(
             ruleStore = ruleStore,
             contacts = contacts,
@@ -127,5 +136,16 @@ class CallShiftApp : Application() {
     companion object {
         fun from(context: Context): CallShiftApp =
             context.applicationContext as CallShiftApp
+
+        /** Тёмная (по умолчанию) / светлая / как в системе. Экраны звонка всегда тёмные. */
+        fun applyTheme(mode: String) {
+            androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(
+                when (mode) {
+                    fi.callshift.app.data.SettingsStore.THEME_LIGHT -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO
+                    fi.callshift.app.data.SettingsStore.THEME_SYSTEM -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+                    else -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES
+                },
+            )
+        }
     }
 }
