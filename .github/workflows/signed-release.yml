@@ -95,8 +95,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$(gh release view v0.8.53-fleet-apk --json isDraft --jq '.isDraft')" = true
-          gh release upload v0.8.53-fleet-apk release-public/CallShift-0.8.53-fleet-apk.apk release-public/certificate.pem release-public/signature-verification.txt release-public/SHA256SUMS.txt --clobber
-          gh release edit v0.8.53-fleet-apk --target "$GITHUB_SHA" --title 'CallShift 0.8.53-fleet-apk' --notes-file docs/RELEASE_HUB_PLAIN.md --draft=false --prerelease --latest=false
+          gh release upload v0.8.53-fleet-apk release-public/CallShift-0.8.53-fleet-apk.apk release-public/CallShift-0.8.53-fleet-apk-arm64.apk release-public/certificate.pem release-public/signature-verification.txt release-public/SHA256SUMS.txt --clobber
+          gh release edit v0.8.53-fleet-apk --target "$GITHUB_SHA" --title 'CallShift 0.8.53-fleet-apk' --notes-file docs/RELEASE_FLEET_APK.md --draft=false --prerelease --latest=false
       - name: Remove private material
         if: always()
         run: rm -f "$RUNNER_TEMP/callshift-signing.p12"
@@ -132,3 +132,4 @@ jobs:
 # v35: fix duplicated card ids in the hub layout.
 # v36: primitive platform widgets in the hub; version footer on the main screen.
 # v37: compact arm64 APK alongside the universal one.
+# v38: upload the compact apk and use the right release notes.
