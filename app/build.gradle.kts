@@ -39,8 +39,8 @@ android {
         applicationId = "fi.callshift.app"
         minSdk = 28          // Android 9.0 — минимум по ТЗ (п. 15.1)
         targetSdk = 35
-        versionCode = Integer.parseInt(providers.gradleProperty("versionCode").getOrElse("85"))
-        versionName = providers.gradleProperty("versionName").getOrElse("0.8.53-fleet-apk")
+        versionCode = Integer.parseInt(providers.gradleProperty("versionCode").getOrElse("86"))
+        versionName = providers.gradleProperty("versionName").getOrElse("0.8.54-one-place")
 
         resourceConfigurations += listOf("en", "ru")
         // Компактная сборка для раздачи: -PabiFilter=arm64-v8a оставляет одну архитектуру.

@@ -1,7 +1,10 @@
 package fi.callshift.app.ui
 
+import android.content.ClipData
 import android.content.Intent
 import android.os.Bundle
+import android.text.InputType
+import android.view.View
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
@@ -11,9 +14,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.google.android.material.button.MaterialButton
 import fi.callshift.app.CallShiftApp
 import fi.callshift.app.R
-import fi.callshift.app.databinding.ActivityMessengerHubBinding
 import fi.callshift.app.max.MaxUiService
 import fi.callshift.app.max.MaxUiStore
 import fi.callshift.app.sms.SmsBudgetStore
@@ -22,99 +25,124 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Раздел «Мессенджеры» на классической XML-разметке: тот же способ, что и все
- * проверенные экраны приложения. Любая ошибка отображается текстом на экране. */
+/** Раздел «Мессенджеры» — единственный сводный экран. Собран на FormUi, том же
+ * компоненте, что и проверенные экраны настройки. Все журналы — одна кнопка. */
 class MessengerHubActivity : AppCompatActivity() {
     private val app by lazy { CallShiftApp.from(this) }
     private val maxStore by lazy { MaxUiStore(this) }
     private val maxInstalled by lazy {
         runCatching { packageManager.getPackageInfo(fi.callshift.app.domain.MaxUiPolicy.PACKAGE, 0).longVersionCode }.getOrDefault(-1)
     }
-    private lateinit var binding: ActivityMessengerHubBinding
+    private lateinit var summaryLine: TextView
+    private lateinit var maxLine: TextView
+    private lateinit var maxDetails: TextView
+    private lateinit var tgLine: TextView
+    private lateinit var tgDetails: TextView
+    private lateinit var smsLine: TextView
+    private lateinit var smsDetails: TextView
+    private lateinit var faultLine: TextView
+    private lateinit var maxLimitButton: MaterialButton
+    private lateinit var tgLimitButton: MaterialButton
+    private lateinit var smsLimitButton: MaterialButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        runCatching {
-            binding = ActivityMessengerHubBinding.inflate(layoutInflater)
-            binding.footerVersion.text = "CallShift ${fi.callshift.app.BuildConfig.VERSION_NAME} (${fi.callshift.app.BuildConfig.VERSION_CODE})"
-            binding.diagHeader.text = "Версия ${fi.callshift.app.BuildConfig.VERSION_NAME} (${fi.callshift.app.BuildConfig.VERSION_CODE}). Если видна только эта строка без разделов — нажмите кнопку ниже и пришлите текст."
-            binding.diagCopy.setOnClickListener { copyDiagnosis() }
-            binding.root.postDelayed({
-                if (!isDestroyed && !binding.maxHeader.isShown && !binding.tgHeader.isShown) {
-                    binding.diagHeader.text = "⚠ Разделы не отображаются на этом устройстве. Нажмите «Скопировать диагноз экрана» и пришлите текст."
-                }
-            }, 1500)
-            wire()
-            setContentView(binding.root)
-            lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    while (true) {
-                        runCatching { refresh() }.onFailure { f ->
-                            binding.faultText.visibility = android.view.View.VISIBLE
-                            binding.faultText.text = "Ошибка обновления: ${f.javaClass.simpleName}: ${f.message}"
-                        }
-                        delay(1000)
-                    }
-                }
-            }
-        }.onFailure { fail ->
+        runCatching { buildScreen() }.onFailure { fail ->
             setContentView(TextView(this).apply {
                 val p = (20 * resources.displayMetrics.density).toInt()
                 setPadding(p, p, p, p)
                 textSize = 14f
                 setTextColor(ContextCompat.getColor(this@MessengerHubActivity, R.color.text_primary))
-                text = "Раздел «Мессенджеры» не открылся: ${fail.javaClass.simpleName}: ${fail.message}.\nПришлите этот текст целиком.\n\nВерсия ${fi.callshift.app.BuildConfig.VERSION_NAME} (${fi.callshift.app.BuildConfig.VERSION_CODE})"
+                text = "Раздел не открылся: ${fail.javaClass.simpleName}: ${fail.message}.\nВерсия ${fi.callshift.app.BuildConfig.VERSION_NAME} (${fi.callshift.app.BuildConfig.VERSION_CODE})"
             })
         }
     }
 
-    private fun wire() {
-        binding.maxToggle.setOnClickListener { flip(binding.maxToggle, binding.maxDetails) }
-        binding.tgToggle.setOnClickListener { flip(binding.tgToggle, binding.tgDetails) }
-        binding.smsToggle.setOnClickListener { flip(binding.smsToggle, binding.smsDetails) }
-        binding.maxDetails.text = """
-            • CallShift сам открывает MAX, находит звонившего по номеру, вводит текст из правила и нажимает обученную кнопку. Клон MAX выбирается по SIM звонка, «+7» и «8» равнозначны.
-            • Чужие черновики не трогаются; получатель нигде не привязывается.
-            • Кнопка отправки — константа: обучается один раз и переносится на новый телефон кодом настройки.
-            • Итог каждой попытки — в «Журнале» на экране настройки MAX.
-        """.trimIndent()
-        binding.tgDetails.text = """
-            • Два режима: имитация касаний (приложение само открывает Telegram, находит чат по номеру и нажимает кнопку; аккаунт в CallShift не нужен) или ваш аккаунт (TDLib).
-            • Кнопка отправки определяется автоматически — обучение не нужно (запасной режим для нестандартных сборок).
-            • Массовое развёртывание: на каждом телефоне — служба и два переключателя.
-            • Номер подтверждается перед отправкой; одна попытка, без повторов.
-        """.trimIndent()
-        binding.smsDetails.text = """
-            • Ответ обычной SMS с SIM звонка по шаблону правила; длинный текст считается частями, возможна плата оператора.
-            • Лимит — в частях за 24 часа, включая тестовые отправки.
-            • Расходы и копия ответов — на экране «Защита, расходы и копия».
-        """.trimIndent()
-        binding.maxOpen.setOnClickListener { startActivity(Intent(this, fi.callshift.app.max.MaxSimpleActivity::class.java)) }
-        binding.tgOpen.setOnClickListener { startActivity(Intent(this, fi.callshift.app.telegram.TelegramAccountActivity::class.java)) }
-        binding.smsRules.setOnClickListener { startActivity(Intent(this, SmsRuleActivity::class.java)) }
-        binding.smsSafety.setOnClickListener { startActivity(Intent(this, SmsSafetyActivity::class.java)) }
-        binding.maxLimit.setOnClickListener {
-            askLimit("Лимит MAX в сутки", maxStore.sendLimit()) { v ->
-                runCatching { maxStore.setSendLimit(v) }.onFailure { toast("Не удалось сохранить") }
-            }
-        }
-        binding.tgLimit.setOnClickListener {
-            askLimit("Лимит Telegram в сутки", app.settings.telegramDailyLimit) { v ->
-                runCatching { app.settings.setTelegramDailyLimit(v) }.onFailure { toast("Не удалось сохранить") }
-            }
-        }
-        binding.smsLimit.setOnClickListener {
-            askLimit("Лимит SMS в сутки (частей)", app.settings.smsDailyLimit) { v ->
-                runCatching { app.settings.setSmsSafety(v, app.settings.smsCooldownPerSim) }
-                    .onFailure { toast("Не удалось сохранить") }
+    private fun buildScreen() {
+        val ui = FormUi(this)
+        ui.title("Мессенджеры — всё в одном месте")
+        summaryLine = ui.hint("Обновляем…")
+        ui.add(MaterialButton(this).apply {
+            text = "Скопировать всё для поддержки"
+            isAllCaps = false
+            setOnClickListener { copyEverything() }
+        })
+
+        ui.header("MAX — автоответ звонком в приложении MAX")
+        maxLine = ui.hint("")
+        maxDetails = ui.hint("CallShift сам открывает MAX, находит звонившего по номеру, вводит текст из правила и нажимает обученную кнопку. Кнопка — константа: обучается один раз. Чужие черновики не трогаются.")
+            .apply { visibility = View.GONE }
+        ui.add(MaterialButton(this).apply {
+            text = "Настройка MAX: SIM, обучение, тест"
+            isAllCaps = false
+            setOnClickListener { startActivity(Intent(this@MessengerHubActivity, fi.callshift.app.max.MaxSimpleActivity::class.java)) }
+        })
+        maxLimitButton = ui.add(MaterialButton(this).apply {
+            isAllCaps = false
+            setOnClickListener { askLimit("Лимит MAX в сутки", maxStore.sendLimit()) { v -> runCatching { maxStore.setSendLimit(v) }.onFailure { toast("Не удалось сохранить") } } }
+        })
+        ui.add(toggle(maxDetails))
+
+        ui.header("Telegram — автоответ через приложение Telegram")
+        tgLine = ui.hint("")
+        tgDetails = ui.hint("Режим имитации: CallShift сам открывает Telegram, находит чат по номеру и нажимает кнопку — аккаунт в CallShift не нужен, обучение не требуется. Номер подтверждается; одна попытка, без повторов.")
+            .apply { visibility = View.GONE }
+        ui.add(MaterialButton(this).apply {
+            text = "Аккаунт Telegram и имитация (2 переключателя)"
+            isAllCaps = false
+            setOnClickListener { startActivity(Intent(this@MessengerHubActivity, fi.callshift.app.telegram.TelegramAccountActivity::class.java)) }
+        })
+        tgLimitButton = ui.add(MaterialButton(this).apply {
+            isAllCaps = false
+            setOnClickListener { askLimit("Лимит Telegram в сутки", app.settings.telegramDailyLimit) { v -> runCatching { app.settings.setTelegramDailyLimit(v) }.onFailure { toast("Не удалось сохранить") } } }
+        })
+        ui.add(toggle(tgDetails))
+
+        ui.header("SMS — ответы по правилам")
+        smsLine = ui.hint("")
+        smsDetails = ui.hint("Ответ обычной SMS с SIM звонка по шаблону правила. Лимит в частях за 24 часа, включая тестовые. Длинный текст может тарифицироваться частями.")
+            .apply { visibility = View.GONE }
+        ui.add(MaterialButton(this).apply {
+            text = "Правила SMS"
+            isAllCaps = false
+            setOnClickListener { startActivity(Intent(this@MessengerHubActivity, SmsRuleActivity::class.java)) }
+        })
+        ui.add(MaterialButton(this).apply {
+            text = "SMS: защита, расходы и копия"
+            isAllCaps = false
+            setOnClickListener { startActivity(Intent(this@MessengerHubActivity, SmsSafetyActivity::class.java)) }
+        })
+        smsLimitButton = ui.add(MaterialButton(this).apply {
+            isAllCaps = false
+            setOnClickListener { askLimit("Лимит SMS в сутки (частей)", app.settings.smsDailyLimit) { v -> runCatching { app.settings.setSmsSafety(v, app.settings.smsCooldownPerSim) }.onFailure { toast("Не удалось сохранить") } } }
+        })
+        ui.add(toggle(smsDetails))
+
+        faultLine = ui.hint("").apply { setTextColor(ContextCompat.getColor(this@MessengerHubActivity, R.color.status_error)) }
+        ui.hint("CallShift ${fi.callshift.app.BuildConfig.VERSION_NAME} (${fi.callshift.app.BuildConfig.VERSION_CODE})")
+
+        setContentView(ui.scroll)
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (true) {
+                    runCatching { refresh() }.onFailure { f ->
+                        faultLine.text = "Ошибка обновления: ${f.javaClass.simpleName}: ${f.message}"
+                    }
+                    delay(1000)
+                }
             }
         }
     }
 
-    private fun flip(toggle: TextView, details: android.view.View) {
-        val open = details.visibility == android.view.View.VISIBLE
-        details.visibility = if (open) android.view.View.GONE else android.view.View.VISIBLE
-        toggle.text = if (open) "Подробнее ▸" else "Свернуть ▴"
+    private fun toggle(details: TextView) = TextView(this).apply {
+        text = "Подробнее ▸"
+        textSize = 13f
+        setTextColor(ContextCompat.getColor(this@MessengerHubActivity, R.color.brand_accent))
+        setOnClickListener {
+            val open = details.visibility == View.VISIBLE
+            details.visibility = if (open) View.GONE else View.VISIBLE
+            text = if (open) "Подробнее ▸" else "Свернуть ▴"
+        }
     }
 
     private fun maxIssues(): List<String> {
@@ -146,66 +174,60 @@ class MessengerHubActivity : AppCompatActivity() {
         if (!app.smsReplier.hasPermission()) listOf("выдайте разрешение на SMS на главном экране") else emptyList()
 
     private fun refresh() {
-        fun set(chip: TextView, next: TextView, usage: TextView, issues: List<String>, okLine: String, usageText: String) {
-            val done = issues.isEmpty()
-            chip.text = if (done) "● Готов" else "● Настроить"
-            chip.setTextColor(ContextCompat.getColor(this, if (done) R.color.status_ok else R.color.status_warn))
-            next.text = if (done) okLine else "Дальше: ${issues.first()}"
-            next.setTextColor(ContextCompat.getColor(this, if (done) R.color.text_secondary else R.color.status_warn))
-            usage.text = usageText
+        fun line(v: TextView, issues: List<String>, ok: String) {
+            v.text = if (issues.isEmpty()) "● Готов — $ok" else "● Настроить — Дальше: ${issues.first()}"
+            v.setTextColor(ContextCompat.getColor(this, if (issues.isEmpty()) R.color.status_ok else R.color.status_warn))
         }
-        set(binding.maxChip, binding.maxNext, binding.maxUsage, maxIssues(),
-            "Режим: ${if (maxStore.live) "реальная отправка" else if (maxStore.enabled) "проверка без отправки" else "выключен"} · кнопка обучена",
-            "Лимит ${maxStore.sendLimit()}/24ч")
-        val tgUi = fi.callshift.app.telegram.TelegramUiStore(this)
-        set(binding.tgChip, binding.tgNext, binding.tgUsage, tgIssues(),
-            if (tgUi.enabled) "Имитация касаний: ${if (tgUi.live) "реальная отправка" else "проверка без отправки"}"
-            else "Режим аккаунта (TDLib)",
-            "Кнопка отправки: определяется автоматически")
-        set(binding.smsChip, binding.smsNext, binding.smsUsage, smsIssues(),
-            "Разрешение есть", "Лимит ${app.settings.smsDailyLimit} частей/24ч")
-        binding.maxLimit.text = "Лимит MAX в сутки: ${maxStore.sendLimit()}"
-        binding.tgLimit.text = "Лимит Telegram в сутки: ${app.settings.telegramDailyLimit}"
-        binding.smsLimit.text = "Лимит SMS в сутки: ${app.settings.smsDailyLimit} частей"
+        line(maxLine, maxIssues(), "кнопка обучена, режим включён")
+        line(tgLine, tgIssues(), "кнопка определяется автоматически")
+        line(smsLine, smsIssues(), "разрешение есть")
+        maxLimitButton.text = "Лимит MAX в сутки: ${maxStore.sendLimit()}"
+        tgLimitButton.text = "Лимит Telegram в сутки: ${app.settings.telegramDailyLimit}"
+        smsLimitButton.text = "Лимит SMS в сутки: ${app.settings.smsDailyLimit} частей"
+        val ready = listOf(maxIssues().isEmpty(), tgIssues().isEmpty(), smsIssues().isEmpty()).count { it }
+        summaryLine.text = "Готовых каналов: $ready из 3. Канал отправки выбирается в правиле звонка."
         lifecycleScope.launch {
             val tgUsed = runCatching { TelegramLimitStore.used(this@MessengerHubActivity) }.getOrDefault(-1)
             val smsUsed = runCatching { SmsBudgetStore.used(this@MessengerHubActivity) }.getOrDefault(-1)
             withContext(kotlinx.coroutines.Dispatchers.Main) {
                 if (isDestroyed) return@withContext
-                binding.tgUsage.text = "Использовано: ${if (tgUsed >= 0) tgUsed else "—"} / ${app.settings.telegramDailyLimit} за 24ч · кнопка автоматически"
-                binding.smsUsage.text = "Использовано: ${if (smsUsed >= 0) smsUsed else "—"} / ${app.settings.smsDailyLimit} частей за 24ч"
+                maxLimitButton.isEnabled = true
+                tgLimitButton.text = "Лимит Telegram в сутки: ${app.settings.telegramDailyLimit} (использовано ${if (tgUsed >= 0) tgUsed else "—"})"
+                smsLimitButton.text = "Лимит SMS в сутки: ${app.settings.smsDailyLimit} частей (использовано ${if (smsUsed >= 0) smsUsed else "—"})"
             }
+        }
+    }
+
+    /** Одна кнопка вместо разбросанных журналов: версия, устройство, состояние
+     * каналов и последние события — единым текстом в буфер обмена. */
+    private fun copyEverything() {
+        val d = resources.displayMetrics
+        val night = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+        val head = buildString {
+            appendLine("CallShift ${fi.callshift.app.BuildConfig.VERSION_NAME} (${fi.callshift.app.BuildConfig.VERSION_CODE})")
+            appendLine("${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}, Android ${android.os.Build.VERSION.SDK_INT}, экран ${d.widthPixels}x${d.heightPixels} dpi=${d.densityDpi}, тема=${if (night == android.content.res.Configuration.UI_MODE_NIGHT_YES) "тёмная" else "светлая"}")
+            appendLine("MAX: служба=${MaxUiService.connected}; Telegram имитация: служба=${fi.callshift.app.telegram.TelegramUiService.connected}")
+            appendLine("MAX: ${maxLine.text}; Telegram: ${tgLine.text}; SMS: ${smsLine.text}")
+            appendLine("— Последние события: —")
+        }
+        lifecycleScope.launch {
+            val tail = runCatching {
+                app.eventStore.events(limit = 60).takeLast(12).joinToString("\n") { e ->
+                    val time = java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.ROOT).format(java.util.Date(e.ts))
+                    "$time [${e.strategy}] ${e.result}: ${e.errorMessage?.take(160) ?: "—"}"
+                }
+            }.getOrDefault("журнал недоступен")
+            getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(
+                ClipData.newPlainText("CallShift support", head + "\n" + tail))
+            toast("Скопировано — пришлите текст в чат")
         }
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 
-    /** Полная сводка состояния экрана в буфер обмена: вместо догадок — факты устройства. */
-    private fun copyDiagnosis() {
-        val d = resources.displayMetrics
-        val night = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
-        fun part(name: String, header: TextView, chip: TextView, next: TextView) =
-            "$name: shown=${header.isShown} height=${header.height}, статус=\"${chip.text}\", шаг=\"${next.text}\""
-        val report = buildString {
-            appendLine("Диагностика «Мессенджеров»")
-            appendLine("Версия: ${fi.callshift.app.BuildConfig.VERSION_NAME} (${fi.callshift.app.BuildConfig.VERSION_CODE})")
-            appendLine("Устройство: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}, Android ${android.os.Build.VERSION.SDK_INT}")
-            appendLine("Экран: ${d.widthPixels}x${d.heightPixels}, dpi=${d.densityDpi}, density=${d.density}, ночная тема=$night")
-            appendLine("Служба MAX=${MaxUiService.connected}, Telegram=${fi.callshift.app.telegram.TelegramUiService.connected}")
-            appendLine(part("MAX", binding.maxHeader, binding.maxChip, binding.maxNext))
-            appendLine(part("Telegram", binding.tgHeader, binding.tgChip, binding.tgNext))
-            appendLine(part("SMS", binding.smsHeader, binding.smsChip, binding.smsNext))
-            appendLine("Верхняя строка: shown=${binding.diagHeader.isShown} height=${binding.diagHeader.height}")
-            appendLine("Ошибки: ${binding.faultText.text}")
-        }
-        getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(
-            android.content.ClipData.newPlainText("CallShift diagnosis", report))
-        toast("Скопировано — пришлите текст в чат")
-    }
-
     private fun askLimit(title: String, current: Int, save: (Int) -> Unit) {
         val input = EditText(this).apply {
-            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            inputType = InputType.TYPE_CLASS_NUMBER
             setText(current.toString())
         }
         AlertDialog.Builder(this).setTitle(title)
