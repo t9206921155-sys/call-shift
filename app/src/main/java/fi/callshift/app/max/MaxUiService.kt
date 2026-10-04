@@ -18,6 +18,7 @@ import fi.callshift.app.domain.MaxProfileCapture
 import fi.callshift.app.domain.MaxProfilePolicy
 import fi.callshift.app.domain.MaxProfileReturnPolicy
 import fi.callshift.app.domain.MaxChatListPolicy
+import fi.callshift.app.domain.MaxLeftoverPolicy
 import fi.callshift.app.domain.MaxSearchPolicy
 import fi.callshift.app.forward.CallEvent
 import kotlinx.coroutines.launch
@@ -87,6 +88,9 @@ class MaxUiService : AccessibilityService() {
         var returnIssue: MaxProfileReturnPolicy.Issue? = null)
     private var pending: Pending? = null
     private var busy = false
+    /** Fingerprint of the draft this process is holding inside MAX, if any. The stored
+     * key authorizes a later run to clear exactly this text once the run stopped. */
+    private var ownDraft: String? = null
     private var lastSavedStage: MaxUiDiagnostics.Stage? = null
     private val tick = Runnable { step() }
     private val probeTick = object : Runnable {
@@ -240,6 +244,7 @@ class MaxUiService : AccessibilityService() {
         if (pending != null || headerGestureBusy || cardUntil != 0L || sendTrainingUntil != 0L) {
             log(event, "BLOCKED", "MAX занят сценарием, обучением или незавершённым касанием Android. Очередь и повтор отключены"); return
         }
+        ownDraft = null
         diagnostics.observe(45_000); lastSavedStage = null
         trace(MaxUiDiagnostics.Stage.START)
         val startupIssue = when {
@@ -269,14 +274,24 @@ class MaxUiService : AccessibilityService() {
             main.postDelayed(tick, 700)
         } catch (_: Exception) { finish("BLOCKED", "Android не разрешил открыть MAX") }
     }
-    /** A draft byte-identical to this run's own test text is the app's leftover from a
-     * stopped earlier attempt: clear it once and continue. Anything else is the user's
-     * content and is never touched. */
+    /** A draft is the app's own leftover when it is byte-identical to this run's own test
+     * text, or when its fingerprint matches text CallShift itself wrote into this composer
+     * before: a stopped live run or an aborted training. Such a draft is cleared once and
+     * the run continues. Anything else is the user's content and is never touched. */
     private fun clearOwnLeftover(p: Pending, draft: String, input: Node): Boolean {
-        if (p.edited || draft != p.text) return false
+        if (p.edited) return false
+        val sameRun = draft == p.text
+        val fingerprint = MaxLeftoverPolicy.key(store.input, version(), draft)
+        val remembered = MaxLeftoverPolicy.isOwn(store.leftovers(), fingerprint)
+        if (!sameRun && !remembered) return false
         val args = Bundle().apply { putCharSequence(Node.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "") }
         val cleared = runCatching { input.performAction(Node.ACTION_SET_TEXT, args) }.getOrDefault(false)
-        if (cleared) log(p.event, "UI_CHECKED", "Очищен остаточный черновик предыдущей проверки CallShift")
+        if (cleared) {
+            if (remembered) store.forgetLeftover(fingerprint)
+            // A mid-run note, never a verdict: only a finished dry check may read UI_CHECKED.
+            log(p.event, "UI_PENDING", if (sameRun) "Очищен остаточный черновик предыдущей проверки CallShift"
+                else "Очищен остаточный черновик CallShift от прерванного сценария")
+        }
         return cleared
     }
     private fun step() {
@@ -348,7 +363,7 @@ class MaxUiService : AccessibilityService() {
             if (!p.edited && input != null && h.size == 1 && searchFields(all).isEmpty() &&
                 MaxUiPolicy.phone(h.single().text.toString()) == null && !p.skipCurrentProfile && p.profile == null) {
                 if (draft.isNotEmpty() && !clearOwnLeftover(p, draft, input)) {
-                    finish("BLOCKED", "В чате есть черновик или MAX не обозначил подсказку как подсказку. Поле не изменено; смотрите Editor flags в отчёте")
+                    finish("BLOCKED", "В чате есть черновик — CallShift не трогает чужие тексты. Удалите текст из поля сообщения в MAX вручную и повторите. Если поле выглядит пустым, MAX не обозначил подсказку как подсказку — пришлите отчёт кнопкой «Скопировать всё для поддержки»")
                     return
                 }
                 if (draft.isNotEmpty()) { main.postDelayed(tick, 400); return }
@@ -359,7 +374,7 @@ class MaxUiService : AccessibilityService() {
                 val correctChat = h.size == 1 && MaxSearchPolicy.equivalent(checkedRecipient(p, h.singleOrNull(), input), p.number)
                 if (!correctChat || (p.query != null && p.selectedAt == null) || searchFields(all).isNotEmpty()) {
                     if (draft.isNotEmpty() && !clearOwnLeftover(p, draft, input!!)) {
-                        finish("BLOCKED", "В открытом чате есть черновик — поиск не запускается")
+                        finish("BLOCKED", "В открытом чате есть черновик — поиск не запускается. Удалите текст из поля сообщения в MAX вручную и повторите; поле CallShift не меняет")
                         return
                     }
                     if (draft.isNotEmpty()) { main.postDelayed(tick, 400); return }
@@ -401,6 +416,10 @@ class MaxUiService : AccessibilityService() {
                         }
                         val args = Bundle().apply { putCharSequence(Node.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, p.text) }
                         if (!field.performAction(Node.ACTION_SET_TEXT, args)) { finish("BLOCKED", "MAX не принял ввод текста"); return@withContext }
+                        // The written text may outlive this run if the send never happens:
+                        // remember its fingerprint so a later run recognizes and clears it.
+                        ownDraft = MaxLeftoverPolicy.key(store.input, version(), p.text)
+                        store.rememberLeftover(ownDraft!!)
                         main.postDelayed(tick, 500)
                     }
                 }
@@ -614,10 +633,13 @@ class MaxUiService : AccessibilityService() {
                                 android.widget.Toast.LENGTH_LONG).show()
                         } else {
                             sendAutoTypeTries++; sendAutoTypeAt = now2
-                            runCatching {
+                            val typed = runCatching {
                                 val args = Bundle().apply { putCharSequence(Node.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, TRAIN_TEXT) }
                                 editor.performAction(Node.ACTION_SET_TEXT, args)
-                            }
+                            }.getOrDefault(false)
+                            // An aborted training must not leave a draft that blocks every
+                            // later run: remember its fingerprint like a stopped live run.
+                            if (typed) store.rememberLeftover(MaxLeftoverPolicy.key(store.input, version(), TRAIN_TEXT))
                         }
                     }
                     return
@@ -692,7 +714,11 @@ class MaxUiService : AccessibilityService() {
                 if (editor != null && editableText(editor).isEmpty()) {
                     val trial = sendTrial
                     if (trial == null) endSendLearning(MaxSendTrainingPolicy.Status.ERROR)
-                    else { store.learnSend(trial); endSendLearning(MaxSendTrainingPolicy.Status.SAVED) }
+                    else {
+                        store.learnSend(trial)
+                        store.forgetLeftover(MaxLeftoverPolicy.key(store.input, version(), TRAIN_TEXT))
+                        endSendLearning(MaxSendTrainingPolicy.Status.SAVED)
+                    }
                 }
             }
             else -> {}
@@ -901,12 +927,16 @@ class MaxUiService : AccessibilityService() {
             }
             if (editableText(editor).isEmpty()) {
                 sendProofEvent = null
+                // The message left the composer: nothing of ours remains in MAX.
+                ownDraft?.let { store.forgetLeftover(it) }
+                ownDraft = null
                 log(event, "UI_SENT_LOCAL", "Нажатие выполнено; текст исчез из поля — сообщение предположительно отправлено. Доставку подтвердите у получателя; повторов нет")
                 return
             }
             sendProofChecks++
             if (sendProofChecks >= 3) {
                 sendProofEvent = null
+                ownDraft = null // the draft stayed: the fingerprint must remain registered
                 log(event, "UI_UNKNOWN", "Нажатие выполнено; текст остался в поле — вероятно, сообщение не ушло. Проверьте чат вручную; повторов нет")
                 return
             }

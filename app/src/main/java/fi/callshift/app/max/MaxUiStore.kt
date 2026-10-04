@@ -109,6 +109,25 @@ class MaxUiStore(context: Context) {
         else "Настройка перенесена, но версия MAX изменилась (${s.v} → $version()). Повторите профиль чата и обучение кнопки."
     }
 
+    /** Fingerprints of drafts CallShift itself wrote into the MAX composer (editor id,
+     * MAX version, text hash — never the text). A stopped live run or an aborted
+     * training leaves its own draft behind; without this memory MAX restores that chat
+     * and every later run, including real call replies, would be refused forever.
+     * Runtime state: never part of the setup transfer code. */
+    fun leftovers(): List<String> = runCatching {
+        Json.decodeFromString<List<String>>(p.getString("leftover_drafts", "[]")!!)
+    }.getOrDefault(emptyList())
+    fun rememberLeftover(key: String) {
+        if (key.isBlank()) return
+        val next = fi.callshift.app.domain.MaxLeftoverPolicy.remember(leftovers(), key)
+        check(p.edit().putString("leftover_drafts", Json.encodeToString(next)).commit())
+    }
+    fun forgetLeftover(key: String) {
+        if (key.isBlank()) return
+        val next = fi.callshift.app.domain.MaxLeftoverPolicy.forget(leftovers(), key)
+        check(p.edit().putString("leftover_drafts", Json.encodeToString(next)).commit())
+    }
+
     /** Reserve before editing/clicking. Errors and process death never cause an automatic retry. */
     @Synchronized fun reserve(): Boolean {
         val entries = Json.decodeFromString<List<SmsSafety.Reservation>>(p.getString("attempts", "[]")!!)

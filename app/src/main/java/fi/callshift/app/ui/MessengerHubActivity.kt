@@ -211,14 +211,25 @@ class MessengerHubActivity : AppCompatActivity() {
             appendLine("— Последние события: —")
         }
         lifecycleScope.launch {
-            val tail = runCatching {
-                app.eventStore.events(limit = 60).takeLast(12).joinToString("\n") { e ->
-                    val time = java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.ROOT).format(java.util.Date(e.ts))
-                    "$time [${e.strategy}] ${e.result}: ${e.errorMessage?.take(160) ?: "—"}"
-                }
-            }.getOrDefault("журнал недоступен")
+            val (tail, report) = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val events = runCatching {
+                    app.eventStore.events(limit = 60).takeLast(12).joinToString("\n") { e ->
+                        val time = java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.ROOT).format(java.util.Date(e.ts))
+                        "$time [${e.strategy}] ${e.result}: ${e.errorMessage?.take(160) ?: "—"}"
+                    }
+                }.getOrDefault("журнал недоступен")
+                // MAX refusals point at Editor flags and the stop reason: without this
+                // report the bundle names the symptom but never shows the cause.
+                val diagnostics = runCatching {
+                    MaxUiService.report(this@MessengerHubActivity) +
+                        "\nSaved card learning=" + maxStore.cardOutcome().name +
+                        "\nSaved send learning=" + maxStore.sendOutcome().name
+                }.getOrElse { "MAX отчёт недоступен: ${it.javaClass.simpleName}" }
+                events to diagnostics
+            }
             getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(
-                ClipData.newPlainText("CallShift support", head + "\n" + tail))
+                ClipData.newPlainText("CallShift support", head + "\n" + tail +
+                    "\n— MAX diagnostics (Editor flags, stop reason) —\n" + report))
             toast("Скопировано — пришлите текст в чат")
         }
     }
