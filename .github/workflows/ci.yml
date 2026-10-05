@@ -28,8 +28,47 @@ jobs:
     - name: Run Unit Tests
       run: ./gradlew :app:testStandardDebugUnitTest --no-daemon
 
-    - name: Build Standard Release & Debug APKs
+    - name: Build Standard Release & Debug APKs (arm64)
       run: ./gradlew :app:assembleStandardRelease :app:assembleStandardDebug -PabiFilter=arm64-v8a --no-daemon
+
+    - name: Verify APKs and write build summary
+      shell: bash
+      run: |
+        set -euo pipefail
+        debug_apk="$(find app/build/outputs/apk/standard/debug -maxdepth 1 -type f -name '*.apk' -print -quit)"
+        release_apk="$(find app/build/outputs/apk/standard/release -maxdepth 1 -type f -name '*.apk' -print -quit)"
+        test -n "$debug_apk" && test -s "$debug_apk"
+        test -n "$release_apk" && test -s "$release_apk"
+        sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:?Android SDK not found}}"
+        apksigner="$(find "$sdk_root/build-tools" -type f -name apksigner -print | sort -V | tail -n 1)"
+        aapt="$(find "$sdk_root/build-tools" -type f -name aapt -print | sort -V | tail -n 1)"
+        test -x "$apksigner" && test -x "$aapt"
+        "$apksigner" verify --verbose --print-certs "$debug_apk" > /tmp/debug-apksigner.txt 2>&1
+        if "$apksigner" verify --verbose --print-certs "$release_apk" > /tmp/release-apksigner.txt 2>&1; then
+          release_signature="signed and verified"
+        else
+          release_signature="unsigned/not verifiable (no permanent keystore is configured for this CI build)"
+        fi
+        debug_manifest="$("$aapt" dump badging "$debug_apk" | sed -n '1p')"
+        release_manifest="$("$aapt" dump badging "$release_apk" | sed -n '1p')"
+        {
+          echo "## CallShift 0.8.55-messenger-switches — APK build"
+          echo
+          echo "| Variant | APK | Manifest | Signature | SHA-256 |"
+          echo "|---|---|---|---|---|"
+          echo "| Standard debug | \`$(basename "$debug_apk")\` | \`$debug_manifest\` | signed; apksigner verified | \`$(sha256sum "$debug_apk" | cut -d ' ' -f1)\` |"
+          echo "| Standard release | \`$(basename "$release_apk")\` | \`$release_manifest\` | $release_signature | \`$(sha256sum "$release_apk" | cut -d ' ' -f1)\` |"
+          echo
+          echo "ABI filter: arm64-v8a. Debug certificate verification output:"
+          echo '```text'
+          cat /tmp/debug-apksigner.txt
+          echo '```'
+          echo
+          echo "Release certificate verification output:"
+          echo '```text'
+          cat /tmp/release-apksigner.txt
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
 
     - name: Upload Release APK
       uses: actions/upload-artifact@v4
