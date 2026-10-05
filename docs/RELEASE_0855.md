@@ -16,7 +16,7 @@ versionCode 87.
 Проверки unit-тестов и сборка завершились успешно в GitHub Actions 5 октября 2026 года. Собраны Standard APK для `arm64-v8a`, `versionCode=87`:
 
 - **`CallShift-debug-apk`** — debug-вариант, package `fi.callshift.app.debug`, versionName `0.8.55-messenger-switches-debug`. `apksigner verify` прошёл: APK подписан стандартным debug-ключом. Это отдельная тестовая установка, не обновление production-приложения.
-- **`CallShift-release-apk`** — release-вариант, package `fi.callshift.app`, versionName `0.8.55-messenger-switches`. Постоянный release-keystore в CI не настроен, поэтому APK unsigned; устанавливать его как обновление production-приложения нельзя.
+- **`CallShift-release-apk`** — release-вариант, package `fi.callshift.app`, versionName `0.8.55-messenger-switches`. В этом стандартном CI job release-keystore не передавался, поэтому APK unsigned; устанавливать его как обновление production-приложения нельзя.
 
 Ссылки на скачивание (артефакты GitHub Actions):
 
