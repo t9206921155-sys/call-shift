@@ -14,6 +14,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
 import fi.callshift.app.CallShiftApp
+import fi.callshift.app.domain.TelegramUiPolicy
 import fi.callshift.app.ui.FormUi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collect
@@ -68,49 +69,99 @@ class TelegramAccountActivity : AppCompatActivity() {
             }
         })
         ui.hint("Код может прийти в приложение Telegram, не по SMS. Если включена двухэтапная защита, затем потребуется пароль. Код и пароль не сохраняются. Регистрация нового аккаунта, QR-авторизация и платный вход здесь не поддерживаются.")
-        val automatic = ui.add(SwitchMaterial(this).apply {
-            text = "Разрешить автоматические ответы от моего аккаунта"
-            setTextColor(getColor(fi.callshift.app.R.color.text_primary))
-            isChecked = client.autoEnabled()
-            setOnCheckedChangeListener { _, checked ->
-                runCatching { client.enableAuto(checked) }.onFailure {
-                    Toast.makeText(this@TelegramAccountActivity, "Не удалось сохранить разрешение", Toast.LENGTH_LONG).show()
-                }
-            }
-        })
-        ui.hint("После входа выберите в правиле «Telegram — автоматически (мой аккаунт)». Старые ручные правила не изменяются. Повторные попытки ограничиваются интервалом, выбранным в правиле или автоответчике; без автоматических повторов, оплаты Stars и запасных SMS. Выключение разрешения останавливает новые попытки, но не отменяет уже принятые Telegram сообщения.")
+        ui.hint("Для TDLib войдите в свой аккаунт ниже. Затем включите один общий переключатель автоответов для выбранного способа отправки. В правиле используйте канал «Telegram — автоматически (мой аккаунт)»; старые ручные правила не меняются. Повторных попыток и запасных SMS нет.")
 
         // ---- Имитация касаний: тот же принцип, что в MAX ----
         ui.title("Отправка имитацией касаний (как в MAX)")
         ui.hint("CallShift сам откроет Telegram, найдёт чат по номеру и нажмёт кнопку. Одна попытка, без повторов. Нужна служба спец. возможностей.")
+        val uiStore = TelegramUiStore(this)
+        var syncingSwitches = false
         val uiStatus = ui.add(TextView(this).apply { setTextColor(getColor(fi.callshift.app.R.color.text_primary)); textSize = 14f })
         val imitation = ui.add(SwitchMaterial(this).apply {
-            text = "Отправлять имитацией касаний вместо TDLib"
+            text = "Использовать имитацию касаний вместо TDLib"
             setTextColor(getColor(fi.callshift.app.R.color.text_primary))
-            isChecked = TelegramUiStore(this@TelegramAccountActivity).enabled
-            setOnCheckedChangeListener { _, checked ->
-                if (checked && !TelegramUiService.connected) {
-                    isChecked = false
+            isChecked = uiStore.enabled
+        })
+        val autoReplies = ui.add(SwitchMaterial(this).apply {
+            text = "Разрешить автоответы Telegram"
+            setTextColor(getColor(fi.callshift.app.R.color.text_primary))
+            isChecked = if (uiStore.enabled) uiStore.live else client.autoEnabled()
+        })
+        fun syncSwitches() {
+            val current = TelegramUiStore(this@TelegramAccountActivity)
+            syncingSwitches = true
+            imitation.isChecked = current.enabled
+            autoReplies.isChecked = if (current.enabled) current.live else client.autoEnabled()
+            syncingSwitches = false
+        }
+        imitation.setOnCheckedChangeListener { _, checked ->
+            if (syncingSwitches) return@setOnCheckedChangeListener
+            if (checked && !TelegramUiService.connected) {
+                syncSwitches()
+                Toast.makeText(this@TelegramAccountActivity,
+                    "Сначала включите службу «CallShift — Telegram (имитация касаний)» в специальных возможностях Android",
+                    Toast.LENGTH_LONG).show()
+                return@setOnCheckedChangeListener
+            }
+            runCatching {
+                if (uiStore.enabled) TelegramUiService.stopNow()
+                client.enableAuto(false)
+                uiStore.modes(checked, false)
+            }.onFailure {
+                syncSwitches()
+                Toast.makeText(this@TelegramAccountActivity, "Не удалось изменить способ отправки", Toast.LENGTH_LONG).show()
+            }.onSuccess {
+                syncSwitches()
+                Toast.makeText(this@TelegramAccountActivity,
+                    "Способ отправки изменён. Включите автоответы отдельным переключателем.", Toast.LENGTH_LONG).show()
+            }
+        }
+        autoReplies.setOnCheckedChangeListener { _, checked ->
+            if (syncingSwitches) return@setOnCheckedChangeListener
+            if (!checked) {
+                runCatching {
+                    if (uiStore.enabled) uiStore.modes(true, false) else client.enableAuto(false)
+                }.onFailure {
+                    Toast.makeText(this@TelegramAccountActivity, "Не удалось выключить автоответы", Toast.LENGTH_LONG).show()
+                }
+                syncSwitches()
+                return@setOnCheckedChangeListener
+            }
+            if (uiStore.enabled) {
+                val installed = TelegramUiPolicy.PACKAGES.any { pkg ->
+                    runCatching { packageManager.getPackageInfo(pkg, 0) }.isSuccess
+                }
+                if (!installed || !TelegramUiService.connected) {
+                    syncSwitches()
                     Toast.makeText(this@TelegramAccountActivity,
-                        "Сначала включите службу «CallShift — Telegram (имитация касаний)» в настройках специальных возможностей Android",
+                        if (!installed) "Установите Telegram" else "Включите службу Telegram в специальных возможностях Android",
                         Toast.LENGTH_LONG).show()
                     return@setOnCheckedChangeListener
                 }
-                runCatching { TelegramUiStore(this@TelegramAccountActivity).modes(checked, false) }
-                    .onFailure { Toast.makeText(this@TelegramAccountActivity, "Не удалось сохранить", Toast.LENGTH_LONG).show() }
+                runCatching { client.enableAuto(false); uiStore.modes(true, true) }
+                    .onFailure {
+                        syncSwitches()
+                        Toast.makeText(this@TelegramAccountActivity, "Не удалось разрешить автоответы", Toast.LENGTH_LONG).show()
+                    }.onSuccess { syncSwitches() }
+            } else {
+                if (!client.configured() || client.authorization.value != "authorizationStateReady") {
+                    syncSwitches()
+                    Toast.makeText(this@TelegramAccountActivity,
+                        "Сначала подключите аккаунт Telegram и дождитесь статуса «Аккаунт подключён»",
+                        Toast.LENGTH_LONG).show()
+                    return@setOnCheckedChangeListener
+                }
+                runCatching { uiStore.modes(false, false); client.enableAuto(true) }
+                    .onFailure {
+                        syncSwitches()
+                        Toast.makeText(this@TelegramAccountActivity, "Не удалось разрешить автоответы", Toast.LENGTH_LONG).show()
+                    }.onSuccess { syncSwitches() }
             }
-        })
-        val liveSwitch = ui.add(SwitchMaterial(this).apply {
-            text = "Разрешить реальную отправку"
-            setTextColor(getColor(fi.callshift.app.R.color.text_primary))
-            setOnCheckedChangeListener { _, checked ->
-                val s = TelegramUiStore(this@TelegramAccountActivity)
-                runCatching { s.modes(s.enabled, checked) }
-                    .onFailure { Toast.makeText(this@TelegramAccountActivity, "Не удалось сохранить", Toast.LENGTH_LONG).show() }
-            }
-        })
+        }
+        ui.hint("Выберите способ отправки. Один общий переключатель выше разрешает или останавливает автоответы этим способом. Переключение TDLib/имитация сбрасывает разрешение — его нужно включить отдельно.")
+        ui.header("Запасное обучение после обновления Telegram")
         ui.add(MaterialButton(this).apply {
-            text = "Обучить кнопку отправки Telegram"
+            text = "Обучить / переобучить кнопку Telegram"
             setOnClickListener {
                 if (!TelegramUiService.startSendTraining()) {
                     Toast.makeText(this@TelegramAccountActivity, TelegramUiService.trainStatus(this@TelegramAccountActivity).explanation, Toast.LENGTH_LONG).show()
@@ -118,21 +169,22 @@ class TelegramAccountActivity : AppCompatActivity() {
             }
         })
         ui.add(MaterialButton(this).apply {
-            text = "Забыть обученную кнопку отправки"
+            text = "Сбросить обучение кнопки"
             setOnClickListener {
                 runCatching {
-                    TelegramUiStore(this@TelegramAccountActivity).forgetSend()
-                    TelegramUiStore(this@TelegramAccountActivity).modes(
-                        TelegramUiStore(this@TelegramAccountActivity).enabled, false)
-                    Toast.makeText(this@TelegramAccountActivity, "Обучение забыто; реальная отправка выключена", Toast.LENGTH_SHORT).show()
+                    uiStore.forgetSend()
+                    uiStore.modes(uiStore.enabled, false)
+                    syncSwitches()
+                    Toast.makeText(this@TelegramAccountActivity, "Обучение сброшено; автоответы выключены", Toast.LENGTH_SHORT).show()
                 }
             }
         })
-        ui.hint("Кнопка отправки определяется автоматически — обучение не нужно. Пункт выше только для нестандартных сборок Telegram, если автоматическая отправка не срабатывает.")
+        ui.hint("Обычно Telegram определяет кнопку отправки сам. Переобучайте её только если после обновления кнопка не распознаётся; обучение сохраняет только способ нажатия, не чат и не текст.")
         ui.add(MaterialButton(this).apply {
             text = "Выйти из Telegram и выключить автоответы"
             setOnClickListener {
-                automatic.isChecked = false
+                autoReplies.isChecked = false
+                if (imitation.isChecked) imitation.isChecked = false
                 lifecycleScope.launch {
                     runCatching { client.logout() }.onFailure {
                         Toast.makeText(this@TelegramAccountActivity, "Автоответы выключены. Если выход не завершился, отзовите сессию в Telegram → Устройства.", Toast.LENGTH_LONG).show()
@@ -165,11 +217,15 @@ class TelegramAccountActivity : AppCompatActivity() {
                 launch {
                     while (true) {
                         val s = TelegramUiStore(this@TelegramAccountActivity)
-                        uiStatus.text = "Служба: ${if (TelegramUiService.connected) "подключена" else "не подключена"}; режим ${
-                            if (!s.enabled) "выключен" else if (s.live) "реальная отправка" else "проверка без отправки"}; кнопка ${
-                            if (s.learnedSend() != null) "обучена" else "не обучена"}\nСтатус обучения: ${
-                            TelegramUiService.trainStatus(this@TelegramAccountActivity).explanation}"
-                        liveSwitch.isChecked = s.live
+                        val repliesOn = if (s.enabled) s.live else client.autoEnabled()
+                        val training = TelegramUiService.trainStatus(this@TelegramAccountActivity)
+                        val trainingText = if (training == TelegramUiPolicy.TrainStatus.IDLE)
+                            "обучение не требуется; автоматическое распознавание активно" else training.explanation
+                        uiStatus.text = "Служба имитации: ${if (TelegramUiService.connected) "подключена" else "не подключена"}; способ ${
+                            if (s.enabled) "имитация касаний" else "TDLib"}; автоответы ${
+                            if (repliesOn) "разрешены" else "выключены"}; кнопка ${
+                            if (s.learnedSend() != null) "обучена (запасное правило)" else "определяется автоматически"}\nСтатус обучения: $trainingText"
+                        syncSwitches()
                         kotlinx.coroutines.delay(1000)
                     }
                 }

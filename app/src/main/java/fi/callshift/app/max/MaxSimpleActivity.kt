@@ -13,6 +13,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.switchmaterial.SwitchMaterial
 import fi.callshift.app.CallShiftApp
 import fi.callshift.app.domain.*
 import fi.callshift.app.forward.CallEvent
@@ -35,6 +36,8 @@ class MaxSimpleActivity : AppCompatActivity() {
     private lateinit var summary: TextView
     private lateinit var status: TextView
     private lateinit var mainButton: MaterialButton
+    private lateinit var autoReplySwitch: SwitchMaterial
+    private var syncingAutoReplySwitch = false
     private var accounts = emptyList<Pair<String, String>>()
     private var waiting: String? = null
     private var inFlight = false
@@ -55,6 +58,16 @@ class MaxSimpleActivity : AppCompatActivity() {
         ui.header("На какую SIM звонят")
         sim = ui.add(Spinner(this))
         summary = ui.hint("")
+        autoReplySwitch = ui.add(SwitchMaterial(this).apply {
+            text = "Разрешить реальные автоответы MAX"
+            setTextColor(getColor(fi.callshift.app.R.color.text_primary))
+            isChecked = store.enabled && store.live
+            isEnabled = store.enabled && store.live
+            setOnCheckedChangeListener { _, checked ->
+                if (!syncingAutoReplySwitch) setMaxAutoReplies(checked)
+            }
+        })
+        ui.hint("Переключатель включает или сразу останавливает новые реальные ответы MAX. Сначала нужно пройти проверку без отправки. Обучение кнопки отправки — запасной шаг, если MAX обновился и автоматическое распознавание перестало работать.")
         fun button(label: String, action: () -> Unit) = ui.add(MaterialButton(this).apply { this.text = label; setOnClickListener { action() } })
         button("Изменить MAX для этой SIM") { if (account() == null) message("Сначала выберите SIM") else chooseRoute() }
         ui.header("Проверочный получатель")
@@ -73,15 +86,10 @@ class MaxSimpleActivity : AppCompatActivity() {
         mainButton = button("Проверить без отправки") {
             runCatching { act() }.onFailure { message("Не удалось завершить действие. Автоматически не повторяем; проверьте состояние MAX.") }
         }
-        button("Остановить MAX") {
-            MaxUiService.stopNow(); runCatching { store.modes(false, false) }
-            notice = "MAX выключен. SMS и правила не изменены."; refresh()
-        }
-        button("Обучить кнопку отправки MAX") { trainSend() }
         button("Дополнительно") {
             AlertDialog.Builder(this).setTitle("Дополнительно")
                 .setItems(arrayOf("Журнал", "Тесты других каналов", "Технические настройки MAX", "Скопировать технический отчёт",
-                    "Начать новую проверку без отправки", "Обучить кнопку отправки MAX",
+                    "Начать новую проверку без отправки", "Запасное обучение кнопки отправки MAX",
                     "Скопировать настройку для нового телефона", "Вставить настройку с другого телефона")) { _, i ->
                     when (i) {
                         0 -> startActivity(Intent(this, fi.callshift.app.ui.LogActivity::class.java))
@@ -231,6 +239,11 @@ class MaxSimpleActivity : AppCompatActivity() {
             id != null && prefs.getString("simple_unsupported:$id", null) == supportKey(), app.settings.masterEnabled)
         summary.text = "MAX: ${route?.label ?: if (route != null) "обычный, без клона" else "не выбран"}\nОтправка: ${if (store.enabled && store.live) "разрешена по вашим правилам" else "выключена"}"
         mainButton.text = if (next == MaxSetupPolicy.Step.LIVE && prefs.contains("simple_send:$id")) "Результат тестовой отправки" else next.button
+        mainButton.visibility = if (next == MaxSetupPolicy.Step.ENABLE) android.view.View.GONE else android.view.View.VISIBLE
+        syncingAutoReplySwitch = true
+        autoReplySwitch.isChecked = store.enabled && store.live
+        autoReplySwitch.isEnabled = (store.enabled && store.live) || next in setOf(MaxSetupPolicy.Step.ENABLE, MaxSetupPolicy.Step.LIVE)
+        syncingAutoReplySwitch = false
         val waitMs = app.smsReplier.maxTestWaitMillis(app.normalizer.normalize(number.text.toString()).e164)
         val waitingCooldown = waitMs > 0 && (next == MaxSetupPolicy.Step.CHECK ||
             next == MaxSetupPolicy.Step.LIVE && !prefs.contains("simple_send:$id"))
@@ -248,7 +261,7 @@ class MaxSimpleActivity : AppCompatActivity() {
             MaxSetupPolicy.Step.MASTER -> "Главный переключатель CallShift выключен. Включение запустит все ваши активные правила, не только MAX."
             MaxSetupPolicy.Step.UNAVAILABLE -> "MAX пока не удалось настроить на этом устройстве. Автоматическая отправка не готова. Работающие SMS можно продолжать использовать; повторять тот же тест не нужно."
             MaxSetupPolicy.Step.CARD -> "Обычное нажатие недоступно. Можно проверить другой способ: касание распознанной области имени, без источника ручного события."
-            MaxSetupPolicy.Step.ENABLE -> "Получатель и пустое поле проверены. Нажатие отправки и доставка этим тестом не проверялись."
+            MaxSetupPolicy.Step.ENABLE -> "Проверка без отправки пройдена. Включите переключатель выше, чтобы разрешить реальные автоответы. Проверка не подтверждает нажатие кнопки или доставку сообщения."
             MaxSetupPolicy.Step.LIVE -> if (prefs.contains("simple_send:$id")) MaxTestSessionPolicy.result(sendEvent?.result, sendEvent?.errorMessage) +
                 "\nДля проверки звонком используйте существующее правило с каналом «MAX — эксперимент UI» и этой SIM. Итог — в журнале."
                 else "Реальные ответы разрешены. Теперь можно один раз отправить тестовый текст по номеру выше. Ответы на звонки зависят от ваших правил и выбранного в них канала."
@@ -259,6 +272,45 @@ class MaxSimpleActivity : AppCompatActivity() {
             }
         }
     }
+    private fun setMaxAutoReplies(enabled: Boolean) {
+        if (!enabled) {
+            runCatching { store.modes(false, false) }.onFailure {
+                syncMaxAutoReplySwitch(store.enabled && store.live)
+                message("Не удалось выключить MAX.")
+                return
+            }
+            MaxUiService.stopNow()
+            notice = "Автоответы MAX выключены. Правила, маршруты SIM и обучение сохранены."
+            refresh()
+            return
+        }
+        if (next !in setOf(MaxSetupPolicy.Step.ENABLE, MaxSetupPolicy.Step.LIVE)) {
+            syncMaxAutoReplySwitch(false)
+            message(status.text.toString().ifBlank { "Сначала завершите настройку MAX." })
+            return
+        }
+        if (next == MaxSetupPolicy.Step.LIVE && store.enabled && store.live) return
+        // Reset the visual toggle until the user confirms the real-send permission.
+        syncMaxAutoReplySwitch(false)
+        confirm("Разрешить реальные автоответы?", "Переключатель разрешит MAX отправлять реальные ответы только по вашим существующим правилам с каналом MAX и выбранной SIM. Проверка не доказывает доставку. Главный переключатель и сами правила не меняются.") {
+            val id = account(); val route = id?.let { routes.routes()[it] }
+            if (id == null || route == null || !checked() || !app.settings.masterEnabled || MaxUiService.running || store.version != version() || !MaxUiService.connected) {
+                message("Настройки изменились. Сначала повторите проверку.")
+                refresh()
+                return@confirm
+            }
+            runCatching { MaxUiService.diagnostics.clear(); store.modes(true, true); notice = "Автоответы MAX включены." }
+                .onFailure { message("Не удалось сохранить разрешение.") }
+            refresh()
+        }
+    }
+
+    private fun syncMaxAutoReplySwitch(checked: Boolean) {
+        syncingAutoReplySwitch = true
+        autoReplySwitch.isChecked = checked
+        syncingAutoReplySwitch = false
+    }
+
     private fun act() {
         notice = null; refresh()
         when (next) {
@@ -271,15 +323,7 @@ class MaxSimpleActivity : AppCompatActivity() {
             MaxSetupPolicy.Step.CARD -> confirm("Разрешить касание имени?", "Это другой способ: Android имитирует касание в центре распознанного имени контакта. Источник ручного нажатия не нужен. Координаты не сохраняются — область определяется заново.\n\nОткройте нужную копию MAX и личный чат с пустым полем. Дальше НЕ нажимайте имя сами: CallShift дважды проверит открытие карточки и возврат, затем постарается сам вернуть этот экран с результатом.\n\nСохраняется способ открытия, не контакт. Во время настройки сообщения не отправляются. Разрешаете такой способ?", "Разрешить и проверить") {
                 if (MaxUiService.startCardTraining(gesture = true)) launchMax("card") else message(MaxUiService.cardLearningStatus.explanation)
             }
-            MaxSetupPolicy.Step.ENABLE -> confirm("Разрешить реальные ответы?", "Разрешение включается для MAX в целом. Отправитель выбирается по SIM звонка, а текст — по вашим существующим правилам. Проверка не доказывает доставку. Главный переключатель и правила должны быть включены; они не меняются автоматически.") {
-                val id = account(); val route = id?.let { routes.routes()[it] }
-                if (id == null || route == null || !checked() || !app.settings.masterEnabled || MaxUiService.running || store.version != version() || !MaxUiService.connected) {
-                    message("Настройки изменились. Сначала повторите проверку."); return@confirm
-                }
-                runCatching { MaxUiService.diagnostics.clear(); store.modes(true, true); notice = null }
-                    .onFailure { message("Не удалось сохранить разрешение.") }
-                refresh()
-            }
+            MaxSetupPolicy.Step.ENABLE -> setMaxAutoReplies(true)
             MaxSetupPolicy.Step.MASTER -> confirm("Включить CallShift?", "Заработают все ваши активные правила: в том числе сброс звонков и SMS, если они настроены. Сами правила и их тексты не изменятся.") {
                 app.settings.setMasterEnabled(true); refresh()
             }

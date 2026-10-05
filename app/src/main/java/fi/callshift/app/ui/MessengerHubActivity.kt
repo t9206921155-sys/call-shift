@@ -17,6 +17,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.button.MaterialButton
 import fi.callshift.app.CallShiftApp
 import fi.callshift.app.R
+import fi.callshift.app.max.MaxRouteStore
 import fi.callshift.app.max.MaxUiService
 import fi.callshift.app.max.MaxUiStore
 import fi.callshift.app.sms.SmsBudgetStore
@@ -30,6 +31,7 @@ import kotlinx.coroutines.withContext
 class MessengerHubActivity : AppCompatActivity() {
     private val app by lazy { CallShiftApp.from(this) }
     private val maxStore by lazy { MaxUiStore(this) }
+    private val maxRoutes by lazy { MaxRouteStore(this) }
     private val maxInstalled by lazy {
         runCatching { packageManager.getPackageInfo(fi.callshift.app.domain.MaxUiPolicy.PACKAGE, 0).longVersionCode }.getOrDefault(-1)
     }
@@ -70,10 +72,10 @@ class MessengerHubActivity : AppCompatActivity() {
 
         ui.header("MAX — автоответ звонком в приложении MAX")
         maxLine = ui.hint("")
-        maxDetails = ui.hint("CallShift сам открывает MAX, находит звонившего по номеру, вводит текст из правила и нажимает обученную кнопку. Кнопка — константа: обучается один раз. Чужие черновики не трогаются.")
+        maxDetails = ui.hint("CallShift сам открывает MAX, находит звонившего по номеру и вводит текст из правила. Кнопка отправки распознаётся по доступному действию/подписи; обучение нужно только если проверка не может определить её однозначно. Чужие черновики не трогаются. После переподключения службы разрешение реальной отправки выключается.")
             .apply { visibility = View.GONE }
         ui.add(MaterialButton(this).apply {
-            text = "Настройка MAX: SIM, обучение, тест"
+            text = "Настройка MAX: SIM, автоответы, тест"
             isAllCaps = false
             setOnClickListener { startActivity(Intent(this@MessengerHubActivity, fi.callshift.app.max.MaxSimpleActivity::class.java)) }
         })
@@ -85,10 +87,10 @@ class MessengerHubActivity : AppCompatActivity() {
 
         ui.header("Telegram — автоответ через приложение Telegram")
         tgLine = ui.hint("")
-        tgDetails = ui.hint("Режим имитации: CallShift сам открывает Telegram, находит чат по номеру и нажимает кнопку — аккаунт в CallShift не нужен, обучение не требуется. Номер подтверждается; одна попытка, без повторов.")
+        tgDetails = ui.hint("В настройках Telegram — способ отправки и общий переключатель автоответов. При имитации CallShift сам находит чат по номеру; обучение кнопки — запасной вариант после изменения интерфейса.")
             .apply { visibility = View.GONE }
         ui.add(MaterialButton(this).apply {
-            text = "Аккаунт Telegram и имитация (2 переключателя)"
+            text = "Telegram: способ отправки и автоответы"
             isAllCaps = false
             setOnClickListener { startActivity(Intent(this@MessengerHubActivity, fi.callshift.app.telegram.TelegramAccountActivity::class.java)) }
         })
@@ -151,9 +153,15 @@ class MessengerHubActivity : AppCompatActivity() {
         if (!MaxUiService.connected) out += "включите службу MAX в спец. возможностях Android"
         if (maxStore.header.isEmpty() || maxStore.input.isEmpty()) out += "сохраните профиль чата на экране настройки MAX"
         else if (maxStore.version != maxInstalled) out += "MAX обновился — повторите профиль чата"
-        if (maxStore.learnedSend() == null) out += "обучите кнопку отправки"
+        val accounts = app.telecom.phoneAccounts().keys
+        val routes = maxRoutes.routes()
+        if (accounts.isEmpty()) out += "разрешите доступ к SIM и выберите SIM"
+        else if (accounts.any { routes[it] == null }) out += "выберите MAX для используемой SIM"
+        else if (accounts.any { id -> routes[id]?.let { !maxRoutes.tested(id, it) } == true })
+            out += "завершите проверку MAX без отправки для используемой SIM"
+        if (!app.settings.masterEnabled) out += "включите главный переключатель CallShift"
         if (!maxStore.enabled) out += "включите режим на экране настройки MAX"
-        else if (!maxStore.live) out += "разрешите реальную отправку"
+        else if (!maxStore.live) out += "разрешите реальную отправку; после переподключения службы это нужно сделать снова"
         return out
     }
 
@@ -161,12 +169,20 @@ class MessengerHubActivity : AppCompatActivity() {
         val tgUi = fi.callshift.app.telegram.TelegramUiStore(this)
         val out = mutableListOf<String>()
         if (!tgUi.enabled) {
-            if (!runCatching { app.telegram.autoEnabled() }.getOrDefault(false))
-                out += "выберите режим: имитация или аккаунт — на экране «Аккаунт Telegram»"
+            if (!runCatching { app.telegram.autoEnabled() }.getOrDefault(false)) {
+                out += "выберите режим и включите автоответы на экране «Аккаунт Telegram»"
+            } else if (!runCatching { app.telegram.configured() }.getOrDefault(false)) {
+                out += "подключите личный аккаунт Telegram на экране «Аккаунт Telegram»"
+            }
         } else {
+            val installed = fi.callshift.app.domain.TelegramUiPolicy.PACKAGES.any { pkg ->
+                runCatching { packageManager.getPackageInfo(pkg, 0) }.isSuccess
+            }
+            if (!installed) out += "установите Telegram"
             if (!fi.callshift.app.telegram.TelegramUiService.connected) out += "включите службу Telegram в спец. возможностях Android"
-            if (!tgUi.live) out += "разрешите реальную отправку"
+            if (!tgUi.live) out += "разрешите реальную отправку; после переподключения службы это нужно сделать снова"
         }
+        if (!app.settings.masterEnabled) out += "включите главный переключатель CallShift"
         return out
     }
 
@@ -178,8 +194,8 @@ class MessengerHubActivity : AppCompatActivity() {
             v.text = if (issues.isEmpty()) "● Готов — $ok" else "● Настроить — Дальше: ${issues.first()}"
             v.setTextColor(ContextCompat.getColor(this, if (issues.isEmpty()) R.color.status_ok else R.color.status_warn))
         }
-        line(maxLine, maxIssues(), "кнопка обучена, режим включён")
-        line(tgLine, tgIssues(), "кнопка определяется автоматически")
+        line(maxLine, maxIssues(), "SIM и режим отправки настроены")
+        line(tgLine, tgIssues(), "режим отправки настроен")
         line(smsLine, smsIssues(), "разрешение есть")
         maxLimitButton.text = "Лимит MAX в сутки: ${maxStore.sendLimit()}"
         tgLimitButton.text = "Лимит Telegram в сутки: ${app.settings.telegramDailyLimit}"

@@ -66,6 +66,19 @@ class SmsAutoReplier(
     private suspend fun replyLocked(ctx: CallContext, decision: Decision, template: String?) {
         if (template.isNullOrBlank()) return
         val channel = decision.matchedAction?.replyChannel ?: "SMS"
+        if (channel == fi.callshift.app.domain.TelegramReplyPolicy.CHANNEL) {
+            val telegramMode = fi.callshift.app.telegram.TelegramUiStore(appContext)
+            val telegramAutoEnabled = if (telegramMode.enabled) telegramMode.live
+                else fi.callshift.app.CallShiftApp.from(appContext).telegram.autoEnabled()
+            if (!telegramAutoEnabled) {
+                val uiMode = telegramMode.enabled
+                record(ctx, decision, "BLOCKED",
+                    if (uiMode) "telegram_ui_disabled" else "telegram_auto_disabled",
+                    if (uiMode) "Telegram: автоответы выключены переключателем. Сообщение не отправлено."
+                    else "Telegram: автоответы TDLib выключены переключателем. Сообщение не отправлено.")
+                return
+            }
+        }
         val settings = fi.callshift.app.CallShiftApp.from(appContext).settings
         val perSim = channel == "SMS" && settings.smsCooldownPerSim
         val rawAccount = ctx.phoneAccount?.id
@@ -105,9 +118,20 @@ class SmsAutoReplier(
                     return
                 }
                 if (channel == fi.callshift.app.domain.TelegramReplyPolicy.CHANNEL) {
+                    val telegramUi = fi.callshift.app.telegram.TelegramUiStore(appContext)
+                    if (telegramUi.enabled && !telegramUi.live) {
+                        record(ctx, decision, "BLOCKED", "telegram_ui_disabled",
+                            "Telegram: автоответы выключены переключателем. Сообщение не отправлено.")
+                        return
+                    }
+                    if (!telegramUi.enabled && !fi.callshift.app.CallShiftApp.from(appContext).telegram.autoEnabled()) {
+                        record(ctx, decision, "BLOCKED", "telegram_auto_disabled",
+                            "Telegram: автоответы TDLib выключены переключателем. Сообщение не отправлено.")
+                        return
+                    }
                     // Reserve before contacting Telegram: timeouts must not cause duplicate messages.
                     check(prefs.edit().putLong(key, now).commit()) { "Не удалось сохранить попытку Telegram" }
-                    if (fi.callshift.app.telegram.TelegramUiStore(appContext).enabled) {
+                    if (telegramUi.enabled) {
                         // Imitation mode: same principle as MAX, one attempt, no retries.
                         fi.callshift.app.telegram.TelegramUiService.submit(appContext,
                             event(ctx, decision, "TG_UI_PENDING", null,

@@ -359,8 +359,13 @@ class RuleEditActivity : AppCompatActivity() {
                         if (draft.action.autoReplySms != null && "SMS" in channels && draft.simSelector.startsWith("HANDLE:")) {
                             if (!app.smsReplier.canUseAccount(draft.simSelector.removePrefix("HANDLE:"))) problems += "Выбранная SIM не определена для отправки SMS."
                         }
-                        if (fi.callshift.app.domain.TelegramReplyPolicy.CHANNEL in channels &&
-                            (!app.telegram.configured() || !app.telegram.autoEnabled())) problems += "Telegram не подключён или автоотправка не разрешена."
+                        if (fi.callshift.app.domain.TelegramReplyPolicy.CHANNEL in channels) {
+                            val tgUi = fi.callshift.app.telegram.TelegramUiStore(this@RuleEditActivity)
+                            if (tgUi.enabled && (!fi.callshift.app.telegram.TelegramUiService.connected || !tgUi.live))
+                                problems += "Telegram-имитация выключена или служба специальных возможностей не подключена."
+                            else if (!tgUi.enabled && (!app.telegram.configured() || !app.telegram.autoEnabled()))
+                                problems += "Telegram TDLib не подключён или автоответы выключены."
+                        }
                         if (ruleId == 0L || existingRule == null) problems += "Правило ещё не сохранено — нажмите «Сохранить правило»."
                         if (problems.isNotEmpty()) {
                             append("\n⚠️ При реальном звонке помешает:\n")

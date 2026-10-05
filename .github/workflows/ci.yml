@@ -2,9 +2,10 @@ name: CallShift CI
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main", "master", "arena/**" ]
   pull_request:
     branches: [ "main", "master" ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -28,7 +29,7 @@ jobs:
       run: ./gradlew :app:testStandardDebugUnitTest --no-daemon
 
     - name: Build Standard Release & Debug APKs
-      run: ./gradlew :app:assembleStandardRelease :app:assembleStandardDebug --no-daemon
+      run: ./gradlew :app:assembleStandardRelease :app:assembleStandardDebug -PabiFilter=arm64-v8a --no-daemon
 
     - name: Upload Release APK
       uses: actions/upload-artifact@v4
